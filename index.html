@@ -1,0 +1,2549 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>인카금융 해빙총괄 운영 플랫폼 V2.0</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Pretendard',-apple-system,sans-serif;background:#070c16;color:#e2e8f0;min-height:100vh;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:#0f172a;}
+::-webkit-scrollbar-thumb{background:#334155;border-radius:3px;}
+.glass{background:rgba(15,23,42,0.7);border:1px solid rgba(51,65,85,0.4);backdrop-filter:blur(10px);}
+.kpi-card{background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.4);transition:all .2s;}
+.kpi-card:hover{border-color:rgba(59,130,246,0.5);transform:translateY(-1px);}
+.tab-btn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;transition:all .15s;cursor:pointer;white-space:nowrap;}
+.tab-btn.active{background:#3b82f6;color:#fff;}
+.tab-btn:not(.active){color:#94a3b8;}
+.tab-btn:not(.active):hover{color:#e2e8f0;background:rgba(51,65,85,0.4);}
+.risk-critical{border-left:3px solid #ef4444;}
+.risk-high{border-left:3px solid #f97316;}
+.risk-medium{border-left:3px solid #eab308;}
+.risk-good{border-left:3px solid #22c55e;}
+.tbl-row:hover td{background:rgba(30,41,59,0.5);}
+.pg-btn{padding:4px 10px;border-radius:6px;border:1px solid #334155;color:#94a3b8;font-size:11px;cursor:pointer;}
+.pg-btn:hover{background:#1e293b;color:#e2e8f0;}
+.pg-btn.active-pg{background:#3b82f6;border-color:#3b82f6;color:#fff;}
+.slicer-sel{background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;padding:6px 10px;border-radius:8px;font-size:11px;outline:none;width:100%;}
+.slicer-sel:focus{border-color:#3b82f6;}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;}
+.b-red{background:rgba(239,68,68,.15);color:#f87171;}
+.b-orange{background:rgba(249,115,22,.15);color:#fb923c;}
+.b-yellow{background:rgba(234,179,8,.15);color:#facc15;}
+.b-green{background:rgba(34,197,94,.15);color:#4ade80;}
+.b-blue{background:rgba(59,130,246,.15);color:#60a5fa;}
+.b-purple{background:rgba(168,85,247,.15);color:#c084fc;}
+.b-gray{background:rgba(100,116,139,.15);color:#94a3b8;}
+.mono{font-family:'Consolas',monospace;}
+.console-box{background:#000;border:1px solid #1e293b;border-radius:8px;padding:12px;font-family:'Consolas',monospace;font-size:11px;color:#4ade80;height:120px;overflow-y:auto;}
+.mcode-box{background:#000;border:1px solid #1e293b;border-radius:8px;padding:16px;font-family:'Consolas',monospace;font-size:11px;color:#4ade80;max-height:500px;overflow-y:auto;white-space:pre;}
+.prog-bar-bg{background:#1e293b;border-radius:999px;height:6px;overflow:hidden;}
+.prog-bar-fill{height:100%;border-radius:999px;transition:width .4s;}
+.drop-zone{border:2px dashed #334155;border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:all .2s;}
+.drop-zone:hover,.drop-zone.drag-over{border-color:#3b82f6;background:rgba(59,130,246,.03);}
+/* ── CHECKBOX SLICER ── */
+.sl-wrap{position:relative;flex-shrink:0;}
+.sl-label{font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+.sl-btn{background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;padding:6px 12px;border-radius:8px;font-size:11px;cursor:pointer;white-space:nowrap;min-width:110px;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:6px;transition:border-color .15s;}
+.sl-btn:hover{border-color:#3b82f6;}
+.sl-btn.active{border-color:#3b82f6;color:#60a5fa;background:rgba(59,130,246,.06);}
+.sl-btn .arr{color:#475569;font-size:9px;transition:transform .15s;flex-shrink:0;}
+.sl-btn.open .arr{transform:rotate(180deg);}
+.sl-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:500;background:#0d1117;border:1px solid #334155;border-radius:10px;padding:6px 4px;min-width:160px;max-height:240px;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.7);}
+.sl-all-row{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:11px;font-weight:700;color:#e2e8f0;cursor:pointer;border-bottom:1px solid #1e293b;margin-bottom:4px;border-radius:6px;}
+.sl-all-row:hover{background:rgba(30,41,59,.6);}
+.sl-item-row{display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:11px;color:#94a3b8;cursor:pointer;border-radius:6px;transition:background .1s;}
+.sl-item-row:hover{background:#1e293b;color:#e2e8f0;}
+.sl-all-row input,.sl-item-row input{accent-color:#3b82f6;width:13px;height:13px;cursor:pointer;flex-shrink:0;}
+input[type=file]{display:none;}
+.hidden{display:none!important;}
+</style>
+</head>
+<body>
+<!-- ── TOP BANNER ────────────────────────────────── -->
+<div style="background:linear-gradient(90deg,#1B3A6B,#2563EB);padding:6px 16px;font-size:11px;font-weight:700;text-align:center;color:#fff;letter-spacing:.05em;">
+  🏢 인카금융서비스 해빙총괄 | 조직 운영 관제 플랫폼 V2.0 | <span id="sim-badge" style="color:#fde68a;">⚡ 가상 샘플 모드</span>
+</div>
+
+<!-- ── HEADER ───────────────────────────────────── -->
+<header class="glass" style="padding:14px 20px;border-bottom:1px solid rgba(51,65,85,.5);position:sticky;top:0;z-index:50;">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="background:linear-gradient(135deg,#3b82f6,#6366f1);border-radius:12px;padding:8px;"><i data-lucide="layout-dashboard" style="width:20px;height:20px;color:#fff;"></i></div>
+      <div>
+        <div style="font-size:16px;font-weight:900;color:#fff;">인카금융 해빙총괄 운영 플랫폼</div>
+        <div style="font-size:10px;color:#64748b;margin-top:1px;">V2.0 Enterprise · KPI 13종 · 관제센터 · 예측엔진 · 자동 위험 감지</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button id="clear-filter-btn" class="hidden" onclick="clearAllFilters()" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#f87171;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">✕ 필터 전체해제</button>
+      <div style="background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);color:#facc15;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px;">
+        <span id="data-mode-dot" style="width:7px;height:7px;border-radius:50%;background:#facc15;display:inline-block;animation:ping 1s infinite;"></span>
+        <span id="data-mode-text">샘플 데이터</span>
+      </div>
+    </div>
+  </div>
+  <!-- TAB NAV -->
+  <div style="display:flex;gap:4px;margin-top:12px;overflow-x:auto;padding-bottom:2px;" id="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('dashboard')" id="tb-dashboard">📊 종합 대시보드</button>
+    <button class="tab-btn" onclick="switchTab('action')" id="tb-action">🚨 관제센터</button>
+    <button class="tab-btn" onclick="switchTab('branch')" id="tb-branch">🏢 조직분석</button>
+    <button class="tab-btn" onclick="switchTab('top20')" id="tb-top20">🏆 설계사 TOP20</button>
+    <button class="tab-btn" onclick="switchTab('risk')" id="tb-risk">⚠️ 위험군 관리</button>
+    <button class="tab-btn" onclick="switchTab('insurance')" id="tb-insurance">📋 보험종목</button>
+    <button class="tab-btn" onclick="switchTab('forecast')" id="tb-forecast">🔮 예측분석</button>
+    <button class="tab-btn" onclick="switchTab('dna')" id="tb-dna">🧬 Success DNA</button>
+    <button class="tab-btn" onclick="switchTab('dataview')" id="tb-dataview">🗂 마스터 데이터</button>
+    <button class="tab-btn" onclick="switchTab('upload')" id="tb-upload">☁️ 데이터 연동</button>
+    <button class="tab-btn" onclick="switchTab('mcode')" id="tb-mcode">⚙️ Power Query</button>
+  </div>
+</header>
+
+<!-- ── SLICERS ────────────────────────────────────── -->
+<div class="glass" style="padding:12px 20px;border-bottom:1px solid rgba(51,65,85,.4);position:sticky;top:57px;z-index:45;overflow:visible;">
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+    <div class="sl-wrap" id="sw-year">
+      <div class="sl-label">납입연도</div>
+      <button class="sl-btn" id="sl-year-btn" onclick="togglePanel(event,'year')">전체 <span class="arr">▾</span></button>
+      <div class="sl-panel hidden" id="sp-year">
+        <label class="sl-all-row"><input type="checkbox" id="sa-year" onchange="toggleAll('year')"> 전체 선택</label>
+        <div id="sl-year-list"></div>
+      </div>
+    </div>
+    <div class="sl-wrap" id="sw-month">
+      <div class="sl-label">납입월</div>
+      <button class="sl-btn" id="sl-month-btn" onclick="togglePanel(event,'month')">전체 <span class="arr">▾</span></button>
+      <div class="sl-panel hidden" id="sp-month">
+        <label class="sl-all-row"><input type="checkbox" id="sa-month" onchange="toggleAll('month')"> 전체 선택</label>
+        <div id="sl-month-list"></div>
+      </div>
+    </div>
+    <div class="sl-wrap" id="sw-branch2">
+      <div class="sl-label">소속본부</div>
+      <button class="sl-btn" id="sl-branch2-btn" onclick="togglePanel(event,'branch2')">전체 <span class="arr">▾</span></button>
+      <div class="sl-panel hidden" id="sp-branch2">
+        <label class="sl-all-row"><input type="checkbox" id="sa-branch2" onchange="toggleAll('branch2')"> 전체 선택</label>
+        <div id="sl-branch2-list"></div>
+      </div>
+    </div>
+    <div class="sl-wrap" id="sw-category">
+      <div class="sl-label">보험종목</div>
+      <button class="sl-btn" id="sl-category-btn" onclick="togglePanel(event,'category')">전체 <span class="arr">▾</span></button>
+      <div class="sl-panel hidden" id="sp-category">
+        <label class="sl-all-row"><input type="checkbox" id="sa-category" onchange="toggleAll('category')"> 전체 선택</label>
+        <div id="sl-category-list"></div>
+      </div>
+    </div>
+    <div class="sl-wrap" id="sw-company">
+      <div class="sl-label">보험회사</div>
+      <button class="sl-btn" id="sl-company-btn" onclick="togglePanel(event,'company')">전체 <span class="arr">▾</span></button>
+      <div class="sl-panel hidden" id="sp-company">
+        <label class="sl-all-row"><input type="checkbox" id="sa-company" onchange="toggleAll('company')"> 전체 선택</label>
+        <div id="sl-company-list"></div>
+      </div>
+    </div>
+    <div class="sl-wrap" id="sw-payMethod">
+      <div class="sl-label">납입방법</div>
+      <button class="sl-btn" id="sl-payMethod-btn" onclick="togglePanel(event,'payMethod')">전체 <span class="arr">▾</span></button>
+      <div class="sl-panel hidden" id="sp-payMethod">
+        <label class="sl-all-row"><input type="checkbox" id="sa-payMethod" onchange="toggleAll('payMethod')"> 전체 선택</label>
+        <div id="sl-payMethod-list"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── MAIN CONTENT ──────────────────────────────── -->
+<main style="padding:20px;max-width:1700px;margin:0 auto;">
+
+<!-- ==================== TAB: DASHBOARD ==================== -->
+<div id="tab-dashboard">
+  <!-- 연간/월평균 토글 -->
+  <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
+    <span style="font-size:11px;color:#64748b;font-weight:700;">기간 단위:</span>
+    <button id="vm-total-btn" onclick="setViewMode('total')"
+      style="padding:5px 14px;border-radius:20px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid rgba(59,130,246,.5);background:rgba(59,130,246,.2);color:#93c5fd;">
+      연간 합계
+    </button>
+    <button id="vm-monthly-btn" onclick="setViewMode('monthly')"
+      style="padding:5px 14px;border-radius:20px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid rgba(100,116,139,.3);background:transparent;color:#64748b;">
+      월평균
+    </button>
+    <span id="vm-period-label" style="font-size:10px;color:#64748b;margin-left:4px;"></span>
+  </div>
+  <!-- KPI CARDS A-H (8 cards) -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;" id="kpi-grid"></div>
+
+  <!-- CHARTS ROW -->
+  <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:16px;margin-bottom:20px;">
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">월별 실적 추이 (보라=월보험료 / 초록=인정실적)</div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:12px;">전월대비·YoY 보조선 포함</div>
+      <div style="height:220px;position:relative;"><canvas id="ch-trend"></canvas></div>
+    </div>
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">본부별 인정실적 비중</div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:12px;">클릭 시 해당 본부 필터 적용</div>
+      <div style="height:220px;position:relative;"><canvas id="ch-branch-donut"></canvas></div>
+    </div>
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">보험종목별 비중</div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:12px;">생명보험 / 손해보험 구성</div>
+      <div style="height:220px;position:relative;"><canvas id="ch-cat-pie"></canvas></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM ROW: 본부 매트릭스 + 설계사 TOP5 -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">본부별 실적 매트릭스</div>
+      <div id="branch-matrix-mini" style="overflow-y:auto;max-height:240px;"></div>
+    </div>
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">설계사 실적 TOP 5 (현재 필터 기준)</div>
+      <div id="agent-top5" style="overflow-y:auto;max-height:240px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TAB: ACTION CENTER ==================== -->
+<div id="tab-action" class="hidden">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+    <div>
+      <div style="font-size:18px;font-weight:900;color:#fff;">🚨 관리자 관제센터 — 위험 경보 시스템</div>
+      <div style="font-size:11px;color:#64748b;margin-top:2px;">실시간 조직·설계사 이상 감지 | 위험도 높은 순 자동 정렬</div>
+    </div>
+    <div style="display:flex;gap:8px;" id="risk-summary-badges"></div>
+  </div>
+  <div id="action-cards" style="display:flex;flex-direction:column;gap:10px;"></div>
+</div>
+
+<!-- ==================== TAB: BRANCH ANALYSIS ==================== -->
+<div id="tab-branch" class="hidden">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;" id="branch-tbl-title">본부(소속_2단계) 실적 분석</div>
+      <div style="overflow-y:auto;max-height:400px;" id="branch-tbl-wrap"></div>
+    </div>
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">인정실적 순위</div>
+      <div style="height:350px;position:relative;"><canvas id="ch-branch-bar"></canvas></div>
+    </div>
+  </div>
+  <div class="glass" style="padding:16px;border-radius:16px;">
+    <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">생산성 분석 (인정실적 ÷ 재직인원)</div>
+    <div style="height:200px;position:relative;"><canvas id="ch-productivity"></canvas></div>
+  </div>
+</div>
+
+<!-- ==================== TAB: TOP20 ==================== -->
+<div id="tab-top20" class="hidden">
+  <div class="glass" style="padding:20px;border-radius:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:16px;font-weight:900;color:#fff;">🏆 설계사 인정실적 TOP 20</div>
+        <div style="font-size:10px;color:#64748b;margin-top:2px;">현재 슬라이서 필터 적용 기준 | 재직·퇴사 구분 표시</div>
+      </div>
+      <button onclick="exportCSV('top20')" style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#4ade80;padding:6px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">⬇ CSV 내보내기</button>
+    </div>
+    <div style="overflow-x:auto;"><div id="top20-tbl"></div></div>
+  </div>
+</div>
+
+<!-- ==================== TAB: RISK AGENTS ==================== -->
+<div id="tab-risk" class="hidden">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:14px;font-weight:800;color:#f87171;margin-bottom:12px;">🔴 이탈 위험 설계사 (무실적)</div>
+      <div id="risk-agent-list" style="overflow-y:auto;max-height:500px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:14px;font-weight:800;color:#fb923c;margin-bottom:12px;">📉 위험 본부 현황</div>
+      <div id="risk-branch-list" style="overflow-y:auto;max-height:500px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TAB: INSURANCE ==================== -->
+<div id="tab-insurance" class="hidden">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">보험종목별 실적</div>
+      <div id="ins-cat-tbl"></div>
+    </div>
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">원수사별 인정실적 TOP 10</div>
+      <div style="height:300px;position:relative;"><canvas id="ch-company-bar"></canvas></div>
+    </div>
+  </div>
+  <div class="glass" style="padding:16px;border-radius:16px;">
+    <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">원수사 × 보험종목 상세</div>
+    <div style="overflow-x:auto;" id="ins-detail-tbl"></div>
+  </div>
+</div>
+
+<!-- ==================== TAB: FORECAST ==================== -->
+<div id="tab-forecast" class="hidden">
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px;">
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:14px;font-weight:800;color:#c084fc;margin-bottom:4px;">🔮 인정실적 예측 엔진 (선형 회귀)</div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:12px;">최근 데이터 기반 선형 추세 · 익월 예상 실적 산출</div>
+      <div style="height:280px;position:relative;"><canvas id="ch-forecast"></canvas></div>
+    </div>
+    <div class="glass" style="padding:16px;border-radius:16px;" id="forecast-kpi-panel">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">예측 KPI</div>
+    </div>
+  </div>
+  <div class="glass" style="padding:16px;border-radius:16px;">
+    <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">본부별 성장률 분석 (전월 대비)</div>
+    <div style="height:220px;position:relative;"><canvas id="ch-growth"></canvas></div>
+  </div>
+</div>
+
+<!-- ==================== TAB: SUCCESS DNA ==================== -->
+<div id="tab-dna" class="hidden">
+  <!-- 데이터 가용성 배너 -->
+  <div class="glass" style="padding:14px 16px;border-radius:14px;margin-bottom:14px;border:1px solid rgba(192,132,252,.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:14px;font-weight:800;color:#c084fc;">🧬 Success DNA · AI 예측 엔진 (실데이터 연결)</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:3px;">DATA_MASTER(건별실적+직원관리)에서 파생변수를 산출해 설계사별 Success DNA·정착·먹튀·환수 위험을 추정합니다.</div>
+      </div>
+      <div id="dna-data-mode" style="font-size:10px;font-weight:800;padding:5px 12px;border-radius:8px;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);color:#60a5fa;">데이터 모드</div>
+    </div>
+  </div>
+
+  <!-- 요약 카드 -->
+  <div id="dna-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px;"></div>
+
+  <!-- 데이터 갭 패널 -->
+  <div class="glass" style="padding:14px 16px;border-radius:14px;margin-bottom:14px;border-left:3px solid #f59e0b;">
+    <div style="font-size:12px;font-weight:800;color:#fbbf24;margin-bottom:8px;">⚠ 데이터 갭 — 현재 컬럼으로 계산 가능 vs 추가 수집 필요</div>
+    <div id="dna-gap" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:10.5px;"></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="glass" style="padding:16px;border-radius:14px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:10px;">부분 Success DNA Score 분포 (활동+파이프라인, 가중 50%)</div>
+      <div style="height:240px;position:relative;"><canvas id="ch-dna-dist"></canvas></div>
+    </div>
+    <div class="glass" style="padding:16px;border-radius:14px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:10px;">엔진 산출 로직 (Proxy 기반)</div>
+      <div id="dna-logic" style="font-size:10.5px;color:#94a3b8;line-height:1.7;"></div>
+    </div>
+  </div>
+
+  <!-- 설계사별 진단 테이블 -->
+  <div class="glass" style="padding:16px;border-radius:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;">설계사별 Success DNA · 위험 진단 (정착확률 낮은 순)</div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <select id="dna-sort" onchange="renderDNA()" style="background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;padding:5px 10px;border-radius:8px;font-size:10px;outline:none;">
+          <option value="settle">정착확률 낮은 순</option>
+          <option value="taker">먹튀 위험 높은 순</option>
+          <option value="churn">환수 위험 높은 순</option>
+          <option value="dna">부분 DNA 낮은 순</option>
+        </select>
+        <button onclick="exportDNA()" style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#4ade80;padding:5px 12px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;">⬇ CSV</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto;border:1px solid #1e293b;border-radius:10px;max-height:520px;overflow-y:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead><tr style="background:#0f172a;position:sticky;top:0;z-index:5;">
+          <th style="padding:9px 8px;text-align:left;color:#64748b;font-weight:700;white-space:nowrap;">설계사</th>
+          <th style="padding:9px 8px;text-align:left;color:#64748b;font-weight:700;white-space:nowrap;">본부</th>
+          <th style="padding:9px 8px;text-align:right;color:#64748b;font-weight:700;">근속(월)</th>
+          <th style="padding:9px 8px;text-align:right;color:#64748b;font-weight:700;">활동DNA</th>
+          <th style="padding:9px 8px;text-align:right;color:#64748b;font-weight:700;">파이프DNA</th>
+          <th style="padding:9px 8px;text-align:right;color:#64748b;font-weight:700;">부분DNA</th>
+          <th style="padding:9px 8px;text-align:center;color:#64748b;font-weight:700;">정착확률</th>
+          <th style="padding:9px 8px;text-align:center;color:#64748b;font-weight:700;">TAKER신호</th>
+          <th style="padding:9px 8px;text-align:center;color:#64748b;font-weight:700;">먹튀위험</th>
+          <th style="padding:9px 8px;text-align:center;color:#64748b;font-weight:700;">환수등급</th>
+        </tr></thead>
+        <tbody id="dna-tbody"></tbody>
+      </table>
+    </div>
+    <div style="font-size:9.5px;color:#64748b;margin-top:8px;">* 정착·먹튀·환수 추정은 소개·면담·실제환수 데이터 부재로 <b style="color:#fbbf24;">계산 가능한 거래·근속 변수 기반 Proxy</b>입니다. 실제 라벨 확보 후 로지스틱 계수 재추정(calibration) 필요.</div>
+  </div>
+</div>
+
+<!-- ==================== TAB: DATA VIEW ==================== -->
+<div id="tab-dataview" class="hidden">
+  <div class="glass" style="padding:16px;border-radius:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:14px;font-weight:800;color:#fff;">DATA_MASTER 통합 시트</div>
+        <div style="font-size:10px;color:#64748b;margin-top:2px;">건별실적 + 직원관리 Left Outer Join | SUNAB_PK 중복제거 완료</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="text" id="dv-search" placeholder="성명·본부·보험회사 검색..." onkeyup="dvSearch()" style="background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;padding:6px 12px;border-radius:8px;font-size:11px;width:200px;outline:none;">
+        <button onclick="exportCSV('master')" style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#4ade80;padding:6px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">⬇ CSV</button>
+        <span style="font-size:11px;color:#64748b;"><span id="dv-count">0</span>건</span>
+      </div>
+    </div>
+    <div style="overflow-x:auto;border:1px solid #1e293b;border-radius:10px;max-height:450px;overflow-y:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:11px;" id="dv-tbl">
+        <thead>
+          <tr style="background:#0f172a;border-bottom:1px solid #1e293b;position:sticky;top:0;z-index:5;">
+            <th style="padding:10px 8px;text-align:left;color:#64748b;font-weight:700;white-space:nowrap;">납입월도</th>
+            <th style="padding:10px 8px;text-align:left;color:#64748b;font-weight:700;">담당자</th>
+            <th style="padding:10px 8px;text-align:left;color:#64748b;font-weight:700;">소속본부</th>
+            <th style="padding:10px 8px;text-align:left;color:#64748b;font-weight:700;">보험종목</th>
+            <th style="padding:10px 8px;text-align:left;color:#64748b;font-weight:700;">보험회사</th>
+            <th style="padding:10px 8px;text-align:left;color:#64748b;font-weight:700;">납입방법</th>
+            <th style="padding:10px 8px;text-align:right;color:#64748b;font-weight:700;">월보험료</th>
+            <th style="padding:10px 8px;text-align:right;color:#64748b;font-weight:700;">인정실적</th>
+            <th style="padding:10px 8px;text-align:center;color:#64748b;font-weight:700;">등록구분</th>
+          </tr>
+        </thead>
+        <tbody id="dv-body"></tbody>
+      </table>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;">
+      <div id="dv-pagination" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+      <div style="font-size:10px;color:#64748b;">페이지당 50건</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TAB: UPLOAD ==================== -->
+<div id="tab-upload" class="hidden">
+  <!-- ── 로컬 폴더 연결 ── -->
+  <div class="glass" style="padding:20px;border-radius:16px;margin-bottom:16px;border:1px solid rgba(59,130,246,.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+      <div>
+        <div style="font-size:14px;font-weight:800;color:#60a5fa;display:flex;align-items:center;gap:8px;"><i data-lucide="folder-sync" style="width:16px;height:16px;"></i> 폴더 자동 연결</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:4px;" id="folder-status">폴더를 한 번 연결하면 이후 자동 갱신됩니다 (Chrome·Edge)</div>
+        <div style="font-size:10px;color:#64748b;margin-top:2px;font-family:monospace;" id="folder-path-display">연결된 폴더 없음</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button id="connect-folder-btn" onclick="connectFolder()" style="background:linear-gradient(135deg,#3b82f6,#6366f1);border:none;color:#fff;padding:10px 18px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;"><i data-lucide="folder-plus" style="width:14px;height:14px;"></i> 폴더 연결</button>
+        <button id="refresh-folder-btn" onclick="refreshFolder()" disabled style="background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#4ade80;padding:10px 18px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;opacity:.5;"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> 폴더 새로고침</button>
+        <button onclick="resetCache()" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#f87171;padding:10px 14px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;" title="캐시 초기화"><i data-lucide="trash-2" style="width:13px;height:13px;"></i></button>
+      </div>
+    </div>
+    <div id="folder-file-list" style="margin-top:12px;display:none;">
+      <div style="font-size:10px;color:#64748b;font-weight:800;text-transform:uppercase;margin-bottom:6px;">감지된 파일</div>
+      <div id="folder-files" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
+    <div id="fsapi-unsupported" style="display:none;margin-top:10px;background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);border-radius:8px;padding:10px;font-size:11px;color:#facc15;">
+      ⚠️ 현재 브라우저는 폴더 자동 연결을 지원하지 않습니다. Chrome 또는 Edge에서 열거나, 아래 드래그앤드롭을 사용하세요.
+    </div>
+  </div>
+
+  <!-- ── 클라우드 동기화 ── -->
+  <div class="glass" style="padding:20px;border-radius:16px;margin-bottom:16px;border:1px solid rgba(16,185,129,.3);">
+    <div style="font-size:14px;font-weight:800;color:#34d399;display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <i data-lucide="share-2" style="width:16px;height:16px;"></i> 경영진 공유
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+      <!-- STEP 1 -->
+      <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:12px;padding:14px;">
+        <div style="font-size:10px;color:#60a5fa;font-weight:800;margin-bottom:6px;">STEP 1 — 로컬 로드</div>
+        <div id="as-load-status" style="font-size:11px;color:#94a3b8;margin-bottom:8px;">폴더 연결 후 새로고침</div>
+        <button onclick="refreshFolder()" style="width:100%;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.4);color:#93c5fd;padding:8px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;">
+          🔄 폴더 새로고침
+        </button>
+      </div>
+      <!-- STEP 2 -->
+      <div style="background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.2);border-radius:12px;padding:14px;">
+        <div style="font-size:10px;color:#34d399;font-weight:800;margin-bottom:6px;">STEP 2 — 클라우드 저장</div>
+        <div id="as-sync-status" style="font-size:11px;color:#94a3b8;margin-bottom:8px;">로드 완료 후 직접 마감</div>
+        <button onclick="manualPushToAS()" style="width:100%;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#34d399;padding:8px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;">
+          ✅ 마감 동기화
+        </button>
+      </div>
+      <!-- STEP 3 -->
+      <div style="background:rgba(139,92,246,.05);border:1px solid rgba(139,92,246,.2);border-radius:12px;padding:14px;">
+        <div style="font-size:10px;color:#a78bfa;font-weight:800;margin-bottom:6px;">STEP 3 — 링크 공유</div>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:6px;">경영진에게 공유</div>
+        <div style="font-size:10px;background:rgba(15,23,42,.8);border:1px solid #1e293b;border-radius:6px;padding:5px 8px;color:#7c3aed;font-family:monospace;word-break:break-all;margin-bottom:6px;">
+          Lucky-Tim.github.io/inca-dashboard/viewer.html
+        </div>
+        <button onclick="navigator.clipboard.writeText('https://Lucky-Tim.github.io/inca-dashboard/viewer.html').then(()=>setAsStatus('✅ 복사됨','#4ade80'))" style="width:100%;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.3);color:#a78bfa;padding:6px;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer;">
+          📋 링크 복사
+        </button>
+      </div>
+    </div>
+    <div id="as-status" style="font-size:11px;color:#64748b;min-height:18px;margin-bottom:8px;"></div>
+    <details style="margin-top:4px;">
+      <summary style="font-size:10px;color:#475569;cursor:pointer;font-weight:700;">⚙️ 고급 설정 (URL · 보안키)</summary>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;">
+        <div style="flex:1;min-width:280px;">
+          <div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:4px;">Apps Script 배포 URL</div>
+          <input id="as-url-input" type="text" placeholder="https://script.google.com/macros/s/..."
+            style="width:100%;background:rgba(15,23,42,.8);border:1px solid rgba(51,65,85,.6);color:#e2e8f0;padding:8px 12px;border-radius:8px;font-size:11px;box-sizing:border-box;"
+            oninput="saveAsConfig()">
+        </div>
+        <div style="min-width:130px;">
+          <div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:4px;">보안 키 (SYNC_KEY)</div>
+          <input id="as-key-input" type="text" placeholder="INCA2026"
+            style="width:100%;background:rgba(15,23,42,.8);border:1px solid rgba(51,65,85,.6);color:#e2e8f0;padding:8px 12px;border-radius:8px;font-size:11px;box-sizing:border-box;"
+            oninput="saveAsConfig()">
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:16px;">
+    <div class="glass" style="padding:20px;border-radius:16px;">
+      <div style="font-size:13px;font-weight:800;color:#60a5fa;margin-bottom:16px;">📂 수동 업로드 (드래그앤드롭)</div>
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" multiple accept=".xlsx,.xls,.csv" onchange="handleFiles(this.files)">
+        <div style="font-size:32px;margin-bottom:8px;">📁</div>
+        <div style="font-size:12px;font-weight:700;color:#e2e8f0;">파일을 드래그하거나 클릭하여 업로드</div>
+        <div style="font-size:10px;color:#64748b;margin-top:4px;">직원관리_*.xlsx · 건별실적_*.xlsx</div>
+      </div>
+      <button onclick="resetToMock()" style="width:100%;margin-top:10px;background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:8px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">🔄 샘플 데이터로 초기화</button>
+    </div>
+    <div class="glass" style="padding:20px;border-radius:16px;">
+      <div style="font-size:13px;font-weight:800;color:#4ade80;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><i data-lucide="activity" style="width:14px;height:14px;"></i> 파이프라인 처리 로그</div>
+      <div class="console-box" id="parse-console"><span style="color:#64748b;">[대기] 파일을 업로드하면 파이프라인이 시작됩니다.</span></div>
+    </div>
+  </div>
+  <!-- Validation steps -->
+  <div class="glass" style="padding:16px;border-radius:16px;margin-bottom:16px;">
+    <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">✅ 자가 진단 체크리스트</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
+      <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;">
+        <div style="font-size:9px;color:#60a5fa;font-weight:800;text-transform:uppercase;margin-bottom:4px;">STEP 1</div>
+        <div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:4px;">폴더 경로 확인</div>
+        <div style="font-size:10px;color:#94a3b8;">inka_data_folder 폴더가 바탕화면에 있는지 대소문자 포함 확인</div>
+      </div>
+      <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;">
+        <div style="font-size:9px;color:#60a5fa;font-weight:800;text-transform:uppercase;margin-bottom:4px;">STEP 2</div>
+        <div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:4px;">파일 형식 확인</div>
+        <div style="font-size:10px;color:#94a3b8;">.xlsx 파일 확인. CSV가 아닌 Excel 파일 기준으로 M-Code 적용</div>
+      </div>
+      <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;">
+        <div style="font-size:9px;color:#60a5fa;font-weight:800;text-transform:uppercase;margin-bottom:4px;">STEP 3</div>
+        <div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:4px;">건별실적 7행 제거</div>
+        <div style="font-size:10px;color:#94a3b8;">상위 1~7행이 요약 헤더. 파일별 처리 후 결합. 결합 후 제거 금지</div>
+      </div>
+      <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;">
+        <div style="font-size:9px;color:#60a5fa;font-weight:800;text-transform:uppercase;margin-bottom:4px;">STEP 4</div>
+        <div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:4px;">조인 키 확인</div>
+        <div style="font-size:10px;color:#94a3b8;">담당자코드(Text) ↔ 사원번호(Text) 형식 일치 확인</div>
+      </div>
+    </div>
+  </div>
+  <!-- File cards -->
+  <div id="file-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;"></div>
+</div>
+
+<!-- ==================== TAB: MCODE ==================== -->
+<div id="tab-mcode" class="hidden">
+  <div style="display:grid;grid-template-columns:200px 1fr;gap:16px;">
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <button class="tab-btn active" id="mc-btn-1" onclick="switchMC(1)" style="text-align:left;padding:10px 12px;">1. 직원관리 쿼리</button>
+      <button class="tab-btn" id="mc-btn-2" onclick="switchMC(2)" style="text-align:left;padding:10px 12px;">2. 건별실적 쿼리</button>
+      <button class="tab-btn" id="mc-btn-3" onclick="switchMC(3)" style="text-align:left;padding:10px 12px;">3. DATA_MASTER 결합</button>
+      <div class="glass" style="padding:12px;border-radius:10px;margin-top:8px;">
+        <div style="font-size:9px;color:#60a5fa;font-weight:800;text-transform:uppercase;margin-bottom:6px;">파라미터</div>
+        <div style="font-size:10px;color:#94a3b8;margin-bottom:4px;">폴더 경로</div>
+        <input type="text" id="mc-folder" value="C:\\Users\\hara6\\OneDrive\\바탕 화면\\inka_data_folder" oninput="renderMCode()" style="background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;padding:6px;border-radius:6px;font-size:9px;width:100%;outline:none;font-family:monospace;">
+        <div style="font-size:10px;color:#94a3b8;margin:8px 0 4px;">스킵 행수</div>
+        <select id="mc-skip" onchange="renderMCode()" style="background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;padding:6px;border-radius:6px;font-size:10px;width:100%;outline:none;">
+          <option value="7" selected>7행 (표준)</option>
+          <option value="5">5행</option>
+          <option value="8">8행</option>
+        </select>
+        <div style="font-size:10px;color:#94a3b8;margin:8px 0 4px;">조인 방식</div>
+        <select id="mc-join" onchange="renderMCode()" style="background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;padding:6px;border-radius:6px;font-size:10px;width:100%;outline:none;">
+          <option value="LeftOuter" selected>Left Outer</option>
+          <option value="Inner">Inner</option>
+        </select>
+      </div>
+    </div>
+    <div class="glass" style="border-radius:16px;overflow:hidden;">
+      <div style="background:#0f172a;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e293b;">
+        <div style="font-size:11px;font-weight:700;color:#e2e8f0;" id="mc-title">직원관리 — Excel.Workbook 파서 M-Code</div>
+        <button onclick="copyMCode()" style="background:#6366f1;border:none;color:#fff;padding:6px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;" id="copy-mc-btn">📋 복사</button>
+      </div>
+      <div class="mcode-box" id="mc-display"></div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- STYLE: ping animation -->
+<style>
+@keyframes ping{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+
+<!-- ═══════════════════════ SCRIPTS ═══════════════════════ -->
+<script>
+// ─── CONSTANTS ───────────────────────────────────────────
+const COLORS10 = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#6366f1','#14b8a6','#f43f5e','#84cc16','#f97316'];
+// 납입월도 YYYYMM → 'YYYY년 MM월' 동적 변환 (하드코딩 제거)
+function monthLabel(m) {
+  const s = String(m).trim();
+  if (s.length !== 6) return s;
+  return `${s.slice(0,4)}년 ${String(parseInt(s.slice(4,6))).padStart(2,'0')}월`;
+}
+const LIFE_COS  = ['신한라이프','교보생명','한화생명','NH농협생명','동양생명','삼성생명','미래에셋생명'];
+const FIRE_COS  = ['메리츠화재','삼성화재','KB손보','DB손보','현대해상','흥국화재','한화손보'];
+const PAY_METHODS = ['월납','연납','일시납','분기납'];
+
+// ─── STATE ───────────────────────────────────────────────
+const STATE = {
+  employees: [], performance: [], merged: [],
+  filters: { year: new Set(), month: new Set(), branch2: new Set(), category: new Set(), company: new Set(), payMethod: new Set() },
+  filtersNone: { year:false, month:false, branch2:false, category:false, company:false, payMethod:false },
+  slicerVals: { year:[], month:[], branch2:[], category:[], company:[], payMethod:[] },
+  ui: { tab:'dashboard', dvPage:1, dvSearch:'', mcKey:1, viewMode:'total' },
+  config: { targetKPI: 100000000, isRealData: false, payMethodInitialized: false },
+  files: []
+};
+
+// ─── MOCK DATA GENERATION ────────────────────────────────
+function buildMockData() {
+  // 25 Employees matching actual 인카 org structure
+  const EMP_DEF = [
+    {id:'1731028',name:'김자미',type:'재직',b2:'행복사업단',b3:'행복가온지점',joinDate:'20200301'},
+    {id:'2336024',name:'전혜성',type:'재직',b2:'헤븐본부',b3:'헤븐엘리트팀',joinDate:'20210615'},
+    {id:'1661440',name:'김서진',type:'재직',b2:'광양본부',b3:'광양제일지점',joinDate:'20190801'},
+    {id:'1830476',name:'오승현',type:'재직',b2:'호남사업단',b3:'호남광주팀',joinDate:'20180401'},
+    {id:'1665222',name:'한상진',type:'재직',b2:'그레이스본부',b3:'그레이스VIP지점',joinDate:'20191115'},
+    {id:'2331444',name:'김충민',type:'재직',b2:'계림본부',b3:'계림유니온팀',joinDate:'20220101'},
+    {id:'1674754',name:'나옥자',type:'재직',b2:'스마트 본부',b3:'스마트테크지점',joinDate:'20200901'},
+    {id:'2232132',name:'김황진',type:'재직',b2:'광양본부',b3:'광양중앙지점',joinDate:'20210301'},
+    {id:'2336472',name:'박효성',type:'재직',b2:'광양본부',b3:'광양항만팀',joinDate:'20220901'},
+    {id:'1830631',name:'민태기',type:'재직',b2:'샤이닝사업단',b3:'샤이닝1지점',joinDate:'20180101'},
+    {id:'1821003',name:'이정훈',type:'재직',b2:'호남사업단',b3:'호남여수팀',joinDate:'20190501'},
+    {id:'2291050',name:'박지현',type:'재직',b2:'행복사업단',b3:'행복별빛지점',joinDate:'20211001'},
+    {id:'1773421',name:'최수진',type:'재직',b2:'그레이스본부',b3:'그레이스센터팀',joinDate:'20200201'},
+    {id:'2401211',name:'이민호',type:'재직',b2:'샤이닝사업단',b3:'샤이닝2지점',joinDate:'20231101'},
+    {id:'1690832',name:'강은지',type:'재직',b2:'군산본부',b3:'군산중앙지점',joinDate:'20191201'},
+    {id:'2183901',name:'윤성철',type:'재직',b2:'행복사업단',b3:'행복라이트팀',joinDate:'20210601'},
+    {id:'1912344',name:'조현아',type:'재직',b2:'호남사업단',b3:'호남순천팀',joinDate:'20200101'},
+    {id:'2442103',name:'김은진',type:'재직',b2:'샤이닝사업단',b3:'샤이닝3지점',joinDate:'20231201'},
+    {id:'1655291',name:'박재현',type:'재직',b2:'계림본부',b3:'계림비전팀',joinDate:'20180901'},
+    {id:'2311902',name:'이철수',type:'재직',b2:'헤븐본부',b3:'헤븐신팀',joinDate:'20220301'},
+    {id:'1980123',name:'홍기훈',type:'퇴사',b2:'광양본부',b3:'광양기존지점',joinDate:'20180101'},
+    {id:'2011045',name:'양미숙',type:'퇴사',b2:'그레이스본부',b3:'그레이스구지점',joinDate:'20170101'},
+    {id:'1742230',name:'서재원',type:'퇴사',b2:'행복사업단',b3:'행복구팀',joinDate:'20170601'},
+    {id:'2131009',name:'임수정',type:'퇴사',b2:'샤이닝사업단',b3:'샤이닝구지점',joinDate:'20190101'},
+    {id:'1811234',name:'최준호',type:'퇴사',b2:'호남사업단',b3:'호남구팀',joinDate:'20180101'},
+  ];
+
+  // Performance record seed data  
+  const MONTHS = ['202312','202401','202402'];
+  const perf = [];
+  let pk = 1;
+
+  // Each active employee's monthly performance (seeded for consistency)
+  const SEED_DATA = [
+    // [agentId, month, credit, category, company]
+    ['1731028','202312',131647,'생명보험','교보생명'],
+    ['1731028','202401',28540000,'생명보험','신한라이프'],
+    ['1731028','202402',13154743,'생명보험','교보생명'],
+    ['2336024','202401',8314389,'생명보험','교보생명'],
+    ['2336024','202402',7024188,'생명보험','신한라이프'],
+    ['1661440','202401',3200000,'손해보험','메리츠화재'],
+    ['1661440','202402',3936928,'손해보험','메리츠화재'],
+    ['1830476','202401',58406540,'손해보험','현대해상'],
+    ['1830476','202402',15000000,'손해보험','삼성화재'],
+    ['1665222','202401',15522292,'손해보험','DB손보'],
+    ['1665222','202402',11145534,'손해보험','DB손보'],
+    ['2331444','202401',10249729,'생명보험','교보생명'],
+    ['2331444','202402',3512211,'생명보험','신한라이프'],
+    ['1674754','202401',8845063,'생명보험','삼성생명'],
+    ['1674754','202402',4716393,'생명보험','삼성생명'],
+    ['2232132','202401',850000,'생명보험','한화생명'],
+    ['2232132','202402',100698,'생명보험','한화생명'],
+    ['2336472','202401',291054,'생명보험','NH농협생명'],
+    ['2336472','202402',456122,'생명보험','NH농협생명'],
+    ['1830631','202401',3997023,'손해보험','삼성화재'],
+    ['1830631','202402',9342985,'손해보험','삼성화재'],
+    ['1821003','202401',5201086,'손해보험','KB손보'],
+    ['1821003','202402',7565170,'손해보험','KB손보'],
+    ['2291050','202401',6500000,'생명보험','신한라이프'],
+    ['2291050','202402',4200000,'생명보험','신한라이프'],
+    ['1773421','202401',4800000,'손해보험','현대해상'],
+    ['1773421','202402',3200000,'손해보험','현대해상'],
+    // 이민호, 김은진 - 신규 (202402 실적 없음 → 30일 무실적)
+    ['2401211','202401',1200000,'생명보험','교보생명'],
+    // 김은진 - 202401, 202402 모두 없음 → 60일 무실적
+    // 이철수 - 202402 없음 → 30일 무실적
+    ['2311902','202401',900000,'손해보험','흥국화재'],
+    ['1655291','202401',6065144,'생명보험','동양생명'],
+    ['1655291','202402',1928161,'생명보험','동양생명'],
+    ['1690832','202401',375740,'손해보험','메리츠화재'],
+    ['1690832','202402',177443,'손해보험','메리츠화재'],
+    ['2183901','202401',2300000,'생명보험','한화생명'],
+    ['2183901','202402',1800000,'생명보험','한화생명'],
+    ['1912344','202401',4500000,'손해보험','현대해상'],
+    ['1912344','202402',3200000,'손해보험','현대해상'],
+    // 퇴사자 실적도 일부 포함 (검증용)
+    ['1980123','202401',580000,'손해보험','메리츠화재'],
+  ];
+
+  SEED_DATA.forEach(([agentId, month, credit, category, company]) => {
+    const premium = Math.round(credit * 1.08);
+    perf.push({
+      SUNAB_PK: 'PK' + String(pk++).padStart(6,'0'),
+      month, agentId, premium, credit,
+      category, company,
+      payMethod: credit > 5000000 ? '월납' : (credit > 1000000 ? '월납' : '월납'),
+      status: '샘플데이터'
+    });
+  });
+
+  return { employees: EMP_DEF, performance: perf };
+}
+
+// ─── MERGE & DEDUP ───────────────────────────────────────
+function mergeData() {
+  const { employees, performance } = STATE;
+  // SUNAB_PK 기반 중복제거
+  const seen = new Set();
+  const deduped = performance.filter(p => {
+    if (seen.has(p.SUNAB_PK)) return false;
+    seen.add(p.SUNAB_PK);
+    return true;
+  });
+  // Left Outer Join
+  STATE.merged = deduped.map(p => {
+    const emp = employees.find(e => String(e.id) === String(p.agentId)) || {
+      id: p.agentId, name:'미매칭', type:'미정', b2:'기타', b3:'기타', joinDate:'20000101'
+    };
+    return { ...p, agentName: emp.name, agentType: emp.type, branch2: emp.b2, branch3: emp.b3, joinDate: emp.joinDate };
+  });
+}
+
+// ─── FILTER ──────────────────────────────────────────────
+function getFiltered() {
+  const f  = STATE.filters;
+  const fn = STATE.filtersNone;
+  return STATE.merged.filter(r => {
+    if (fn.year     ) return false;
+    if (fn.month    ) return false;
+    if (fn.branch2  ) return false;
+    if (fn.category ) return false;
+    if (fn.company  ) return false;
+    if (fn.payMethod) return false;
+    if (f.year.size     > 0 && !f.year.has(r.month?.slice(0,4)))  return false;
+    if (f.month.size    > 0 && !f.month.has(r.month?.slice(4,6))) return false;
+    if (f.branch2.size  > 0 && !f.branch2.has(r.branch2))         return false;
+    if (f.category.size > 0 && !f.category.has(r.category))       return false;
+    if (f.company.size  > 0 && !f.company.has(r.company))         return false;
+    if (f.payMethod.size> 0 && !f.payMethod.has(r.payMethod))     return false;
+    return true;
+  });
+}
+
+// ─── KPI ENGINE ──────────────────────────────────────────
+function calcKPIs(data) {
+  const rejistedEmps = STATE.employees.filter(e => e.type === '재직');
+  // Filter employees by branch if branch filter is set
+  // ⚠ branch2 는 Set 이므로 truthy 체크가 아니라 size/has 로 판정해야 함
+  const branchSel = STATE.filters.branch2;
+  const registeredInFilter = (branchSel && branchSel.size > 0)
+    ? rejistedEmps.filter(e => branchSel.has(e.b2))
+    : rejistedEmps;
+  
+  const kpiA = data.reduce((s,r) => s + r.premium, 0); // 월보험료(주지표)
+  // 인정실적: 납입방법 구분 없이 집계 (payMethod 필터 제외)
+  const _f = STATE.filters; const _fn = STATE.filtersNone;
+  const dataAllPay = (_fn.year||_fn.month||_fn.branch2||_fn.category||_fn.company) ? [] :
+    STATE.merged.filter(r => {
+      if (_f.year.size     > 0 && !_f.year.has(r.month?.slice(0,4)))  return false;
+      if (_f.month.size    > 0 && !_f.month.has(r.month?.slice(4,6))) return false;
+      if (_f.branch2.size  > 0 && !_f.branch2.has(r.branch2))         return false;
+      if (_f.category.size > 0 && !_f.category.has(r.category))       return false;
+      if (_f.company.size  > 0 && !_f.company.has(r.company))         return false;
+      return true; // payMethod 필터 적용 안 함
+    });
+  const kpiB = dataAllPay.reduce((s,r) => s + r.credit, 0); // 인정실적(부지표)
+  const kpiC = data.length;
+  // 가동률 정합: 분자(활동)를 분모(재직 명부)와 동일 모집단으로 제한 — 퇴사자·미매칭 실적 제외
+  const regIdSet = new Set(registeredInFilter.map(e => String(e.id)));
+  const activeSet = new Set(data.filter(r => r.premium > 0 && regIdSet.has(String(r.agentId))).map(r => r.agentId));
+  const kpiD = activeSet.size;
+  const kpiE = registeredInFilter.length;
+  const kpiF = kpiE > 0 ? (kpiD / kpiE * 100) : 0;
+  const kpiG = kpiD > 0 ? kpiA / kpiD : 0;
+  const kpiH = kpiE > 0 ? kpiA / kpiE : 0;
+  const target = STATE.config.targetKPI;
+  const kpiM = target > 0 ? (kpiA / target * 100) : 0;
+  
+  // Month-over-month growth (KPI K)
+  const months = [...new Set(STATE.merged.map(r=>r.month))].sort();
+  const latestM = months[months.length-1];
+  const prevM   = months[months.length-2];
+  const latestPremium = STATE.merged.filter(r=>r.month===latestM).reduce((s,r)=>s+r.premium,0);
+  const prevPremium   = STATE.merged.filter(r=>r.month===prevM).reduce((s,r)=>s+r.premium,0);
+  const kpiK = prevPremium > 0 ? ((latestPremium - prevPremium) / prevPremium * 100) : 0;
+  
+  const monthCount = new Set(data.map(r=>r.month).filter(Boolean)).size || 1;
+  // 월별 활동 설계사 수 → 월평균 계산용
+  const monthActiveMap = {};
+  data.forEach(r => {
+    if (r.premium > 0 && regIdSet.has(String(r.agentId))) {
+      if (!monthActiveMap[r.month]) monthActiveMap[r.month] = new Set();
+      monthActiveMap[r.month].add(r.agentId);
+    }
+  });
+  const monthActiveCounts = Object.values(monthActiveMap).map(s => s.size);
+  const avgActive = monthActiveCounts.length > 0
+    ? Math.round(monthActiveCounts.reduce((a,b) => a+b, 0) / monthActiveCounts.length)
+    : kpiD;
+  return { A:kpiA, B:kpiB, C:kpiC, D:kpiD, E:kpiE, F:kpiF, G:kpiG, H:kpiH, K:kpiK, M:kpiM, target, monthCount, avgActive };
+}
+
+// ─── BRANCH STATS ────────────────────────────────────────
+function getBranchStats(data) {
+  const months = [...new Set(STATE.merged.map(r=>r.month))].sort();
+  const latestM = months[months.length-1];
+  const prevM   = months[months.length-2];
+  
+  const map = {};
+  data.forEach(r => {
+    const k = r.branch2 || '기타';
+    if (!map[k]) map[k] = { name:k, credit:0, premium:0, count:0, latestPremium:0, prevPremium:0, agentSet:new Set(), regCount:0 };
+    map[k].credit  += r.credit;
+    map[k].premium += r.premium;
+    map[k].count++;
+    if (r.premium > 0) map[k].agentSet.add(r.agentId);
+    if (r.month === latestM) map[k].latestPremium += r.premium;
+    if (r.month === prevM)   map[k].prevPremium   += r.premium;
+  });
+  // Attach registered count from employees
+  STATE.employees.filter(e=>e.type==='재직').forEach(e => {
+    const k = e.b2;
+    if (map[k]) map[k].regCount++;
+  });
+  const total = Object.values(map).reduce((s,b)=>s+b.premium,0);
+  return Object.values(map).map(b => {
+    const active = b.agentSet.size;
+    const actRate = b.regCount > 0 ? active/b.regCount*100 : 0;
+    const growthRate = b.prevPremium > 0 ? (b.latestPremium-b.prevPremium)/b.prevPremium*100 : 0;
+    const productivity = b.regCount > 0 ? b.premium/b.regCount : 0;
+    return { ...b, active, actRate, growthRate, productivity, share: total>0?b.premium/total*100:0 };
+  }).sort((a,b)=>b.premium-a.premium);
+}
+
+// ─── RISK ENGINE ─────────────────────────────────────────
+function calcRisks() {
+  const risks = [];
+  const months = [...new Set(STATE.merged.map(r=>r.month))].sort();
+  const latestM = months[months.length-1];
+  const prevM   = months[months.length-2];
+  
+  // Agent risks (재직자만)
+  STATE.employees.filter(e=>e.type==='재직').forEach(emp => {
+    const recs = STATE.merged.filter(r=>r.agentId===emp.id);
+    const allCredit    = recs.reduce((s,r)=>s+r.credit,0);
+    const latestCredit = recs.filter(r=>r.month===latestM).reduce((s,r)=>s+r.credit,0);
+    const prevCredit   = recs.filter(r=>r.month===prevM).reduce((s,r)=>s+r.credit,0);
+    
+    if (allCredit === 0) {
+      risks.push({ type:'agent', level:'critical', score:95, icon:'🔴',
+        title:`90일+ 무실적: ${emp.name}`,
+        desc:`${emp.b2} · ${emp.b3} | 전 기간 실적 없음`,
+        action:'즉각 면담 필요', tag:'이탈위험', emp });
+    } else if (latestCredit===0 && prevCredit===0) {
+      risks.push({ type:'agent', level:'high', score:75, icon:'🟠',
+        title:`60일 무실적: ${emp.name}`,
+        desc:`${emp.b2} · ${emp.b3} | 최근 2개월 실적 없음`,
+        action:'활동 독려 필요', tag:'관찰중', emp });
+    } else if (latestCredit===0) {
+      risks.push({ type:'agent', level:'medium', score:45, icon:'🟡',
+        title:`30일 무실적: ${emp.name}`,
+        desc:`${emp.b2} | ${latestM} 실적 미발생`,
+        action:'상황 파악 필요', tag:'주의', emp });
+    }
+  });
+  
+  // Branch risks
+  getBranchStats(getFiltered()).forEach(branch => {
+    if (branch.actRate > 0 && branch.actRate < 30) {
+      risks.push({ type:'branch', level:'critical', score:90, icon:'🔴',
+        title:`가동률 위기: ${branch.name}`,
+        desc:`가동률 ${branch.actRate.toFixed(0)}% | 재직 ${branch.regCount}명 중 ${branch.active}명 활동`,
+        action:'조직 긴급 점검', tag:'위기', branch });
+    } else if (branch.actRate > 0 && branch.actRate < 50) {
+      risks.push({ type:'branch', level:'high', score:65, icon:'🟠',
+        title:`가동률 위험: ${branch.name}`,
+        desc:`가동률 ${branch.actRate.toFixed(0)}%`,
+        action:'가동률 개선 계획 수립', tag:'위험', branch });
+    }
+    if (branch.prevCredit > 0 && branch.growthRate < -30) {
+      risks.push({ type:'branch', level:'critical', score:85, icon:'🔴',
+        title:`실적 급락: ${branch.name}`,
+        desc:`전월 대비 ${branch.growthRate.toFixed(0)}% 하락 | ${fmt(branch.prevCredit)} → ${fmt(branch.latestCredit)}`,
+        action:'원인 분석 즉각 착수', tag:'급락', branch });
+    } else if (branch.prevCredit > 0 && branch.growthRate < -15) {
+      risks.push({ type:'branch', level:'medium', score:55, icon:'🟡',
+        title:`성장 둔화: ${branch.name}`,
+        desc:`전월 대비 ${branch.growthRate.toFixed(0)}% 하락`,
+        action:'현황 점검', tag:'둔화', branch });
+    }
+  });
+  
+  return risks.sort((a,b)=>b.score-a.score);
+}
+
+// ─── FORECAST ────────────────────────────────────────────
+function calcForecast() {
+  const monthMap = {};
+  STATE.merged.forEach(r => { monthMap[r.month] = (monthMap[r.month]||0) + r.credit; });
+  const months = Object.keys(monthMap).sort();
+  const vals = months.map(m=>monthMap[m]);
+  if (vals.length < 2) return null;
+  // Simple linear regression
+  const n = vals.length;
+  const sx = vals.reduce((_,__,i)=>_+i,0);
+  const sy = vals.reduce((a,v)=>a+v,0);
+  const sxy = vals.reduce((a,v,i)=>a+i*v,0);
+  const sx2 = vals.reduce((a,_,i)=>a+i*i,0);
+  const slope = (n*sxy - sx*sy) / (n*sx2 - sx*sx);
+  const intercept = (sy - slope*sx) / n;
+  const nextVal = Math.max(0, Math.round(intercept + slope*n));
+  
+  // Predicted months (next month code)
+  const lastM = months[months.length-1];
+  const yr = parseInt(lastM.substring(0,4));
+  const mo = parseInt(lastM.substring(4,6));
+  const nextMo = mo === 12 ? 1 : mo+1;
+  const nextYr = mo === 12 ? yr+1 : yr;
+  const nextMCode = String(nextYr) + String(nextMo).padStart(2,'0');
+  
+  return { months, vals, slope, intercept, nextVal, nextMCode };
+}
+
+// ─── UTILS ───────────────────────────────────────────────
+const fmt  = n => n ? Math.round(n).toLocaleString() + '원' : '0원';
+const fmtM = n => n ? (n/10000).toFixed(0)+'만원' : '0원';
+const fmtP = n => n.toFixed(1) + '%';
+const fmtK = n => {
+  if (Math.abs(n)>=100000000) return (n/100000000).toFixed(1)+'억원';
+  if (Math.abs(n)>=10000) return (n/10000).toFixed(0)+'만원';
+  return Math.round(n).toLocaleString()+'원';
+};
+const levelColor = { critical:'#ef4444', high:'#f97316', medium:'#eab308', good:'#22c55e' };
+const levelBadge = { critical:'b-red', high:'b-orange', medium:'b-yellow', good:'b-green' };
+
+// Log to console
+function log(msg, type='info') {
+  const c = document.getElementById('parse-console');
+  if (!c) return;
+  const p = document.createElement('p');
+  const colors = { info:'#94a3b8', success:'#4ade80', error:'#f87171', warn:'#facc15' };
+  p.style.color = colors[type] || '#94a3b8';
+  p.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  c.appendChild(p);
+  c.scrollTop = c.scrollHeight;
+}
+
+// ─── SLICER INIT ─────────────────────────────────────────
+function initSlicers() {
+  const data = STATE.merged;
+  // 각 키별 고유값 추출
+  const months  = [...new Set(data.map(r=>r.month).filter(Boolean))].sort();
+  STATE.slicerVals.year     = [...new Set(months.map(m=>m.slice(0,4)))].sort();
+
+  // ── 연도 필터 유효성 검사: 저장된 연도 값이 실제 데이터에 없으면 리셋 ──
+  const validYears = new Set(STATE.slicerVals.year);
+  if (STATE.filters.year.size > 0) {
+    const stillValid = [...STATE.filters.year].filter(y => validYears.has(y));
+    if (stillValid.length === 0) {
+      // 저장된 연도가 모두 실제 데이터에 없음 → 현재연도로 초기화
+      const thisYear = String(new Date().getFullYear());
+      STATE.filters.year = validYears.has(thisYear) ? new Set([thisYear]) : new Set();
+      STATE.config.yearInitialized = false; // 재초기화 허용
+    }
+  }
+
+  // 납입연도 현재기준 자동 고정 (1회 적용)
+  if (!STATE.config.yearInitialized && STATE.slicerVals.year.length > 0) {
+    const thisYear = String(new Date().getFullYear());
+    if (STATE.slicerVals.year.includes(thisYear)) {
+      STATE.filters.year = new Set([thisYear]);
+      STATE.config.yearInitialized = true;
+    }
+  }
+
+  // 납입월: 현재 선택된 연도 기준 데이터에서만 추출 (동적 생성)
+  const yearData = STATE.filters.year.size > 0
+    ? data.filter(r => STATE.filters.year.has(r.month?.slice(0,4)))
+    : data;
+  const monthsForYear = [...new Set(yearData.map(r=>r.month).filter(Boolean))].sort();
+  STATE.slicerVals.month = [...new Set(monthsForYear.map(m=>m.slice(4,6)))].sort();
+  // 납입월 필터 중 더이상 존재하지 않는 값 제거
+  if (STATE.filters.month.size > 0) {
+    const validMonths = new Set(STATE.slicerVals.month);
+    STATE.filters.month.forEach(v => { if (!validMonths.has(v)) STATE.filters.month.delete(v); });
+  }
+  STATE.slicerVals.branch2  = [...new Set(data.map(r=>r.branch2).filter(Boolean))].sort();
+  STATE.slicerVals.category = [...new Set(data.map(r=>r.category).filter(Boolean))].sort();
+  STATE.slicerVals.company  = [...new Set(data.map(r=>r.company).filter(Boolean))].sort();
+  STATE.slicerVals.payMethod= [...new Set(data.map(r=>r.payMethod).filter(Boolean))].sort();
+  // 납입방법 기본값: 월납 (1회만 자동 선택)
+  if (!STATE.config.payMethodInitialized && STATE.slicerVals.payMethod.includes('월납')) {
+    STATE.filters.payMethod = new Set(['월납']);
+    STATE.config.payMethodInitialized = true;
+  }
+
+  // 각 슬라이서 체크박스 패널 갱신
+  const SL_LABELS = {
+    year:      v => v + '년',
+    month:     v => v + '월',
+    branch2:   v => v,
+    category:  v => v,
+    company:   v => v,
+    payMethod: v => v,
+  };
+  Object.keys(STATE.slicerVals).forEach(key => {
+    const listEl = document.getElementById('sl-' + key + '-list');
+    if (!listEl) return;
+    listEl.innerHTML = STATE.slicerVals[key].map(v => `
+      <label class="sl-item-row">
+        <input type="checkbox" value="${v}" onchange="toggleItem('${key}','${v}',this.checked)">
+        ${SL_LABELS[key](v)}
+      </label>`).join('');
+    syncCheckboxes(key);
+    updateBtn(key);
+  });
+}
+
+// ── 슬라이서 핵심 함수들 ──────────────────────────────────
+
+// 패널 열기/닫기
+function togglePanel(e, key) {
+  e.stopPropagation();
+  const panel = document.getElementById('sp-' + key);
+  const btn   = document.getElementById('sl-' + key + '-btn');
+  const isOpen = !panel.classList.contains('hidden');
+  closeAllPanels();
+  if (!isOpen) {
+    panel.classList.remove('hidden');
+    btn?.classList.add('open');
+  }
+}
+
+// 모든 패널 닫기
+function closeAllPanels() {
+  document.querySelectorAll('.sl-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.sl-btn').forEach(b => b.classList.remove('open'));
+}
+
+// 개별 항목 체크박스 토글
+function toggleItem(key, val, checked) {
+  const f = STATE.filters[key];
+  const allVals = STATE.slicerVals[key];
+  // 개별 항목 클릭 시 filtersNone 리셋
+  if (STATE.filtersNone[key]) {
+    STATE.filtersNone[key] = false;
+    f.clear();
+    // 클릭한 항목 하나만 선택
+    f.add(val);
+    syncCheckboxes(key); updateBtn(key); updateClearBtn(); renderAll();
+    return;
+  }
+  if (checked) {
+    f.add(val);
+    if (f.size >= allVals.length) f.clear(); // 전체 선택 = 필터 없음
+  } else {
+    if (f.size === 0) {
+      // 전체 상태에서 하나 제외
+      allVals.filter(v => v !== val).forEach(v => f.add(v));
+    } else {
+      f.delete(val);
+    }
+  }
+  syncCheckboxes(key);
+  updateBtn(key);
+  updateClearBtn();
+  renderAll();
+}
+
+// 전체선택 토글
+function toggleAll(key) {
+  const f     = STATE.filters[key];
+  const allCb = document.getElementById('sa-' + key);
+  if (allCb.checked) {
+    // 체크 → 전체선택: 필터 없음, 전체 표시
+    STATE.filtersNone[key] = false;
+    f.clear();
+  } else {
+    // 해제 → 전체해제: 결과 없음
+    STATE.filtersNone[key] = true;
+    f.clear();
+  }
+  syncCheckboxes(key);
+  updateBtn(key);
+  updateClearBtn();
+  renderAll();
+}
+
+// 차트 클릭: 특정 값만 선택
+function selectOnly(key, val) {
+  STATE.filters[key].clear();
+  STATE.filters[key].add(val);
+  syncCheckboxes(key);
+  updateBtn(key);
+  updateClearBtn();
+  renderAll();
+}
+
+// 체크박스 상태를 Set과 동기화
+function syncCheckboxes(key) {
+  const f    = STATE.filters[key];
+  const none = STATE.filtersNone[key];
+  const items = document.querySelectorAll('#sl-' + key + '-list input[type=checkbox]');
+  items.forEach(cb => { cb.checked = !none && (f.size === 0 || f.has(cb.value)); });
+  const allCb = document.getElementById('sa-' + key);
+  if (allCb) {
+    if (none) {
+      allCb.checked = false;
+      allCb.indeterminate = false;
+    } else {
+      const checked = [...items].filter(cb => cb.checked).length;
+      allCb.checked       = checked === items.length || f.size === 0;
+      allCb.indeterminate = checked > 0 && checked < items.length;
+    }
+  }
+}
+
+// 버튼 표시 텍스트 업데이트
+function updateBtn(key) {
+  const f   = STATE.filters[key];
+  const btn = document.getElementById('sl-' + key + '-btn');
+  if (!btn) return;
+  const arr = '<span class="arr">▾</span>';
+  if (f.size === 0) {
+    btn.innerHTML = '전체 ' + arr;
+    btn.classList.remove('active');
+  } else if (f.size === 1) {
+    btn.innerHTML = [...f][0] + ' ' + arr;
+    btn.classList.add('active');
+  } else {
+    btn.innerHTML = [...f][0] + ' 외 ' + (f.size - 1) + ' ' + arr;
+    btn.classList.add('active');
+  }
+}
+
+// 헤더 전체해제 버튼 표시 여부
+function updateClearBtn() {
+  const has = Object.values(STATE.filters).some(f => f.size > 0);
+  document.getElementById('clear-filter-btn')?.classList.toggle('hidden', !has);
+}
+
+// 구버전 호환 (차트 등 기존 코드가 호출할 경우)
+function applyFilter(key, val) {
+  selectOnly(key, val);
+}
+
+function clearAllFilters() {
+  Object.keys(STATE.filters).forEach(k => STATE.filters[k].clear());
+  Object.keys(STATE.filtersNone).forEach(k => STATE.filtersNone[k] = false);
+  ['year','month','branch2','category','company','payMethod'].forEach(key => {
+    syncCheckboxes(key);
+    updateBtn(key);
+  });
+  document.getElementById('clear-filter-btn')?.classList.add('hidden');
+  renderAll();
+}
+
+// ─── TAB SWITCHER ────────────────────────────────────────
+const TABS = ['dashboard','action','branch','top20','risk','insurance','forecast','dna','dataview','upload','mcode'];
+function switchTab(name) {
+  TABS.forEach(t => {
+    document.getElementById('tab-'+t)?.classList.toggle('hidden', t!==name);
+    const btn = document.getElementById('tb-'+t);
+    if (btn) { btn.classList.toggle('active', t===name); }
+  });
+  STATE.ui.tab = name;
+  renderAll();
+}
+
+// ─── RENDER ALL ──────────────────────────────────────────
+const charts = {};
+// ─── UI STATE PERSISTENCE (localStorage) ─────────────────
+const UI_STATE_KEY = 'inka_ui_state';
+
+function saveUIState() {
+  try {
+    const s = {
+      filters: {
+        year:      [...STATE.filters.year],
+        month:     [...STATE.filters.month],
+        branch2:   [...STATE.filters.branch2],
+        category:  [...STATE.filters.category],
+        company:   [...STATE.filters.company],
+        payMethod: [...STATE.filters.payMethod],
+      },
+      filtersNone: { ...STATE.filtersNone },
+      viewMode:    STATE.ui.viewMode,
+      targetKPI:   STATE.config.targetKPI,
+    };
+    localStorage.setItem(UI_STATE_KEY, JSON.stringify(s));
+  } catch(e) {}
+}
+
+function loadUIState() {
+  try {
+    const raw = localStorage.getItem(UI_STATE_KEY);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    // 필터 복원 (Set으로 변환)
+    ['year','month','branch2','category','company','payMethod'].forEach(k => {
+      if (Array.isArray(s.filters?.[k])) STATE.filters[k] = new Set(s.filters[k]);
+    });
+    if (s.filtersNone) Object.assign(STATE.filtersNone, s.filtersNone);
+    if (s.viewMode)    STATE.ui.viewMode  = s.viewMode;
+    if (s.targetKPI)   STATE.config.targetKPI = s.targetKPI;
+    // 기본값 자동 적용 플래그 비활성화 (저장된 상태 우선)
+    // year가 비어있으면(전체) 2026 자동선택 허용
+    STATE.config.yearInitialized      = (s.filters?.year?.length > 0);
+    STATE.config.payMethodInitialized = true;
+    return true;
+  } catch(e) { return false; }
+}
+
+function setViewMode(mode) {
+  STATE.ui.viewMode = mode;
+  saveUIState();
+  renderAll();
+}
+
+function renderAll() {
+  initSlicers();
+  saveUIState();
+  const filtered = getFiltered();
+  const kpis = calcKPIs(filtered);
+  
+  if (STATE.ui.tab === 'dashboard')   { renderDashboard(kpis, filtered); }
+  if (STATE.ui.tab === 'action')      { renderActionCenter(); }
+  if (STATE.ui.tab === 'branch')      { renderBranch(filtered); }
+  if (STATE.ui.tab === 'top20')       { renderTop20(filtered); }
+  if (STATE.ui.tab === 'risk')        { renderRisk(); }
+  if (STATE.ui.tab === 'insurance')   { renderInsurance(filtered); }
+  if (STATE.ui.tab === 'forecast')    { renderForecast(); }
+  if (STATE.ui.tab === 'dna')         { renderDNA(); }
+  if (STATE.ui.tab === 'dataview')    { renderDataView(filtered); }
+  if (STATE.ui.tab === 'mcode')       { renderMCode(); }
+}
+
+// ─── RENDER DASHBOARD ────────────────────────────────────
+function renderDashboard(kpis, filtered) {
+  // 연간/월평균 토글 버튼 상태 업데이트
+  const isMonthly = STATE.ui.viewMode === 'monthly';
+  const mc = kpis.monthCount || 1;
+  const dispA = isMonthly ? kpis.A / mc : kpis.A;
+  const dispB = isMonthly ? kpis.B / mc : kpis.B;
+  const dispG = isMonthly ? kpis.A / mc / (kpis.D || 1) : kpis.G;
+  const labelA = isMonthly ? '월평균 월보험료' : '총 월보험료';
+  const labelB = isMonthly ? '월평균 인정실적' : '총 인정실적';
+  const labelG = isMonthly ? '월평균 생산성' : '설계사 생산성';
+  const subA   = isMonthly ? `${mc}개월 평균 | 달성률 ${fmtP(kpis.M)}` : `목표달성률 ${fmtP(kpis.M)}`;
+  const subB   = isMonthly ? `월평균 계약 ${Math.round(kpis.C/mc).toLocaleString()}건` : `인정실적 ${fmtK(kpis.B)}`;
+
+  // 토글 버튼 스타일 갱신
+  const btnT = document.getElementById('vm-total-btn');
+  const btnM = document.getElementById('vm-monthly-btn');
+  const lbl  = document.getElementById('vm-period-label');
+  if (btnT) { btnT.style.background = isMonthly ? 'transparent' : 'rgba(59,130,246,.2)'; btnT.style.color = isMonthly ? '#64748b' : '#93c5fd'; btnT.style.borderColor = isMonthly ? 'rgba(100,116,139,.3)' : 'rgba(59,130,246,.5)'; }
+  if (btnM) { btnM.style.background = isMonthly ? 'rgba(16,185,129,.2)' : 'transparent'; btnM.style.color = isMonthly ? '#6ee7b7' : '#64748b'; btnM.style.borderColor = isMonthly ? 'rgba(16,185,129,.5)' : 'rgba(100,116,139,.3)'; }
+  if (lbl)  lbl.innerText = isMonthly ? `(${mc}개월 기준)` : '';
+
+  // 월평균 파생값
+  const dispC = isMonthly ? Math.round(kpis.C / mc) : kpis.C;
+  const dispD = isMonthly ? (kpis.avgActive || kpis.D) : kpis.D;   // 월별 평균 활동자 수
+  const dispE = kpis.E;                                              // 재직수는 시점값, 나누지 않음
+  const dispF = isMonthly ? (dispE > 0 ? dispD / dispE * 100 : 0) : kpis.F;
+  const labelC = isMonthly ? '월평균 계약건수' : '총 계약건수';
+  const labelD = isMonthly ? '월평균 활동설계사' : '활동 설계사';
+  const labelE = isMonthly ? '월평균 재직설계사' : '재직 설계사';
+  const subC   = isMonthly ? `${mc}개월 평균` : '중복제거 완료';
+  const subD   = isMonthly ? `월평균 가동률 ${fmtP(dispF)}` : `가동률 ${fmtP(kpis.F)}`;
+  const subE   = isMonthly ? `${mc}개월 평균` : '등록구분=재직 기준';
+
+  // KPI Cards
+  const kpiDefs = [
+    { label:labelA,          val:fmtK(dispA),                         sub:subA, icon:'💰', color:'#3b82f6' },
+    { label:labelB,          val:fmtK(dispB),                         sub:subB, icon:'💵', color:'#6366f1' },
+    { label:labelC,          val:dispC.toLocaleString()+'건',          sub:subC, icon:'📋', color:'#8b5cf6' },
+    { label:labelD,          val:dispD+'명',                           sub:subD, icon:'🏃', color:'#10b981' },
+    { label:labelE,          val:dispE+'명',                           sub:subE, icon:'👥', color:'#f59e0b' },
+    { label:'가동률(KPI-F)', val:fmtP(dispF), sub:`${dispD}명 / ${dispE}명`, icon:'⚡', color:dispF<50?'#ef4444':'#22c55e' },
+    { label:labelG,          val:fmtK(dispG),                         sub:'인정실적÷활동설계사', icon:'📈', color:'#14b8a6' },
+    { label:'전월대비 성장', val:(kpis.K>=0?'+':'')+fmtP(kpis.K),   sub:'최신월 vs 전월', icon:'📊', color:kpis.K>=0?'#22c55e':'#ef4444' },
+  ];
+  const grid = document.getElementById('kpi-grid');
+  if (!grid) return;
+  grid.innerHTML = kpiDefs.map(k => `
+    <div class="kpi-card" style="border-radius:14px;padding:14px 16px;border-left:3px solid ${k.color};">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">${k.label}</div>
+        <span style="font-size:16px;">${k.icon}</span>
+      </div>
+      <div style="font-size:20px;font-weight:900;color:${k.color};font-variant-numeric:tabular-nums;">${k.val}</div>
+      <div style="font-size:10px;color:#64748b;margin-top:4px;">${k.sub}</div>
+    </div>`).join('');
+  
+  // Trend chart
+  const trendMonths = [...new Set(filtered.map(r=>r.month))].sort();
+  const trendMap = {};
+  filtered.forEach(r => {
+    if (!trendMap[r.month]) trendMap[r.month] = { credit:0, premium:0 };
+    trendMap[r.month].credit  += r.credit;
+    trendMap[r.month].premium += r.premium;
+  });
+  const tLabels = trendMonths.map(m=>monthLabel(m));
+  const tCredits = trendMonths.map(m=>trendMap[m]?.credit||0);
+  const tPremiums = trendMonths.map(m=>trendMap[m]?.premium||0);
+  // YoY 실데이터: STATE.merged 전체에서 전년 동월 합계
+  const allMergedMap = {};
+  STATE.merged.forEach(r => {
+    if (!allMergedMap[r.month]) allMergedMap[r.month] = 0;
+    allMergedMap[r.month] += r.premium;
+  });
+  const tYoY = trendMonths.map(m => {
+    const prevMonth = String(parseInt(m.slice(0,4)) - 1) + m.slice(4); // 전년 동월
+    return allMergedMap[prevMonth] != null ? allMergedMap[prevMonth] : null;
+  });
+  const hasYoY = tYoY.some(v => v !== null);
+
+  makeChart('ch-trend','bar',{
+    labels: tLabels,
+    datasets:[
+      { type:'bar',  label:'월보험료', data:tPremiums, backgroundColor:'rgba(99,102,241,.4)',  borderColor:'#6366f1', borderWidth:1, borderRadius:4, yAxisID:'y' },
+      { type:'bar',  label:'인정실적', data:tCredits,  backgroundColor:'rgba(16,185,129,.35)', borderColor:'#10b981', borderWidth:1, borderRadius:4, yAxisID:'y' },
+      ...(hasYoY ? [{ type:'line', label:'전년동월(월보험료)', data:tYoY, borderColor:'#f59e0b', borderDash:[5,5], borderWidth:1.5, pointRadius:3, spanGaps:false, fill:false, tension:.15, yAxisID:'y' }] : []),
+    ]
+  },{
+    plugins:{ legend:{ display:true, labels:{ color:'#94a3b8', font:{ size:9 } } } },
+    scales:{
+      x:{ grid:{ color:'#1e293b' }, ticks:{ color:'#94a3b8' } },
+      y:{ type:'linear', position:'left', grid:{ color:'#1e293b' }, ticks:{ color:'#94a3b8', callback:v=>(v/10000).toFixed(0)+'만' } }
+    }
+  });
+  
+  // Branch donut
+  const bStats = getBranchStats(filtered).filter(b=>b.premium>0).slice(0,8);
+  makeChart('ch-branch-donut','doughnut',{
+    labels: bStats.map(b=>b.name),
+    datasets:[{ data:bStats.map(b=>b.credit), backgroundColor:COLORS10, borderColor:'#070c16', borderWidth:3 }]
+  },{
+    onClick:(e,els)=>{ if(els.length>0){ const lbl=bStats[els[0].index].name; selectOnly('branch2',lbl); } },
+    plugins:{ legend:{ position:'right', labels:{ color:'#94a3b8', font:{ size:9 }, boxWidth:10 } } }
+  });
+  
+  // Category pie
+  const catMap = {};
+  filtered.forEach(r=>{ catMap[r.category]=(catMap[r.category]||0)+r.premium; });
+  makeChart('ch-cat-pie','doughnut',{
+    labels: Object.keys(catMap),
+    datasets:[{ data:Object.values(catMap), backgroundColor:['#3b82f6','#f97316'], borderColor:'#070c16', borderWidth:3 }]
+  },{
+    plugins:{ legend:{ position:'bottom', labels:{ color:'#94a3b8', font:{ size:10 } } } }
+  });
+  
+  // Branch matrix mini
+  const bm = document.getElementById('branch-matrix-mini');
+  if (bm) {
+    const totalC = bStats.reduce((s,b)=>s+b.premium,0);
+    bm.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;">
+      <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
+        <th style="padding:6px 8px;text-align:left;color:#64748b;">본부</th>
+        <th style="padding:6px 8px;text-align:right;color:#64748b;">인정실적</th>
+        <th style="padding:6px 8px;text-align:center;color:#64748b;">가동률</th>
+        <th style="padding:6px 8px;text-align:center;color:#64748b;">성장률</th>
+        <th style="padding:6px 8px;text-align:center;color:#64748b;">비중</th>
+      </tr></thead>
+      <tbody>${bStats.map((b,i) => `
+        <tr class="tbl-row" style="border-bottom:1px solid #1e293b;cursor:pointer;" onclick="selectOnly('branch2','${b.name}')">
+          <td style="padding:7px 8px;font-weight:700;color:#e2e8f0;">${b.name}</td>
+          <td style="padding:7px 8px;text-align:right;color:#60a5fa;font-family:monospace;">${fmtK(b.credit)}</td>
+          <td style="padding:7px 8px;text-align:center;"><span class="badge ${b.actRate<50?'b-red':b.actRate<70?'b-yellow':'b-green'}">${fmtP(b.actRate)}</span></td>
+          <td style="padding:7px 8px;text-align:center;color:${b.growthRate>=0?'#4ade80':'#f87171'};">${b.growthRate>=0?'+':''}${fmtP(b.growthRate)}</td>
+          <td style="padding:7px 8px;text-align:center;color:#94a3b8;">${fmtP(b.share)}</td>
+        </tr>`).join('')}</tbody>
+    </table>`;
+  }
+  
+  // Top 5 agents
+  const agentMap = {};
+  filtered.forEach(r=>{ if(!agentMap[r.agentId]) agentMap[r.agentId]={name:r.agentName,b2:r.branch2,type:r.agentType,premium:0}; agentMap[r.agentId].premium+=r.premium; });
+  const top5 = Object.values(agentMap).sort((a,b)=>b.premium-a.premium).slice(0,5);
+  const t5 = document.getElementById('agent-top5');
+  if (t5) t5.innerHTML = top5.map((a,i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1e293b;">
+      <div style="font-size:18px;min-width:28px;text-align:center;">${i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}위`}</div>
+      <div style="flex:1;"><div style="font-size:12px;font-weight:700;color:#e2e8f0;">${a.name}</div><div style="font-size:10px;color:#64748b;">${a.b2}</div></div>
+      <div style="font-size:12px;font-weight:800;color:#60a5fa;font-family:monospace;">${fmtK(a.premium)}</div>
+    </div>`).join('');
+}
+
+// ─── RENDER ACTION CENTER ─────────────────────────────────
+function renderActionCenter() {
+  const risks = calcRisks();
+  const counts = { critical:0, high:0, medium:0 };
+  risks.forEach(r => { if(r.level==='critical') counts.critical++; else if(r.level==='high') counts.high++; else if(r.level==='medium') counts.medium++; });
+  
+  const sb = document.getElementById('risk-summary-badges');
+  if (sb) sb.innerHTML = [
+    `<span class="badge b-red">🔴 긴급 ${counts.critical}건</span>`,
+    `<span class="badge b-orange">🟠 위험 ${counts.high}건</span>`,
+    `<span class="badge b-yellow">🟡 주의 ${counts.medium}건</span>`,
+  ].join('');
+  
+  const container = document.getElementById('action-cards');
+  if (!container) return;
+  if (risks.length === 0) { container.innerHTML = `<div style="text-align:center;padding:60px;color:#4ade80;"><div style="font-size:40px;margin-bottom:12px;">✅</div><div style="font-size:16px;font-weight:700;">현재 감지된 위험이 없습니다</div></div>`; return; }
+  
+  container.innerHTML = risks.map(r => `
+    <div class="glass risk-${r.level}" style="padding:14px 16px;border-radius:12px;display:flex;align-items:center;gap:14px;">
+      <div style="font-size:28px;min-width:40px;">${r.icon}</div>
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+          <div style="font-size:13px;font-weight:800;color:#fff;">${r.title}</div>
+          <span class="badge ${levelBadge[r.level]}">${r.tag}</span>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;">${r.desc}</div>
+        <div style="font-size:10px;color:${levelColor[r.level]};margin-top:4px;font-weight:700;">▶ ${r.action}</div>
+      </div>
+      <div style="text-align:right;min-width:60px;">
+        <div style="font-size:22px;font-weight:900;color:${levelColor[r.level]};">${r.score}</div>
+        <div style="font-size:9px;color:#64748b;">위험점수</div>
+      </div>
+    </div>`).join('');
+}
+
+// ─── RENDER BRANCH ────────────────────────────────────────
+function renderBranch(filtered) {
+  const stats = getBranchStats(filtered);
+  
+  // Table
+  const tw = document.getElementById('branch-tbl-wrap');
+  if (tw) tw.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
+      <th style="padding:8px;text-align:left;color:#64748b;">순위</th><th style="padding:8px;text-align:left;color:#64748b;">본부명</th>
+      <th style="padding:8px;text-align:right;color:#64748b;">인정실적</th><th style="padding:8px;text-align:right;color:#64748b;">월보험료</th>
+      <th style="padding:8px;text-align:center;color:#64748b;">재직</th><th style="padding:8px;text-align:center;color:#64748b;">활동</th>
+      <th style="padding:8px;text-align:center;color:#64748b;">가동률</th><th style="padding:8px;text-align:center;color:#64748b;">성장률</th>
+      <th style="padding:8px;text-align:right;color:#64748b;">생산성</th>
+    </tr></thead>
+    <tbody>${stats.map((b,i)=>`
+      <tr class="tbl-row" style="border-bottom:1px solid rgba(30,41,59,.5);">
+        <td style="padding:7px 8px;color:#64748b;">${i+1}</td>
+        <td style="padding:7px 8px;font-weight:700;color:#e2e8f0;">${b.name}</td>
+        <td style="padding:7px 8px;text-align:right;color:#60a5fa;font-family:monospace;">${fmtK(b.credit)}</td>
+        <td style="padding:7px 8px;text-align:right;color:#94a3b8;font-family:monospace;">${fmtK(b.premium)}</td>
+        <td style="padding:7px 8px;text-align:center;color:#94a3b8;">${b.regCount}명</td>
+        <td style="padding:7px 8px;text-align:center;color:#4ade80;">${b.active}명</td>
+        <td style="padding:7px 8px;text-align:center;"><span class="badge ${b.actRate<50?'b-red':b.actRate<70?'b-yellow':'b-green'}">${fmtP(b.actRate)}</span></td>
+        <td style="padding:7px 8px;text-align:center;color:${b.growthRate>=0?'#4ade80':'#f87171'};">${b.growthRate>=0?'+':''}${fmtP(b.growthRate)}</td>
+        <td style="padding:7px 8px;text-align:right;color:#c084fc;font-family:monospace;">${fmtK(b.productivity)}</td>
+      </tr>`).join('')}</tbody>
+  </table>`;
+  
+  // Branch bar chart
+  makeChart('ch-branch-bar','bar',{
+    labels: stats.map(b=>b.name),
+    datasets:[
+      { label:'인정실적', data:stats.map(b=>b.credit), backgroundColor:COLORS10, borderRadius:6 },
+    ]
+  },{ indexAxis:'y', plugins:{ legend:{ display:false } }, scales:{
+    x:{ grid:{ color:'#1e293b' }, ticks:{ color:'#94a3b8', callback:v=>(v/10000).toFixed(0)+'만' } },
+    y:{ grid:{ color:'#1e293b' }, ticks:{ color:'#e2e8f0', font:{ size:10 } } }
+  }});
+  
+  // Productivity chart
+  makeChart('ch-productivity','bar',{
+    labels: stats.map(b=>b.name),
+    datasets:[{ label:'조직 생산성(인정실적/재직인원)', data:stats.map(b=>b.productivity), backgroundColor:'rgba(139,92,246,.6)', borderColor:'#8b5cf6', borderWidth:1.5, borderRadius:4 }]
+  },{ plugins:{ legend:{ display:false } }, scales:{
+    x:{ grid:{ color:'#1e293b' }, ticks:{ color:'#94a3b8', font:{ size:9 } } },
+    y:{ grid:{ color:'#1e293b' }, ticks:{ color:'#94a3b8', callback:v=>(v/10000).toFixed(0)+'만' } }
+  }});
+}
+
+// ─── RENDER TOP20 ────────────────────────────────────────
+function renderTop20(filtered) {
+  const agentMap = {};
+  filtered.forEach(r => {
+    if (!agentMap[r.agentId]) agentMap[r.agentId] = { id:r.agentId, name:r.agentName, b2:r.branch2, b3:r.branch3, type:r.agentType, credit:0, premium:0, count:0 };
+    agentMap[r.agentId].credit  += r.credit;
+    agentMap[r.agentId].premium += r.premium;
+    agentMap[r.agentId].count++;
+  });
+  const agents = Object.values(agentMap).sort((a,b)=>b.premium-a.premium).slice(0,20);
+  const maxC = agents[0]?.premium || 1;
+  
+  const el = document.getElementById('top20-tbl');
+  if (!el) return;
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;min-width:700px;">
+    <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
+      <th style="padding:10px 8px;text-align:center;color:#64748b;">순위</th>
+      <th style="padding:10px 8px;text-align:left;color:#64748b;">담당자</th>
+      <th style="padding:10px 8px;text-align:left;color:#64748b;">소속본부</th>
+      <th style="padding:10px 8px;text-align:left;color:#64748b;">지점/팀</th>
+      <th style="padding:10px 8px;text-align:right;color:#64748b;">인정실적</th>
+      <th style="padding:10px 8px;text-align:right;color:#64748b;">월보험료</th>
+      <th style="padding:10px 8px;text-align:center;color:#64748b;">건수</th>
+      <th style="padding:10px 8px;text-align:center;color:#64748b;">구분</th>
+      <th style="padding:10px 8px;text-align:left;color:#64748b;">실적 비율</th>
+      <th style="padding:10px 8px;text-align:center;color:#64748b;">평가</th>
+    </tr></thead>
+    <tbody>${agents.map((a,i)=>{
+      const medal = i===0?'🏆 챔피언':i===1?'🥈 최우수':i===2?'🥉 우수':i<5?'TOP 5':i<10?'TOP 10':'FC';
+      const barW = (a.credit/maxC*100).toFixed(0);
+      return `<tr class="tbl-row" style="border-bottom:1px solid rgba(30,41,59,.5);">
+        <td style="padding:9px 8px;text-align:center;font-weight:800;color:#64748b;font-size:13px;">${i+1}</td>
+        <td style="padding:9px 8px;font-weight:700;color:#fff;">${a.name} <span style="color:#64748b;font-size:10px;">(${a.id})</span></td>
+        <td style="padding:9px 8px;color:#94a3b8;">${a.b2}</td>
+        <td style="padding:9px 8px;color:#64748b;font-size:10px;">${a.b3||'-'}</td>
+        <td style="padding:9px 8px;text-align:right;color:#60a5fa;font-family:monospace;font-weight:800;">${fmtK(a.premium)}</td>
+        <td style="padding:9px 8px;text-align:right;color:#94a3b8;font-family:monospace;">${fmtK(a.credit)}</td>
+        <td style="padding:9px 8px;text-align:center;color:#94a3b8;">${a.count}건</td>
+        <td style="padding:9px 8px;text-align:center;"><span class="badge ${a.type==='재직'?'b-green':'b-gray'}">${a.type}</span></td>
+        <td style="padding:9px 8px;min-width:80px;"><div class="prog-bar-bg"><div class="prog-bar-fill" style="width:${(a.premium/maxC*100).toFixed(0)}%;background:#3b82f6;"></div></div></td>
+        <td style="padding:9px 8px;text-align:center;"><span style="font-size:11px;font-weight:800;color:#facc15;">${medal}</span></td>
+      </tr>`;}).join('')}</tbody>
+  </table>`;
+}
+
+// ─── RENDER RISK ──────────────────────────────────────────
+function renderRisk() {
+  const risks = calcRisks();
+  const agentRisks  = risks.filter(r=>r.type==='agent');
+  const branchRisks = risks.filter(r=>r.type==='branch');
+  
+  const al = document.getElementById('risk-agent-list');
+  if (al) al.innerHTML = agentRisks.length ? agentRisks.map(r=>`
+    <div class="glass risk-${r.level}" style="padding:12px;border-radius:10px;">
+      <div style="font-size:12px;font-weight:800;color:#fff;margin-bottom:3px;">${r.icon} ${r.title}</div>
+      <div style="font-size:10px;color:#94a3b8;">${r.desc}</div>
+      <div style="font-size:10px;color:${levelColor[r.level]};margin-top:6px;font-weight:700;">▶ ${r.action}</div>
+    </div>`).join('') : '<div style="color:#4ade80;padding:20px;text-align:center;">✅ 이탈 위험 설계사 없음</div>';
+  
+  const bl = document.getElementById('risk-branch-list');
+  if (bl) bl.innerHTML = branchRisks.length ? branchRisks.map(r=>`
+    <div class="glass risk-${r.level}" style="padding:12px;border-radius:10px;">
+      <div style="font-size:12px;font-weight:800;color:#fff;margin-bottom:3px;">${r.icon} ${r.title}</div>
+      <div style="font-size:10px;color:#94a3b8;">${r.desc}</div>
+      <div style="font-size:10px;color:${levelColor[r.level]};margin-top:6px;font-weight:700;">▶ ${r.action}</div>
+    </div>`).join('') : '<div style="color:#4ade80;padding:20px;text-align:center;">✅ 위험 본부 없음</div>';
+}
+
+// ─── RENDER INSURANCE ─────────────────────────────────────
+function renderInsurance(filtered) {
+  const catMap = {}, coMap = {}, coDetailMap = {};
+  filtered.forEach(r => {
+    catMap[r.category] = catMap[r.category] || { credit:0, premium:0, count:0 };
+    catMap[r.category].credit  += r.credit;
+    catMap[r.category].premium += r.premium;
+    catMap[r.category].count++;
+    coMap[r.company] = (coMap[r.company]||0) + r.credit;
+    const key = r.category+'|'+r.company;
+    coDetailMap[key] = coDetailMap[key] || { cat:r.category, co:r.company, credit:0, count:0 };
+    coDetailMap[key].credit += r.credit;
+    coDetailMap[key].count++;
+  });
+  const totalC = filtered.reduce((s,r)=>s+r.credit,0);
+  
+  const ct = document.getElementById('ins-cat-tbl');
+  if (ct) ct.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:12px;">
+    <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
+      <th style="padding:10px;text-align:left;color:#64748b;">보험종목</th>
+      <th style="padding:10px;text-align:right;color:#64748b;">인정실적</th>
+      <th style="padding:10px;text-align:right;color:#64748b;">월보험료</th>
+      <th style="padding:10px;text-align:center;color:#64748b;">건수</th>
+      <th style="padding:10px;text-align:center;color:#64748b;">비중</th>
+    </tr></thead>
+    <tbody>${Object.entries(catMap).map(([cat,v])=>`
+      <tr style="border-bottom:1px solid #1e293b;">
+        <td style="padding:10px;font-weight:800;color:#fff;font-size:13px;">${cat}</td>
+        <td style="padding:10px;text-align:right;color:#60a5fa;font-family:monospace;font-size:14px;font-weight:800;">${fmtK(v.credit)}</td>
+        <td style="padding:10px;text-align:right;color:#94a3b8;font-family:monospace;">${fmtK(v.premium)}</td>
+        <td style="padding:10px;text-align:center;color:#94a3b8;">${v.count}건</td>
+        <td style="padding:10px;text-align:center;"><div class="prog-bar-bg" style="height:8px;"><div class="prog-bar-fill" style="width:${totalC>0?v.credit/totalC*100:0}%;background:${cat==='생명보험'?'#3b82f6':'#f97316'};"></div></div><div style="font-size:10px;color:#94a3b8;margin-top:2px;">${totalC>0?fmtP(v.credit/totalC*100):'0%'}</div></td>
+      </tr>`).join('')}</tbody>
+  </table>`;
+  
+  // Company bar chart
+  const topCos = Object.entries(coMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  makeChart('ch-company-bar','bar',{
+    labels: topCos.map(c=>c[0]),
+    datasets:[{ label:'인정실적', data:topCos.map(c=>c[1]), backgroundColor:COLORS10, borderRadius:6 }]
+  },{ indexAxis:'y', plugins:{ legend:{ display:false } }, scales:{
+    x:{ grid:{ color:'#1e293b' }, ticks:{ color:'#94a3b8', callback:v=>(v/10000).toFixed(0)+'만' } },
+    y:{ grid:{ color:'#1e293b' }, ticks:{ color:'#e2e8f0', font:{ size:10 } } }
+  }});
+  
+  // Detail table
+  const dt = document.getElementById('ins-detail-tbl');
+  const details = Object.values(coDetailMap).sort((a,b)=>b.credit-a.credit);
+  if (dt) dt.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
+      <th style="padding:8px;color:#64748b;">종목</th><th style="padding:8px;color:#64748b;">보험회사</th>
+      <th style="padding:8px;text-align:right;color:#64748b;">인정실적</th><th style="padding:8px;text-align:center;color:#64748b;">건수</th>
+      <th style="padding:8px;text-align:center;color:#64748b;">비중</th>
+    </tr></thead>
+    <tbody>${details.map(d=>`
+      <tr class="tbl-row" style="border-bottom:1px solid rgba(30,41,59,.5);">
+        <td style="padding:7px 8px;"><span class="badge ${d.cat==='생명보험'?'b-blue':'b-orange'}">${d.cat}</span></td>
+        <td style="padding:7px 8px;color:#e2e8f0;font-weight:700;">${d.co}</td>
+        <td style="padding:7px 8px;text-align:right;color:#60a5fa;font-family:monospace;">${fmtK(d.credit)}</td>
+        <td style="padding:7px 8px;text-align:center;color:#94a3b8;">${d.count}건</td>
+        <td style="padding:7px 8px;text-align:center;color:#64748b;">${totalC>0?fmtP(d.credit/totalC*100):'0%'}</td>
+      </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+// ─── RENDER FORECAST ──────────────────────────────────────
+// ─── SUCCESS DNA · 파생변수 + 예측 엔진 (실데이터) ─────────
+const SAVINGS_KW = ['저축','연금','변액','일시'];
+function isSavingsRec(r){
+  const c = String(r.category||'');
+  if (SAVINGS_KW.some(k=>c.includes(k))) return true;
+  if (String(r.payMethod||'').includes('일시')) return true;
+  return false;
+}
+function monthDiff(joinDate, ym){
+  // joinDate 'YYYYMMDD' or 'YYYY-MM-DD' ; ym 'YYYYMM'
+  const jd = String(joinDate||'').replace(/[^0-9]/g,'');
+  if (jd.length < 6 || !ym) return 0;
+  const jy=+jd.slice(0,4), jm=+jd.slice(4,6);
+  const ty=+ym.slice(0,4), tm=+ym.slice(4,6);
+  return Math.max(0,(ty*12+tm)-(jy*12+jm));
+}
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const sigmoid=z=>1/(1+Math.exp(-z));
+
+function computeDNA(){
+  const months=[...new Set(STATE.merged.map(r=>r.month).filter(Boolean))].sort();
+  const latestM=months[months.length-1];
+  const obsSpan=months.length||1;
+  const actives=STATE.employees.filter(e=>e.type==='재직');
+  // 1차: 원시 파생변수
+  const raw=actives.map(emp=>{
+    const recs=STATE.merged.filter(r=>String(r.agentId)===String(emp.id));
+    const byMonth={}; recs.forEach(r=>byMonth[r.month]=(byMonth[r.month]||0)+r.credit);
+    const activeMonths=Object.keys(byMonth).filter(m=>byMonth[m]>0);
+    const totalCredit=recs.reduce((s,r)=>s+r.credit,0);
+    const tenure=monthDiff(emp.joinDate,latestM);
+    const denom=Math.max(1,Math.min(obsSpan, tenure||obsSpan));
+    const activityRatio=clamp(activeMonths.length/denom,0,1);
+    const avgCredit=activeMonths.length? totalCredit/activeMonths.length : 0;
+    // 최근 2개월 활동
+    const recentM=months.slice(-2);
+    const recentCredit=recentM.reduce((s,m)=>s+(byMonth[m]||0),0);
+    const recentActive=recentCredit>0;
+    // 피크 후 급정지 (T6)
+    const peak=Math.max(0,...Object.values(byMonth));
+    const earlyStop = peak>0 && !recentActive && activeMonths.length>=1;
+    // 집중도 (T2/H9) : 보험회사
+    const compMap={}; recs.forEach(r=>compMap[r.company]=(compMap[r.company]||0)+r.credit);
+    const compShare = totalCredit>0? Math.max(0,...Object.values(compMap))/totalCredit : 0;
+    // 저축성 비중 (환수 proxy / T4)
+    const savCredit=recs.filter(isSavingsRec).reduce((s,r)=>s+r.credit,0);
+    const savShare = totalCredit>0? savCredit/totalCredit : 0;
+    return {emp,tenure,activityRatio,avgCredit,totalCredit,recentActive,earlyStop,compShare,savShare,nContracts:recs.length};
+  });
+  // 파이프라인 백분위 (avgCredit 기준, 활동자 내)
+  const creds=raw.filter(x=>x.avgCredit>0).map(x=>x.avgCredit).sort((a,b)=>a-b);
+  const pct=v=>{ if(!creds.length) return 0; let c=0; for(const x of creds){if(x<=v)c++;} return c/creds.length*100; };
+  const creditQ3 = creds.length? creds[Math.floor(creds.length*0.75)] : Infinity;
+  // 2차: DNA strand + 엔진
+  return raw.map(x=>{
+    const activityDNA=Math.round(x.activityRatio*100);
+    const pipelineDNA=Math.round(pct(x.avgCredit));
+    const partialDNA=Math.round((activityDNA*25+pipelineDNA*25)/50);
+    // Engine1 정착확률
+    let z1=-2.2 +0.020*activityDNA +0.018*pipelineDNA +0.8*(x.recentActive?1:0) +0.30*Math.min(x.tenure/12,2);
+    const settle=Math.round(clamp(sigmoid(z1)*100,3,97));
+    // Engine2 먹튀 TAKER proxy (T1 단기대량 / T2 집중 / T4 저축편중 / T6 급정지)
+    const taker=[];
+    if (x.tenure<=6 && x.avgCredit>=creditQ3 && creditQ3!==Infinity) taker.push('T1');
+    // T2(클러스터 집중): 단일보험사 충성 정상설계사 오탐 방지 — 계약 3건↑ & 근속 18개월↓ 컨텍스트에서만 신호
+    if (x.compShare>=0.8 && x.nContracts>=3 && x.tenure<=18) taker.push('T2');
+    if (x.savShare>=0.6) taker.push('T4');
+    if (x.earlyStop) taker.push('T6');
+    // 집중도 잔여항은 장기근속자에게 가중 축소(오탐 완화)
+    let z2=-3.0 +0.9*taker.length +0.010*(x.compShare*100)*(x.tenure<=18?1:0.3);
+    const takerRisk=Math.round(clamp(sigmoid(z2)*100,1,99));
+    // Engine3 환수 risk (저축성 + 집중도)  ※유지율 데이터 부재
+    const churnRisk=Math.round(clamp(0.45*(x.savShare*100)+0.35*(x.compShare*100),0,100));
+    const churnGrade= churnRisk>=60?'高': churnRisk>=35?'中':'低';
+    return {...x,activityDNA,pipelineDNA,partialDNA,settle,taker,takerRisk,churnRisk,churnGrade};
+  });
+}
+
+function renderDNA(){
+  const tbody=document.getElementById('dna-tbody'); if(!tbody) return;
+  const modeEl=document.getElementById('dna-data-mode');
+  const real=STATE.config.isRealData;
+  modeEl.textContent = real?'● 실데이터 모드':'● 샘플 데이터 모드';
+  modeEl.style.background = real?'rgba(34,197,94,.12)':'rgba(59,130,246,.12)';
+  modeEl.style.border = '1px solid '+(real?'rgba(34,197,94,.35)':'rgba(59,130,246,.3)');
+  modeEl.style.color = real?'#4ade80':'#60a5fa';
+  const rows=computeDNA();
+  window._dnaRows=rows;
+  // 요약
+  const n=rows.length;
+  const settleHigh=rows.filter(r=>r.settle<45).length;
+  const takerWatch=rows.filter(r=>r.taker.length>=2).length;
+  const churnHigh=rows.filter(r=>r.churnGrade==='高').length;
+  const avgDNA=n?Math.round(rows.reduce((s,r)=>s+r.partialDNA,0)/n):0;
+  const cards=[
+    {l:'분석 대상(재직)',v:n+'명',c:'#60a5fa'},
+    {l:'정착 고위험(<45%)',v:settleHigh+'명',c:'#ef4444'},
+    {l:'먹튀 관찰(≥2신호)',v:takerWatch+'명',c:'#f97316'},
+    {l:'환수 高위험',v:churnHigh+'명',c:'#fbbf24'},
+    {l:'평균 부분 DNA',v:avgDNA,c:'#22c55e'},
+  ];
+  document.getElementById('dna-summary').innerHTML=cards.map(k=>`
+    <div class="kpi-card" style="border-radius:14px;padding:14px 16px;border-left:3px solid ${k.c};">
+      <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;margin-bottom:6px;">${k.l}</div>
+      <div style="font-size:22px;font-weight:900;color:${k.c};">${k.v}</div>
+    </div>`).join('');
+  // 갭 패널
+  document.getElementById('dna-gap').innerHTML=`
+    <div>
+      <div style="color:#4ade80;font-weight:800;margin-bottom:5px;">✓ 계산 가능 (현재 컬럼)</div>
+      <div style="color:#cbd5e1;line-height:1.8;">
+        · 근속개월 ← 입사일<br>· 활동 리듬(ARC) ← 월별 인정실적 연속성<br>
+        · 파이프라인 ← 평균 인정실적 백분위<br>· 클러스터 집중도 ← 보험회사 점유율(H9)<br>
+        · 저축성 비중 ← 보험종목·일시납(환수 proxy)
+      </div>
+    </div>
+    <div>
+      <div style="color:#f87171;font-weight:800;margin-bottom:5px;">✗ 추가 수집 필요 (엔진 정밀화)</div>
+      <div style="color:#cbd5e1;line-height:1.8;">
+        · 소개 계약 플래그 ← H3·H11 (정착 최강변수)<br>· 주간 면담 로그 ← H5·H8 (사건지평선)<br>
+        · 실제 환수 발생 라벨 ← H10 (Engine3 학습)<br>· Relationship/Learning/Mental/Community DNA<br>
+        <span style="color:#fbbf24;">→ 확보 시 로지스틱 계수 재추정으로 정확도 상승</span>
+      </div>
+    </div>`;
+  // 로직 설명
+  document.getElementById('dna-logic').innerHTML=`
+    <b style="color:#4ade80;">Engine1 정착</b> = σ(-2.2 +0.02·활동 +0.018·파이프 +0.8·최근활동 +0.3·min(근속/12,2))<br><br>
+    <b style="color:#f87171;">Engine2 먹튀</b> = σ(-3 +0.9·TAKER신호수 +0.010·집중도·근속보정) · T1(단기대량)/T2(집중≥80%·계약≥3·근속≤18m)/T4(저축≥60%)/T6(급정지)<br><br>
+    <b style="color:#fbbf24;">Engine3 환수</b> = 0.45·저축성% +0.35·집중도% → 高(≥60)/中(≥35)/低`;
+  // 분포 차트
+  const buckets=[0,0,0,0,0]; // 0-20,...,80-100
+  rows.forEach(r=>buckets[Math.min(4,Math.floor(r.partialDNA/20))]++);
+  makeChart('ch-dna-dist','bar',{
+    labels:['0-19','20-39','40-59','60-79','80-100'],
+    datasets:[{label:'설계사 수',data:buckets,backgroundColor:['#ef4444','#f97316','#eab308','#3b82f6','#22c55e']}]
+  },{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.parsed.y}명`}}},
+     scales:{x:{grid:{color:'#1e293b'},ticks:{color:'#94a3b8'}},y:{grid:{color:'#1e293b'},ticks:{color:'#94a3b8',precision:0}}}});
+  // 정렬
+  const sort=document.getElementById('dna-sort')?.value||'settle';
+  const sorted=[...rows].sort((a,b)=>{
+    if(sort==='settle')return a.settle-b.settle;
+    if(sort==='taker')return b.takerRisk-a.takerRisk;
+    if(sort==='churn')return b.churnRisk-a.churnRisk;
+    return a.partialDNA-b.partialDNA;
+  });
+  const sc=v=>v>=80?'#22c55e':v>=60?'#3b82f6':v>=40?'#f97316':'#ef4444';
+  const settleC=v=>v>=70?'#22c55e':v>=45?'#eab308':'#ef4444';
+  const gradeC={'高':'#ef4444','中':'#f97316','低':'#22c55e'};
+  tbody.innerHTML=sorted.map(r=>`
+    <tr style="border-bottom:1px solid #1e293b;">
+      <td style="padding:8px;color:#e2e8f0;font-weight:700;white-space:nowrap;">${r.emp.name}</td>
+      <td style="padding:8px;color:#94a3b8;white-space:nowrap;">${r.emp.b2||'-'}</td>
+      <td style="padding:8px;text-align:right;color:#cbd5e1;">${r.tenure}</td>
+      <td style="padding:8px;text-align:right;color:${sc(r.activityDNA)};font-weight:700;">${r.activityDNA}</td>
+      <td style="padding:8px;text-align:right;color:${sc(r.pipelineDNA)};font-weight:700;">${r.pipelineDNA}</td>
+      <td style="padding:8px;text-align:right;color:${sc(r.partialDNA)};font-weight:900;">${r.partialDNA}</td>
+      <td style="padding:8px;text-align:center;"><span style="background:${settleC(r.settle)}22;color:${settleC(r.settle)};padding:2px 8px;border-radius:6px;font-weight:800;">${r.settle}%</span></td>
+      <td style="padding:8px;text-align:center;color:${r.taker.length>=2?'#f97316':'#64748b'};font-weight:700;">${r.taker.length?r.taker.join(' '):'–'}</td>
+      <td style="padding:8px;text-align:center;color:${r.takerRisk>=60?'#ef4444':r.takerRisk>=35?'#f97316':'#64748b'};font-weight:700;">${r.takerRisk}%</td>
+      <td style="padding:8px;text-align:center;"><span style="background:${gradeC[r.churnGrade]}22;color:${gradeC[r.churnGrade]};padding:2px 9px;border-radius:6px;font-weight:800;">${r.churnGrade}</span></td>
+    </tr>`).join('') || '<tr><td colspan="10" style="padding:20px;text-align:center;color:#64748b;">데이터 없음 — 파일 업로드 또는 샘플 데이터 로드</td></tr>';
+}
+
+function exportDNA(){
+  const rows=window._dnaRows||computeDNA();
+  const head=['설계사','본부','근속월','활동DNA','파이프DNA','부분DNA','정착확률','TAKER신호','먹튀위험','환수등급'];
+  const lines=[head.join(',')].concat(rows.map(r=>
+    [r.emp.name,r.emp.b2||'',r.tenure,r.activityDNA,r.pipelineDNA,r.partialDNA,r.settle+'%',r.taker.join(' '),r.takerRisk+'%',r.churnGrade].join(',')));
+  const blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='SuccessDNA_진단.csv'; a.click();
+}
+
+function renderForecast() {
+  const fc = calcForecast();
+  if (!fc) { document.getElementById('forecast-kpi-panel').innerHTML='<div style="color:#64748b;">데이터 부족</div>'; return; }
+  
+  const labels = [...fc.months.map(m=>monthLabel(m)), `${monthLabel(fc.nextMCode)} (예측)`];
+  const actuals = [...fc.vals, null];
+  const predicted = fc.months.map((_,i)=>Math.round(fc.intercept+fc.slope*i)).concat([fc.nextVal]);
+  
+  makeChart('ch-forecast','line',{
+    labels,
+    datasets:[
+      { label:'실제 인정실적', data:actuals, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.1)', borderWidth:2.5, pointRadius:6, fill:true, tension:.1, spanGaps:false },
+      { label:'추세선(예측)', data:predicted, borderColor:'#8b5cf6', backgroundColor:'rgba(139,92,246,.05)', borderDash:[6,3], borderWidth:2, pointRadius:[...fc.months.map(()=>4), 8], pointBackgroundColor:[...fc.months.map(()=>'#8b5cf6'),'#c084fc'], fill:false, tension:.1 },
+    ]
+  },{ plugins:{ legend:{ display:true, labels:{ color:'#94a3b8', font:{ size:10 } } } }, scales:{
+    x:{ grid:{ color:'#1e293b' }, ticks:{ color:'#94a3b8' } },
+    y:{ grid:{ color:'#1e293b' }, ticks:{ color:'#94a3b8', callback:v=>(v/10000).toFixed(0)+'만' } }
+  }});
+  
+  // Forecast KPIs
+  const panel = document.getElementById('forecast-kpi-panel');
+  const growthPct = fc.vals.length>=2 ? (fc.nextVal-fc.vals[fc.vals.length-1])/fc.vals[fc.vals.length-1]*100 : 0;
+  if (panel) panel.innerHTML = `
+    <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">예측 KPI</div>
+    ${[
+      { label:`${fc.nextMCode} 예상 실적`, val:fmtK(fc.nextVal), color:'#c084fc' },
+      { label:'예상 성장률', val:(growthPct>=0?'+':'')+fmtP(growthPct), color:growthPct>=0?'#4ade80':'#f87171' },
+      { label:'전체 추세', val:fc.slope>0?'📈 상승':'📉 하락', color:fc.slope>0?'#4ade80':'#f87171' },
+    ].map(k=>`<div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;margin-bottom:8px;">
+      <div style="font-size:10px;color:#64748b;margin-bottom:4px;">${k.label}</div>
+      <div style="font-size:18px;font-weight:900;color:${k.color};">${k.val}</div>
+    </div>`).join('')}`;
+  
+  // Growth chart
+  const bStats = getBranchStats(getFiltered()).filter(b=>b.prevCredit>0||b.latestCredit>0);
+  makeChart('ch-growth','bar',{
+    labels: bStats.map(b=>b.name),
+    datasets:[{ label:'전월대비 성장률 (%)', data:bStats.map(b=>b.growthRate), backgroundColor:bStats.map(b=>b.growthRate>=0?'rgba(34,197,94,.7)':'rgba(239,68,68,.7)'), borderRadius:4 }]
+  },{ plugins:{ legend:{ display:false } }, scales:{
+    x:{ grid:{ color:'#1e293b' }, ticks:{ color:'#94a3b8', font:{ size:9 } } },
+    y:{ grid:{ color:'#1e293b' }, ticks:{ color:'#94a3b8', callback:v=>v+'%' } }
+  }});
+}
+
+// ─── RENDER DATA VIEW ────────────────────────────────────
+function renderDataView(filtered) {
+  const srch = (STATE.ui.dvSearch||'').toLowerCase();
+  const rows = srch ? filtered.filter(r=>(r.agentName+r.branch2+r.company).toLowerCase().includes(srch)) : filtered;
+  document.getElementById('dv-count').innerText = rows.length.toLocaleString();
+  
+  const page = STATE.ui.dvPage;
+  const size = 50;
+  const total = Math.ceil(rows.length/size);
+  const start = (page-1)*size;
+  const pageRows = rows.slice(start, start+size);
+  
+  const body = document.getElementById('dv-body');
+  if (body) body.innerHTML = pageRows.map(r=>`
+    <tr class="tbl-row" style="border-bottom:1px solid rgba(30,41,59,.5);">
+      <td style="padding:8px;color:#94a3b8;font-family:monospace;">${r.month}</td>
+      <td style="padding:8px;color:#fff;font-weight:700;">${r.agentName}</td>
+      <td style="padding:8px;color:#94a3b8;">${r.branch2}</td>
+      <td style="padding:8px;"><span class="badge ${r.category==='생명보험'?'b-blue':'b-orange'}">${r.category}</span></td>
+      <td style="padding:8px;color:#94a3b8;">${r.company}</td>
+      <td style="padding:8px;color:#c084fc;font-size:10px;">${r.payMethod}</td>
+      <td style="padding:8px;text-align:right;color:#94a3b8;font-family:monospace;">${r.premium.toLocaleString()}</td>
+      <td style="padding:8px;text-align:right;color:#60a5fa;font-family:monospace;font-weight:700;">${r.credit.toLocaleString()}</td>
+      <td style="padding:8px;text-align:center;"><span class="badge ${r.agentType==='재직'?'b-green':'b-gray'}">${r.agentType}</span></td>
+    </tr>`).join('');
+  
+  // Pagination
+  const pg = document.getElementById('dv-pagination');
+  if (!pg) return;
+  const pgBtns = [];
+  for (let i=1;i<=total;i++) {
+    if (i===1||i===total||Math.abs(i-page)<=1) pgBtns.push(`<button class="pg-btn${i===page?' active-pg':''}" onclick="STATE.ui.dvPage=${i};renderAll();">${i}</button>`);
+    else if (Math.abs(i-page)===2) pgBtns.push('<span style="color:#64748b;font-size:11px;">…</span>');
+  }
+  pg.innerHTML = pgBtns.join('');
+}
+
+function dvSearch() { STATE.ui.dvSearch = document.getElementById('dv-search').value; STATE.ui.dvPage=1; renderDataView(getFiltered()); }
+
+// ─── CHART UTILITY ───────────────────────────────────────
+function makeChart(id, type, data, options={}) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  charts[id] = new Chart(canvas.getContext('2d'), {
+    type,
+    data,
+    options: Object.assign({
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:ctx=>`${ctx.dataset.label||''}: ${Math.round(ctx.parsed.y||ctx.parsed||0).toLocaleString()}원` } } }
+    }, options)
+  });
+}
+
+// ─── EXPORT CSV ──────────────────────────────────────────
+function exportCSV(type) {
+  const filtered = getFiltered();
+  let rows, headers;
+  if (type==='top20') {
+    const agentMap = {};
+    filtered.forEach(r=>{ if(!agentMap[r.agentId]) agentMap[r.agentId]={id:r.agentId,name:r.agentName,b2:r.branch2,type:r.agentType,credit:0,premium:0,count:0}; agentMap[r.agentId].credit+=r.credit; agentMap[r.agentId].premium+=r.premium; agentMap[r.agentId].count++; });
+    const agents = Object.values(agentMap).sort((a,b)=>b.credit-a.credit).slice(0,20);
+    headers = ['순위','담당자코드','성명','소속본부','인정실적','월보험료','계약건수','등록구분'];
+    rows = agents.map((a,i)=>[i+1,a.id,a.name,a.b2,a.credit,a.premium,a.count,a.type]);
+  } else {
+    headers = ['납입월도','담당자','소속본부','보험종목','보험회사','납입방법','월보험료','인정실적','등록구분'];
+    rows = filtered.map(r=>[r.month,r.agentName,r.branch2,r.category,r.company,r.payMethod,r.premium,r.credit,r.agentType]);
+  }
+  const csv = [headers.join(','),...rows.map(r=>r.join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download = `인카금융_${type}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ─── FOLDER AUTO-CONNECT (File System Access API) ────────
+const FS_SUPPORTED = ('showDirectoryPicker' in window);
+let DIR_HANDLE = null;
+
+// IndexedDB helpers to persist the directory handle across sessions
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('inka_fs_db', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('handles');
+    req.onsuccess = () => res(req.result);
+    req.onerror   = () => rej(req.error);
+  });
+}
+async function idbSet(key, val) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('handles', 'readwrite');
+    tx.objectStore('handles').put(val, key);
+    tx.oncomplete = () => res();
+    tx.onerror    = () => rej(tx.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('handles', 'readonly');
+    const r = tx.objectStore('handles').get(key);
+    r.onsuccess = () => res(r.result);
+    r.onerror   = () => rej(r.error);
+  });
+}
+
+async function verifyPermission(handle) {
+  const opts = { mode: 'readwrite' };
+  if ((await handle.queryPermission(opts)) === 'granted') return true;
+  if ((await handle.requestPermission(opts)) === 'granted') return true;
+  return false;
+}
+
+// User clicks "폴더 연결"
+async function connectFolder() {
+  if (!FS_SUPPORTED) { document.getElementById('fsapi-unsupported').style.display='block'; return; }
+  try {
+    DIR_HANDLE = await window.showDirectoryPicker({ mode:'readwrite' });
+    await idbSet('inka_dir', DIR_HANDLE);
+    document.getElementById('folder-path-display').innerText = '✅ 연결됨: ' + DIR_HANDLE.name + ' (브라우저가 기억함)';
+    document.getElementById('folder-status').innerText = '폴더가 연결되었습니다. 파일을 폴더에 넣고 [폴더 새로고침]을 누르세요.';
+    const btn = document.getElementById('refresh-folder-btn');
+    btn.disabled = false; btn.style.opacity = '1';
+    log('📂 폴더 연결: ' + DIR_HANDLE.name, 'success');
+    await refreshFolder();
+  } catch(err) {
+    if (err.name === 'AbortError') { log('폴더 선택이 취소되었습니다', 'warn'); return; }
+    log('❌ 폴더 연결 실패: ' + err.message, 'error');
+  }
+}
+
+// User clicks "폴더 새로고침" — re-scan the folder for matching files
+// ─── APPS SCRIPT 클라우드 연동 ───────────────────────────
+const AS_DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbzTD7Ix4_YTZq_HNqGF0b2fhIt8f6TL3uqoSQiiudVopMoTA2rI66eoVKKtKbwwc3Ut/exec';
+const AS_URL_LS = 'inka_as_url';
+const AS_KEY_LS = 'inka_as_key';
+
+function saveAsConfig() {
+  localStorage.setItem(AS_URL_LS, document.getElementById('as-url-input')?.value?.trim() || '');
+  localStorage.setItem(AS_KEY_LS, document.getElementById('as-key-input')?.value?.trim() || '');
+}
+function loadAsConfig() {
+  const url = localStorage.getItem(AS_URL_LS) || AS_DEFAULT_URL;
+  const key = localStorage.getItem(AS_KEY_LS) || 'INCA2026';
+  const ui = document.getElementById('as-url-input');
+  const ki = document.getElementById('as-key-input');
+  if (ui) ui.value = url;
+  if (ki) ki.value = key;
+  return { url, key };
+}
+function setAsStatus(msg, color='#64748b') {
+  const el = document.getElementById('as-status');
+  if (el) { el.innerText = msg; el.style.color = color; }
+}
+
+// ─── SYNC 컨트롤 ─────────────────────────────────────────
+// 수동 동기화 버튼
+async function manualPushToAS() {
+  await pushToAS();
+}
+
+// 폴더 로드 완료 후 자동 클라우드 동기화 (백그라운드)
+async function autoSyncToAS() {
+  const { url } = loadAsConfig();
+  if (!url) return; // URL 미설정 시 스킵
+  const perfCount = STATE.performance.filter(r => r.status === '실제데이터').length;
+  if (!perfCount) return;
+  const syncEl = document.getElementById('as-sync-status');
+  if (syncEl) syncEl.innerHTML = '<span style="color:#fde68a;">⏳ 클라우드 동기화 중...</span>';
+  try {
+    await pushToAS(true); // silent
+    if (syncEl) syncEl.innerHTML = `<span style="color:#4ade80;">✅ 동기화 완료 (${new Date().toLocaleTimeString()})</span>`;
+  } catch(e) {
+    if (syncEl) syncEl.innerHTML = `<span style="color:#f87171;">❌ 동기화 실패 — 수동 동기화 버튼 사용</span>`;
+  }
+}
+
+// 클라우드 업로드 → Apps Script POST
+async function pushToAS(silent=false) {
+  const { url, key } = loadAsConfig();
+  if (!url) { if (!silent) setAsStatus('❌ 배포 URL을 먼저 입력하세요', '#f87171'); return; }
+  const perf = STATE.performance.filter(r => r.status === '실제데이터');
+  if (!STATE.employees.length && !perf.length) { if (!silent) setAsStatus('❌ 업로드할 데이터 없음', '#f87171'); return; }
+  if (!silent) setAsStatus(`⏳ 업로드 중... (직원 ${STATE.employees.length}명 · 실적 ${perf.length}건)`, '#fde68a');
+  try {
+    const res  = await fetch(url, {
+      method: 'POST',
+      body:   JSON.stringify({ key, employees: STATE.employees, performance: perf }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const msg = `✅ 완료 — 직원 ${data.empCount}명 · 실적 ${data.perfCount}건 (${new Date().toLocaleTimeString()})`;
+      if (!silent) setAsStatus(msg, '#34d399');
+      log('☁️ 클라우드 업로드 완료', 'success');
+    } else {
+      if (!silent) setAsStatus('❌ ' + (data.error || '오류'), '#f87171');
+      else throw new Error(data.error || '오류');
+    }
+  } catch(err) {
+    if (!silent) setAsStatus('❌ ' + err.message, '#f87171');
+    else throw err;
+  }
+}
+
+// 클라우드에서 불러오기 → Apps Script GET
+async function pullFromAS(silent=false) {
+  const { url } = loadAsConfig();
+  if (!url) { if (!silent) setAsStatus('❌ 배포 URL을 먼저 입력하세요', '#f87171'); return false; }
+  if (!silent) setAsStatus('⏳ 불러오는 중...', '#fde68a');
+  try {
+    const res  = await fetch(url + '?t=' + Date.now());
+    const data = await res.json();
+    if (!data.employees?.length) throw new Error('데이터 없음 — 드라이브 파일 확인 또는 강제 갱신 필요');
+    STATE.employees   = data.employees;
+    STATE.performance = (data.performance || []).map(r => ({...r, month: String(r.month||"").trim()}));
+    STATE.config.isRealData = true;
+    mergeData(); checkRealData();
+    const msg = `✅ 로드 완료 — 직원 ${data.employees.length}명 · 실적 ${data.performance?.length||0}건`;
+    if (!silent) setAsStatus(msg, '#34d399');
+    const loadEl = document.getElementById('as-load-status');
+    if (loadEl) loadEl.innerHTML = `<span style="color:#4ade80;">${msg}</span>`;
+    log('☁️ ' + msg, 'success');
+    return true;
+  } catch(err) {
+    const loadEl = document.getElementById('as-load-status');
+    if (loadEl) loadEl.innerHTML = `<span style="color:#f87171;">❌ ${err.message}</span>`;
+    if (!silent) setAsStatus('❌ ' + err.message, '#f87171');
+    return false;
+  }
+}
+
+// ─── CACHE SYSTEM ────────────────────────────────────────
+const CACHE_FILE = '_인카_cache.json';
+
+async function readCache() {
+  try {
+    const fh   = await DIR_HANDLE.getFileHandle(CACHE_FILE);
+    const file = await fh.getFile();
+    return JSON.parse(await file.text());
+  } catch(e) { return null; }
+}
+
+async function writeCache(cache) {
+  try {
+    const fh = await DIR_HANDLE.getFileHandle(CACHE_FILE, { create: true });
+    const w  = await fh.createWritable();
+    await w.write(JSON.stringify(cache));
+    await w.close();
+  } catch(e) { log('⚠️ 캐시 저장 실패: ' + e.message, 'warn'); }
+}
+
+// 캐시 초기화 버튼
+async function resetCache() {
+  if (!DIR_HANDLE) { log('❌ 폴더가 연결되지 않았습니다', 'error'); return; }
+  try {
+    await DIR_HANDLE.removeEntry(CACHE_FILE);
+    log('🗑️ 캐시 초기화 완료 — 새로고침 시 전체 재로드됩니다', 'success');
+  } catch(e) { log('캐시 파일 없음 (이미 초기화 상태)', 'info'); }
+}
+
+// 순수 직원 파서 (STATE 직접 수정 없이 배열 반환)
+function parseEmpRowsPure(rows) {
+  const hi = detectHeaderRow(rows, ['사원번호','성명','등록구분']);
+  if (hi < 0) return [];
+  const headers = rows[hi].map(h => String(h).trim());
+  const ix = k => headers.indexOf(k);
+  const parsed = [];
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r[ix('사원번호')]) continue;
+    parsed.push({
+      id:       String(r[ix('사원번호')]).trim(),
+      name:     String(r[ix('성명')]       || '').trim(),
+      type:     String(r[ix('등록구분')]   || '재직').trim(),
+      b1:       String(r[ix('소속_1단계')] || '').trim(),
+      b2:       String(r[ix('소속_2단계')] || '').trim(),
+      b3:       String(r[ix('소속_3단계')] || '').trim(),
+      joinDate: String(r[ix('입사일')]     || '').trim(),
+      _source:  'real'
+    });
+  }
+  return parsed;
+}
+
+// 순수 실적 파서 (증권번호 기준 중복 제거, 기존 Set 전달)
+function parsePerfRowsPure(rows, existingCerts) {
+  const hi = detectHeaderRow(rows, ['SUNAB_PK','담당자코드','납입월도','인정실적']);
+  const skip = hi >= 0 ? hi : 7;
+  const vrows = rows.slice(skip);
+  const hdrs  = vrows[0].map(h => String(h).trim());
+  const ix    = k => hdrs.indexOf(k);
+  if (ix('담당자코드') < 0 || ix('인정실적') < 0) return [];
+  const parsed = [];
+  for (let i = 1; i < vrows.length; i++) {
+    const r = vrows[i];
+    if (!r[ix('담당자코드')] || !r[ix('납입월도')]) continue;
+    const cert = String(r[ix('증권번호')] || '').trim();
+    const pk   = String(r[ix('SUNAB_PK')] || '').trim();
+    const key  = cert || pk;
+    if (key && existingCerts.has(key)) continue;
+    if (key) existingCerts.add(key);
+    parsed.push({
+      SUNAB_PK:  pk || `AUTO_${i}`,
+      증권번호:  cert,
+      month:     String(r[ix('납입월도')]).trim(),
+      agentId:   String(r[ix('담당자코드')]).trim(),
+      premium:   cn(r[ix('월보험료')]),
+      credit:    cn(r[ix('인정실적')]),
+      category:  String(r[ix('보험종목')]  || '').trim(),
+      company:   String(r[ix('보험회사')]  || '').trim(),
+      payMethod: String(r[ix('납입방법')]  || '월납').trim(),
+      status:    '실제데이터'
+    });
+  }
+  return parsed;
+}
+
+async function refreshFolder() {
+  if (!DIR_HANDLE) { log('❌ 먼저 폴더를 연결하세요', 'error'); return; }
+
+  const pathEl = document.getElementById('folder-path-display');
+  if (pathEl) pathEl.innerText = '🔄 권한 확인 중...';
+  if (!(await verifyPermission(DIR_HANDLE))) {
+    if (pathEl) pathEl.innerText = '❌ 권한이 거부되었습니다. [폴더 연결]을 다시 클릭하세요.';
+    log('❌ 폴더 권한 거부', 'error'); return;
+  }
+
+  const btn = document.getElementById('refresh-folder-btn');
+  if (btn) {
+    btn.style.background = 'rgba(34,197,94,.12)';
+    btn.style.border = '1px solid rgba(34,197,94,.3)';
+    btn.style.color  = '#4ade80';
+    btn.innerHTML    = '<i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> 폴더 새로고침';
+    lucide.createIcons();
+  }
+
+  // ── 1. 캐시 로드 ──
+  log('📦 캐시 확인 중...', 'info');
+  let cache = await readCache();
+  const isFirstLoad = !cache;
+  if (!cache) {
+    cache = { version:1, processedFiles:{}, latestEmployeeFile:null, employees:[], performance:[], lastUpdated:null };
+    log('📦 캐시 없음 → 전체 초기 로드', 'info');
+  } else {
+    log(`📦 캐시 로드 완료 (실적 ${cache.performance.length}건, 마지막 업데이트: ${cache.lastUpdated?.slice(0,10)||'?'})`, 'info');
+  }
+
+  // ── 2. 폴더 스캔 ──
+  const allEmpFiles  = [];
+  const allPerfFiles = [];
+  const fileBadges   = [];
+  try {
+    for await (const entry of DIR_HANDLE.values()) {
+      if (entry.kind !== 'file') continue;
+      const nm = entry.name;
+      if (nm === CACHE_FILE) continue;
+      if (!/\.(xlsx|xls|csv)$/i.test(nm)) continue;
+      if      (nm.startsWith('직원관리')) { allEmpFiles.push(nm);  fileBadges.push({nm, type:'emp',  isNew:!cache.processedFiles[nm]}); }
+      else if (nm.startsWith('건별실적')) { allPerfFiles.push(nm); fileBadges.push({nm, type:'perf', isNew:!cache.processedFiles[nm]}); }
+    }
+  } catch(err) { log('❌ 폴더 스캔 오류: ' + err.message, 'error'); return; }
+
+  allEmpFiles.sort();
+  allPerfFiles.sort();
+
+  // ── 파일 배지 UI ──
+  const flist = document.getElementById('folder-file-list');
+  const fbox  = document.getElementById('folder-files');
+  if (flist) flist.style.display = 'block';
+  if (fbox) fbox.innerHTML = fileBadges.length ? fileBadges.map(f =>
+    `<span class="badge ${f.type==='emp'?'b-blue':'b-purple'}" style="font-size:10px;padding:4px 10px;opacity:${f.isNew?1:.45};">${f.type==='emp'?'👤':'📊'} ${f.nm}${f.isNew?' 🆕':''}</span>`
+  ).join('') : '<span style="font-size:11px;color:#f87171;">매칭 파일 없음</span>';
+
+  // ── 3. 직원관리: 최신 파일만 (파일명 날짜 기준) ──
+  const latestEmp = allEmpFiles[allEmpFiles.length - 1];
+  if (latestEmp && latestEmp !== cache.latestEmployeeFile) {
+    log(`👤 직원관리 신규: ${latestEmp}`, 'info');
+    const fh   = await DIR_HANDLE.getFileHandle(latestEmp);
+    const file = await fh.getFile();
+    const buf  = await file.arrayBuffer();
+    const wb   = XLSX.read(new Uint8Array(buf), {type:'array'});
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
+    cache.employees = parseEmpRowsPure(rows);
+    cache.latestEmployeeFile = latestEmp;
+    cache.processedFiles[latestEmp] = new Date().toISOString();
+    log(`✅ 직원관리 ${cache.employees.length}명 로드`, 'success');
+  } else {
+    log(`✅ 직원관리 캐시 사용 (${cache.employees.length}명)`, 'info');
+  }
+
+  // ── 4. 건별실적: 신규 파일만 증분 로드 ──
+  const newPerfFiles = allPerfFiles.filter(nm => !cache.processedFiles[nm]);
+  if (newPerfFiles.length > 0) {
+    log(`📊 신규 건별실적 ${newPerfFiles.length}개 처리 중...`, 'info');
+    const existingKeys = new Set(cache.performance.map(r => r.증권번호 || r.SUNAB_PK));
+    for (const nm of newPerfFiles) {
+      const fh   = await DIR_HANDLE.getFileHandle(nm);
+      const file = await fh.getFile();
+      const buf  = await file.arrayBuffer();
+      const wb   = XLSX.read(new Uint8Array(buf), {type:'array'});
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
+      const newRecs = parsePerfRowsPure(rows, existingKeys);
+      cache.performance.push(...newRecs);
+      cache.processedFiles[nm] = new Date().toISOString();
+      log(`✅ ${nm}: 신규 ${newRecs.length}건 추가 (누적 ${cache.performance.length}건)`, 'success');
+    }
+  } else {
+    log('✅ 건별실적 신규 파일 없음 — 캐시 그대로 사용', 'info');
+  }
+
+  // ── 5. STATE 반영 ──
+  STATE.employees   = cache.employees;
+  STATE.performance = cache.performance;
+  cache.lastUpdated = new Date().toISOString();
+
+  // ── 6. 캐시 저장 ──
+  await writeCache(cache);
+  log('💾 캐시 저장 완료', 'success');
+
+  if (pathEl) pathEl.innerText = `✅ ${DIR_HANDLE.name} | 실적 ${cache.performance.length}건 | 마지막: ${cache.lastUpdated.slice(0,10)}`;
+
+  mergeData();
+  checkRealData();
+}
+
+// On page load, try to silently restore a previously connected folder
+async function restoreFolder() {
+  if (!FS_SUPPORTED) { document.getElementById('fsapi-unsupported').style.display='block'; return; }
+  try {
+    const saved = await idbGet('inka_dir');
+    if (!saved) return;
+    DIR_HANDLE = saved;
+
+    // ── 방향 B: 권한이 살아있으면 클릭 없이 자동 로드 ──
+    const perm = await saved.queryPermission({ mode: 'read' });
+    const pathEl  = document.getElementById('folder-path-display');
+    const btn     = document.getElementById('refresh-folder-btn');
+    btn.disabled = false; btn.style.opacity = '1';
+
+    if (perm === 'granted') {
+      // 탭 유지 중 새로고침 등 — 권한 살아있음 → 자동 로드
+      pathEl.innerText = '✅ 자동 연결됨: ' + saved.name + ' — 데이터 로딩 중...';
+      document.getElementById('folder-status').innerText = '이전 폴더 권한이 유지되어 자동으로 데이터를 불러옵니다.';
+      await refreshFolder();
+    } else {
+      // 탭 닫고 재오픈 등 — 권한 만료 → 버튼 1번만 요청
+      pathEl.innerText = '🔗 이전 폴더: ' + saved.name;
+      document.getElementById('folder-status').innerText = '이전에 연결한 폴더가 있습니다. [폴더 새로고침]을 클릭하면 권한 확인 후 자동 로드됩니다.';
+      // 버튼 강조 — 클릭 1번이면 끝
+      btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
+      btn.style.border = 'none';
+      btn.style.color  = '#fff';
+      btn.innerHTML    = '<i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> 클릭하면 자동 로드';
+      lucide.createIcons();
+    }
+  } catch(err) { /* ignore */ }
+}
+
+// ─── FILE UPLOAD ─────────────────────────────────────────
+const dz = document.getElementById('drop-zone');
+['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag-over');}));
+['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('drag-over');}));
+dz.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
+
+async function handleFiles(files) {
+  if (!files?.length) return;
+  log(`📁 ${files.length}개 파일 파이프라인 시작`, 'info');
+  // 순차 처리로 레이스 컨디션 방지 — 초기화 후 await 완료 시까지 단독 실행
+  STATE.performance = STATE.performance.filter(p => p.status !== '실제데이터');
+  STATE.employees   = [];
+  for (const file of Array.from(files)) {
+    const cat = file.name.startsWith('직원관리') ? '직원관리' : file.name.startsWith('건별실적') ? '건별실적' : '기타';
+    if (cat==='기타') { log(`❌ [미인식] ${file.name}: 파일명이 직원관리_ 또는 건별실적_으로 시작해야 합니다`, 'error'); continue; }
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+      const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
+      log(`📊 ${file.name}: ${rawRows.length}행 로드`, 'info');
+      if (cat==='직원관리') parseEmployeeSheet(rawRows, file.name);
+      else                   parsePerfSheet(rawRows, file.name);
+    } catch(err) { log(`❌ ${file.name}: ${err.message}`, 'error'); }
+  }
+}
+
+function detectHeaderRow(rows, keys) {
+  for (let i=0;i<Math.min(rows.length,15);i++) {
+    const cells = rows[i].map(c=>String(c).trim());
+    if (keys.filter(k=>cells.includes(k)).length >= 2) return i;
+  }
+  return -1;
+}
+
+function parseEmployeeSheet(rows, fname) {
+  const hi = detectHeaderRow(rows, ['사원번호','성명','등록구분']);
+  if (hi<0) { log(`❌ ${fname}: 직원관리 헤더를 찾을 수 없습니다`, 'error'); return; }
+  const headers = rows[hi].map(h=>String(h).trim());
+  const ix = (k)=>headers.indexOf(k);
+  const parsed = [];
+  for (let i=hi+1;i<rows.length;i++) {
+    const r=rows[i];
+    if (!r[ix('사원번호')]) continue;
+    parsed.push({ id:String(r[ix('사원번호')]).trim(), name:String(r[ix('성명')]||'').trim(), type:String(r[ix('등록구분')]||'재직').trim(), b2:String(r[ix('소속_2단계')]||'').trim(), b3:String(r[ix('소속_3단계')]||'').trim(), b1:String(r[ix('소속_1단계')]||'').trim(), joinDate:String(r[ix('입사일')]||'').trim(), _source:'real' });
+  }
+  STATE.employees = [...STATE.employees, ...parsed];
+  // 사원번호 기준 중복 제거 (동시 로드 시 누적 방지)
+  const _seen = new Set();
+  STATE.employees = STATE.employees.filter(e => {
+    if (_seen.has(e.id)) return false;
+    _seen.add(e.id);
+    return true;
+  });
+  log(`✅ 직원관리 ${parsed.length}명 로드 완료 → 중복제거 후 재직계: ${STATE.employees.filter(e=>e.type==='재직').length}명`, 'success');
+  checkRealData();
+}
+
+const cn = v => { if(!v) return 0; const s=String(v).replace(/[",]/g,'').trim(); return isNaN(s)?0:parseInt(s)||0; };
+
+function parsePerfSheet(rows, fname) {
+  // Auto-detect header row
+  const hi = detectHeaderRow(rows, ['SUNAB_PK','담당자코드','납입월도','인정실적']);
+  const skipCount = hi >= 0 ? hi : 7;
+  const validRows = rows.slice(skipCount);
+  const headers = validRows[0].map(h=>String(h).trim());
+  const ix = k=>headers.indexOf(k);
+  if (ix('담당자코드')<0||ix('인정실적')<0) { log(`❌ ${fname}: 건별실적 필수 필드 누락. 스킵행(${skipCount}) 확인 필요`, 'error'); return; }
+  
+  const seen = new Set();
+  const parsed = [];
+  for (let i=1;i<validRows.length;i++) {
+    const r=validRows[i];
+    const pk=String(r[ix('SUNAB_PK')]||'').trim();
+    if (pk && seen.has(pk)) continue;
+    if (pk) seen.add(pk);
+    if (!r[ix('담당자코드')]||!r[ix('납입월도')]) continue;
+    parsed.push({
+      SUNAB_PK: pk||`AUTO_${i}`,
+      month:    String(r[ix('납입월도')]).trim(),
+      agentId:  String(r[ix('담당자코드')]).trim(),
+      premium:  cn(r[ix('월보험료')]),
+      credit:   cn(r[ix('인정실적')]),
+      category: String(r[ix('보험종목')]||'').trim(),
+      company:  String(r[ix('보험회사')]||'').trim(),
+      payMethod:String(r[ix('납입방법')]||'월납').trim(),
+      status:   '실제데이터'
+    });
+  }
+  STATE.performance = [...STATE.performance, ...parsed];
+  log(`✅ 건별실적 ${parsed.length}건 로드 완료 (${skipCount}행 스킵, 중복제거 적용)`, 'success');
+  checkRealData();
+}
+
+function checkRealData() {
+  const hasReal = STATE.employees.some(e=>e.id) && STATE.performance.some(p=>p.status==='실제데이터');
+  STATE.config.isRealData = hasReal;
+  document.getElementById('sim-badge').innerText = hasReal ? '✅ 실제 데이터 연동' : '⚡ 가상 샘플 모드';
+  document.getElementById('sim-badge').style.color = hasReal ? '#4ade80' : '#fde68a';
+  document.getElementById('data-mode-text').innerText = hasReal ? '실제 데이터' : '샘플 데이터';
+  document.getElementById('data-mode-dot').style.background = hasReal ? '#4ade80' : '#facc15';
+  mergeData();
+  renderAll();
+}
+
+function resetToMock() {
+  const mock = buildMockData();
+  STATE.employees   = mock.employees;
+  STATE.performance = mock.performance;
+  STATE.config.isRealData = false;
+  document.getElementById('sim-badge').innerText = '⚡ 가상 샘플 모드';
+  document.getElementById('data-mode-text').innerText = '샘플 데이터';
+  log('🔄 샘플 데이터로 초기화되었습니다', 'warn');
+  mergeData(); renderAll();
+}
+
+// ─── M-CODE ──────────────────────────────────────────────
+const MC_TITLES = { 1:'직원관리 — Excel.Workbook 파서 M-Code', 2:'건별실적 — 7행 스킵 + 금액 정제 M-Code', 3:'DATA_MASTER — Left Outer Join + 컬럼 확장 M-Code' };
+let mcKey = 1;
+function switchMC(k) {
+  mcKey=k;
+  [1,2,3].forEach(i=>{ const b=document.getElementById('mc-btn-'+i); if(b){b.classList.toggle('active',i===k);} });
+  document.getElementById('mc-title').innerText = MC_TITLES[k];
+  renderMCode();
+}
+function renderMCode() {
+  const fp   = (document.getElementById('mc-folder')?.value || 'C:\\Users\\hara6\\OneDrive\\바탕 화면\\inka_data_folder').replace(/\\/g,'\\');
+  const skip = document.getElementById('mc-skip')?.value || '7';
+  const join = document.getElementById('mc-join')?.value || 'LeftOuter';
+  const codes = {
+    1: `let
+    Source = Folder.Files("${fp}"),
+    FilteredFiles = Table.SelectRows(Source, each
+        Text.StartsWith([Name], "직원관리_") and
+        Text.EndsWith([Name], ".xlsx")),
+    TransformEachFile = Table.TransformColumns(FilteredFiles, {"Content",
+        (fileContent) =>
+            let
+                // ★ Excel.Workbook 사용 (CSV가 아닌 Excel 파일 파서)
+                ParsedXlsx      = Excel.Workbook(fileContent, null, true),
+                FirstSheet      = ParsedXlsx{0}[Data],
+                // 첫 행 → 머리글 승격
+                PromotedHeaders = Table.PromoteHeaders(FirstSheet, [PromoteAllScalars=true]),
+                // 사원번호 텍스트 강제 변환 (병합 전 필수)
+                ChangedType     = Table.TransformColumnTypes(PromotedHeaders,
+                                    {{"사원번호", type text}})
+            in ChangedType
+    }),
+    CombinedTable   = Table.Combine(TransformEachFile[Content]),
+    SelectedColumns = Table.SelectColumns(CombinedTable,
+        {"사원번호","성명","등록구분",
+         "소속_1단계","소속_2단계","소속_3단계",
+         "소속_4단계","소속_5단계","소속_6단계","소속_7단계"},
+        MissingField.Ignore)
+in
+    SelectedColumns`,
+
+    2: `let
+    Source = Folder.Files("${fp}"),
+    FilteredFiles = Table.SelectRows(Source, each
+        Text.StartsWith([Name], "건별실적_") and
+        Text.EndsWith([Name], ".xlsx")),
+    TransformEachFile = Table.TransformColumns(FilteredFiles, {"Content",
+        (fileContent) =>
+            let
+                ParsedXlsx      = Excel.Workbook(fileContent, null, true),
+                FirstSheet      = ParsedXlsx{0}[Data],
+
+                // ★ 파일별 상위 ${skip}행 제거 (결합 후 제거 금지)
+                RemovedTopRows  = Table.Skip(FirstSheet, ${skip}),
+
+                // ★ 8행이 실제 헤더 (SUNAB_PK ~)
+                PromotedHeaders = Table.PromoteHeaders(RemovedTopRows,
+                                    [PromoteAllScalars=true]),
+
+                // ★ 금액 컬럼 정제 함수
+                // "-155,330" → -155330
+                CleanAmount = (val as any) =>
+                    if val = null then 0
+                    else
+                        let
+                            s1 = Text.Replace(Text.From(val), "#(quot)", ""),
+                            s2 = Text.Replace(s1, ",", ""),
+                            result = if s2 = "" then 0 else Int64.From(s2)
+                        in result,
+
+                // 금액 4개 컬럼 정제
+                C1 = Table.TransformColumns(PromotedHeaders,
+                        {{"영수/환급보험료", CleanAmount, Int64.Type}}),
+                C2 = Table.TransformColumns(C1,
+                        {{"월보험료",  CleanAmount, Int64.Type}}),
+                C3 = Table.TransformColumns(C2,
+                        {{"환산월초",  CleanAmount, Int64.Type}}),
+                C4 = Table.TransformColumns(C3,
+                        {{"인정실적",  CleanAmount, Int64.Type}}),
+
+                // 담당자코드 텍스트 강제 변환 (병합 전 필수)
+                FinalType = Table.TransformColumnTypes(C4,
+                    {{"담당자코드", type text}})
+            in FinalType
+    }),
+    CombinedTable = Table.Combine(TransformEachFile[Content])
+in
+    CombinedTable`,
+
+    3: `let
+    Employee    = 직원관리,
+    Performance = 건별실적,
+
+    // ★ Left Outer Join: 담당자코드 ↔ 사원번호
+    // 양쪽 모두 반드시 Text 형식이어야 100% 매칭됨
+    MergedTable = Table.NestedJoin(
+        Performance, {"담당자코드"},
+        Employee,   {"사원번호"},
+        "직원정보",
+        JoinKind.${join}
+    ),
+
+    // ★ 확장 컬럼: 성명, 등록구분, 소속 7단계 전체
+    ExpandedEmployee = Table.ExpandTableColumn(
+        MergedTable, "직원정보",
+        {"성명","등록구분",
+         "소속_1단계","소속_2단계","소속_3단계",
+         "소속_4단계","소속_5단계","소속_6단계","소속_7단계"},
+        {"성명","등록구분",
+         "소속_1단계","소속_2단계","소속_3단계",
+         "소속_4단계","소속_5단계","소속_6단계","소속_7단계"}
+    )
+in
+    ExpandedEmployee`
+  };
+  document.getElementById('mc-display').innerText = codes[mcKey];
+}
+
+function copyMCode() {
+  const txt = document.getElementById('mc-display').innerText;
+  navigator.clipboard?.writeText(txt).then(()=>{ const b=document.getElementById('copy-mc-btn'); b.innerText='✅ 복사됨'; setTimeout(()=>b.innerText='📋 복사',1500); });
+}
+
+// ─── INIT ────────────────────────────────────────────────
+document.addEventListener('click', e => {
+  if (!e.target.closest('.sl-wrap')) closeAllPanels();
+});
+
+window.onload = () => {
+  lucide.createIcons();
+  const mock = buildMockData();
+  STATE.employees   = mock.employees;
+  STATE.performance = mock.performance;
+  mergeData();
+  loadUIState();    // 저장된 UI 상태 복원 (필터·뷰모드)
+  loadAsConfig(); // 클라우드 설정 복원
+  renderAll();
+  // Apps Script에서 자동 로드 (드라이브 자동화 모드)
+  pullFromAS(true);
+  switchMC(1);
+  // If browser doesn't support folder API, disable the connect button visually
+  if (!FS_SUPPORTED) {
+    const cb = document.getElementById('connect-folder-btn');
+    if (cb) { cb.style.opacity='.5'; cb.style.cursor='not-allowed'; }
+    document.getElementById('fsapi-unsupported').style.display='block';
+  } else {
+    restoreFolder();
+  }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>인카금융 해빙총괄 | 경영현황</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:#050d1a;color:#e2e8f0;font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;min-height:100vh;padding-bottom:40px;}
+
+/* ── 헤더 ── */
+.hdr{background:linear-gradient(135deg,#0f172a,#1e1b4b);padding:16px 16px 12px;border-bottom:1px solid rgba(99,102,241,.25);position:sticky;top:0;z-index:100;}
+.hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.logo{display:flex;align-items:center;gap:10px;}
+.logo-ic{width:34px;height:34px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;}
+.logo-tx{font-size:14px;font-weight:800;color:#e2e8f0;line-height:1.25;}
+.logo-sb{font-size:10px;color:#64748b;}
+.ref-btn{background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);color:#818cf8;border-radius:9px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;}
+.stamp{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:7px 12px;display:flex;align-items:center;justify-content:space-between;}
+.stamp-lb{font-size:10px;color:#34d399;font-weight:700;}
+.stamp-tm{font-size:11px;color:#94a3b8;}
+
+/* ── 섹션 ── */
+.sec{padding:14px 14px 0;}
+.sec-ttl{font-size:10px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.sec-ttl::before{content:'';display:inline-block;width:3px;height:12px;border-radius:2px;background:var(--ac,#6366f1);}
+
+/* ── KPI 카드 ── */
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.kc{background:linear-gradient(135deg,rgba(15,23,42,.9),rgba(30,27,75,.5));border-radius:14px;padding:14px 12px;border:1px solid rgba(99,102,241,.1);position:relative;overflow:hidden;}
+.kc::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac,linear-gradient(90deg,#6366f1,#8b5cf6));}
+.kc-ic{font-size:16px;margin-bottom:6px;}
+.kc-lb{font-size:9px;color:#64748b;font-weight:700;margin-bottom:3px;text-transform:uppercase;letter-spacing:.03em;}
+.kc-vl{font-size:20px;font-weight:900;color:var(--cl,#818cf8);line-height:1.1;font-variant-numeric:tabular-nums;}
+.kc-sb{font-size:9px;color:#475569;margin-top:3px;}
+.kc.wide{grid-column:1/-1;}
+
+/* ── 가동률 바 ── */
+.rate-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+.rate-bg{background:rgba(255,255,255,.06);border-radius:99px;height:7px;margin-bottom:5px;}
+.rate-fg{height:7px;border-radius:99px;background:linear-gradient(90deg,#22c55e,#4ade80);transition:width .7s ease;}
+
+/* ── 차트 컨테이너 ── */
+.chart-box{background:rgba(15,23,42,.7);border:1px solid rgba(51,65,85,.5);border-radius:14px;padding:14px;margin-top:0;}
+.chart-ttl{font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:10px;}
+canvas{max-height:220px;}
+
+/* ── 본부 테이블 ── */
+.tbl-wrap{background:rgba(15,23,42,.7);border:1px solid rgba(51,65,85,.5);border-radius:14px;overflow:hidden;}
+table{width:100%;border-collapse:collapse;font-size:11px;}
+thead tr{background:#0f172a;border-bottom:1px solid #1e293b;}
+th{padding:8px 8px;text-align:right;color:#64748b;font-weight:700;white-space:nowrap;}
+th:first-child{text-align:left;}
+tbody tr{border-bottom:1px solid rgba(30,41,59,.8);}
+td{padding:8px 8px;text-align:right;color:#cbd5e1;}
+td:first-child{text-align:left;font-weight:700;color:#e2e8f0;}
+.badge{display:inline-block;padding:2px 6px;border-radius:6px;font-size:9px;font-weight:800;}
+.bg{background:rgba(34,197,94,.15);color:#4ade80;}
+.by{background:rgba(234,179,8,.15);color:#fbbf24;}
+.br{background:rgba(239,68,68,.15);color:#f87171;}
+
+/* ── 납입방법 ── */
+.pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.pay-c{background:rgba(15,23,42,.8);border:1px solid rgba(51,65,85,.5);border-radius:12px;padding:12px;}
+.pay-lb{font-size:10px;color:#64748b;margin-bottom:4px;}
+.pay-vl{font-size:15px;font-weight:800;color:#e2e8f0;}
+.pay-sb{font-size:9px;color:#475569;margin-top:2px;}
+
+/* ── TOP5 ── */
+.top5-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #1e293b;}
+.top5-item:last-child{border-bottom:none;}
+.top5-rank{font-size:16px;min-width:28px;text-align:center;}
+.top5-info{flex:1;}
+.top5-name{font-size:13px;font-weight:700;color:#e2e8f0;}
+.top5-branch{font-size:10px;color:#64748b;margin-top:1px;}
+.top5-val{font-size:13px;font-weight:800;color:#60a5fa;font-family:monospace;}
+
+/* ── 로딩/에러 ── */
+.ctr{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;}
+.spin{width:38px;height:38px;border:3px solid rgba(99,102,241,.2);border-top-color:#6366f1;border-radius:50%;animation:sp .8s linear infinite;}
+@keyframes sp{to{transform:rotate(360deg);}}
+.ld-tx{font-size:13px;color:#64748b;}
+.err-bx{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:14px;padding:20px;text-align:center;font-size:13px;color:#f87171;line-height:1.6;max-width:300px;}
+
+/* ── 푸터 ── */
+.footer{margin:20px 14px 0;padding:12px;background:rgba(15,23,42,.5);border-radius:10px;text-align:center;font-size:9px;color:#334155;line-height:1.8;}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="logo">
+      <div class="logo-ic">🏢</div>
+      <div>
+        <div class="logo-tx">인카금융 해빙총괄</div>
+        <div class="logo-sb">조직 운영 경영현황</div>
+      </div>
+    </div>
+    <button class="ref-btn" onclick="loadData()">🔄 갱신</button>
+  </div>
+  <div class="stamp">
+    <span class="stamp-lb">📌 마감 기준</span>
+    <span class="stamp-tm" id="stamp-time">불러오는 중...</span>
+  </div>
+</div>
+
+<div id="main" style="display:none;">
+
+  <!-- KPI 8종 -->
+  <div class="sec" style="margin-top:14px;">
+    <div class="sec-ttl" style="--ac:#6366f1;">핵심 KPI</div>
+    <div class="kpi-grid" id="kpi-grid"></div>
+  </div>
+
+  <!-- 월별 트렌드 -->
+  <div class="sec" style="margin-top:14px;">
+    <div class="sec-ttl" style="--ac:#8b5cf6;">월별 실적 추이</div>
+    <div class="chart-box">
+      <canvas id="ch-trend"></canvas>
+    </div>
+  </div>
+
+  <!-- 보험종목 -->
+  <div class="sec" style="margin-top:14px;">
+    <div class="sec-ttl" style="--ac:#f59e0b;">보험종목 구성</div>
+    <div class="chart-box" style="display:flex;align-items:center;justify-content:center;">
+      <canvas id="ch-cat" style="max-height:200px;max-width:200px;"></canvas>
+    </div>
+  </div>
+
+  <!-- 본부별 현황 -->
+  <div class="sec" style="margin-top:14px;">
+    <div class="sec-ttl" style="--ac:#10b981;">본부별 현황</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th style="padding-left:12px;">본부</th>
+          <th>월평균 인정실적</th>
+          <th>가동률</th>
+          <th>성장률</th>
+          <th>비중</th>
+        </tr></thead>
+        <tbody id="branch-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 납입방법 -->
+  <div class="sec" style="margin-top:14px;">
+    <div class="sec-ttl" style="--ac:#06b6d4;">납입방법별 실적</div>
+    <div class="pay-grid" id="pay-grid"></div>
+  </div>
+
+  <!-- TOP 5 -->
+  <div class="sec" style="margin-top:14px;">
+    <div class="sec-ttl" style="--ac:#f59e0b;">월보험료 TOP 5</div>
+    <div style="background:rgba(15,23,42,.7);border:1px solid rgba(51,65,85,.5);border-radius:14px;padding:14px;">
+      <div id="top5"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    인카금융서비스 해빙총괄사업단<br>
+    본 자료는 마감 시점 기준 확정 데이터입니다
+  </div>
+</div>
+
+<div id="loading" class="ctr">
+  <div class="spin"></div>
+  <div class="ld-tx">데이터 불러오는 중...</div>
+</div>
+<div id="error" class="ctr" style="display:none;">
+  <div class="err-bx" id="err-msg">오류가 발생했습니다</div>
+  <button class="ref-btn" onclick="loadData()" style="margin-top:8px;">다시 시도</button>
+</div>
+
+<script>
+const AS_URL = 'https://script.google.com/macros/s/AKfycbzTD7Ix4_YTZq_HNqGF0b2fhIt8f6TL3uqoSQiiudVopMoTA2rI66eoVKKtKbwwc3Ut/exec';
+const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#14b8a6','#f97316','#84cc16'];
+const chartReg = {};
+
+// ── 포맷 ──
+function fmtK(n){
+  if(n>=1e8) return (n/1e8).toFixed(1)+'억';
+  if(n>=1e4) return Math.round(n/1e4).toLocaleString()+'만';
+  return Math.round(n).toLocaleString();
+}
+function fmtP(n){ return (n||0).toFixed(1)+'%'; }
+function mLabel(m){
+  m = String(m||'');
+  if(m.length<6) return m;
+  return m.slice(0,4)+'년 '+m.slice(4,6)+'월';
+}
+
+// ── 데이터 로드 ──
+async function loadData(){
+  document.getElementById('loading').style.display='flex';
+  document.getElementById('main').style.display='none';
+  document.getElementById('error').style.display='none';
+  try{
+    const res  = await fetch(AS_URL+'?t='+Date.now());
+    const data = await res.json();
+    if(!data.ok||!data.employees?.length) throw new Error(data.error||'마감 데이터 없음 — 관리자에게 문의하세요');
+    // month 숫자→문자 정규화
+    data.performance = (data.performance||[]).map(r=>({...r,month:String(r.month||'').trim()}));
+    render(data);
+    document.getElementById('loading').style.display='none';
+    document.getElementById('main').style.display='block';
+  }catch(e){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('error').style.display='flex';
+    document.getElementById('err-msg').textContent='❌ '+e.message;
+  }
+}
+
+// ── KPI 계산 ──
+function calcKPIs(emps, perfs){
+  const regjEmps = emps.filter(e=>(e.type||'').replace(/\s/g,'')==='재직');
+  const regIdSet = new Set(regjEmps.map(e=>String(e.id)));
+  const kpiA = perfs.reduce((s,r)=>s+(Number(r.premium)||0),0);
+  const kpiB = perfs.reduce((s,r)=>s+(Number(r.credit)||0),0);
+  const kpiC = new Set(perfs.map(r=>r.SUNAB_PK||r['증권번호']).filter(Boolean)).size;
+  const activeSet = new Set(perfs.filter(r=>(Number(r.premium)||0)>0&&regIdSet.has(String(r.agentId))).map(r=>r.agentId));
+  const kpiD = activeSet.size;
+  const kpiE = regjEmps.length||emps.length;
+  const kpiF = kpiE>0?(kpiD/kpiE*100):0;
+  const kpiG = kpiD>0?kpiA/kpiD:0;
+
+  const months=[...new Set(perfs.map(r=>r.month).filter(Boolean))].sort();
+  const latM=months[months.length-1], prvM=months[months.length-2];
+  const latSum=perfs.filter(r=>r.month===latM).reduce((s,r)=>s+(Number(r.premium)||0),0);
+  const prvSum=perfs.filter(r=>r.month===prvM).reduce((s,r)=>s+(Number(r.premium)||0),0);
+  const kpiK=prvSum>0?((latSum-prvSum)/prvSum*100):0;
+
+  return {A:kpiA,B:kpiB,C:kpiC,D:kpiD,E:kpiE,F:kpiF,G:kpiG,K:kpiK,months,latM,prvM};
+}
+
+// ── 본부 통계 ──
+function getBranchStats(emps, perfs, kpis){
+  const months=kpis.months;
+  const latM=kpis.latM, prvM=kpis.prvM;
+  const map={};
+  perfs.forEach(r=>{
+    const emp=emps.find(e=>String(e.id)===String(r.agentId));
+    const b=(emp?.b1)||'미분류';
+    if(!map[b]) map[b]={premium:0,credit:0,cnt:0,agents:new Set(),latP:0,prvP:0};
+    const pr=Number(r.premium)||0, cr=Number(r.credit)||0;
+    map[b].premium+=pr; map[b].credit+=cr; map[b].cnt++;
+    if(r.agentId) map[b].agents.add(r.agentId);
+    if(r.month===latM) map[b].latP+=pr;
+    if(r.month===prvM) map[b].prvP+=pr;
+  });
+  const totalPrem=Object.values(map).reduce((s,v)=>s+v.premium,0)||1;
+  const regjEmps=emps.filter(e=>(e.type||'').replace(/\s/g,'')==='재직');
+
+  return Object.entries(map)
+    .filter(([k])=>k&&k!=='미분류')
+    .map(([name,v])=>{
+      const branchEmps=regjEmps.filter(e=>e.b1===name);
+      const empCnt=branchEmps.length||1;
+      const activeSet=new Set(regjEmps.filter(e=>e.b1===name).map(e=>String(e.id)));
+      const activeAgents=new Set(perfs.filter(r=>(Number(r.premium)||0)>0&&activeSet.has(String(r.agentId))).map(r=>r.agentId));
+      const actRate=empCnt>0?(activeAgents.size/empCnt*100):0;
+      const growthRate=v.prvP>0?((v.latP-v.prvP)/v.prvP*100):0;
+      const share=v.premium/totalPrem*100;
+      return {name,premium:v.premium,credit:v.credit,cnt:v.cnt,agents:v.agents.size,actRate,growthRate,share};
+    })
+    .filter(b=>b.premium>0)
+    .sort((a,b)=>b.premium-a.premium);
+}
+
+// ── 차트 생성 ──
+function makeChart(id, type, data, opts={}){
+  if(chartReg[id]){ chartReg[id].destroy(); }
+  const ctx=document.getElementById(id);
+  if(!ctx) return;
+  chartReg[id]=new Chart(ctx,{
+    type,data,
+    options:{responsive:true,maintainAspectRatio:true,animation:{duration:600},...opts}
+  });
+}
+
+// ── 렌더 ──
+function render(data){
+  const emps=data.employees||[];
+  const perfs=data.performance||[];
+
+  // 마감 시각
+  const ts=data.lastUpdated
+    ?new Date(data.lastUpdated).toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+    :'알 수 없음';
+  document.getElementById('stamp-time').textContent=ts+' 확정';
+
+  const kpis=calcKPIs(emps,perfs);
+
+  // ── KPI 카드 ──
+  const rateColor=kpis.F<50?'#ef4444':kpis.F<70?'#fbbf24':'#4ade80';
+  const growColor=kpis.K>=0?'#4ade80':'#f87171';
+  const kpiDefs=[
+    {lb:'총 월보험료',   vl:fmtK(kpis.A)+'원', sb:'연간 합계',               ic:'💰', cl:'#818cf8', ac:'linear-gradient(90deg,#6366f1,#8b5cf6)'},
+    {lb:'총 인정실적',   vl:fmtK(kpis.B)+'원', sb:`인정실적 ${fmtK(kpis.B)}원`, ic:'💵', cl:'#a78bfa', ac:'linear-gradient(90deg,#8b5cf6,#7c3aed)'},
+    {lb:'총 계약건수',   vl:kpis.C.toLocaleString()+'건', sb:'중복제거 완료', ic:'📋', cl:'#22d3ee', ac:'linear-gradient(90deg,#06b6d4,#0891b2)'},
+    {lb:'설계사 생산성', vl:fmtK(kpis.G)+'원', sb:'인정실적÷활동설계사',     ic:'📈', cl:'#34d399', ac:'linear-gradient(90deg,#10b981,#059669)'},
+    {lb:'재직 설계사',   vl:kpis.E+'명',        sb:'등록구분=재직 기준',       ic:'👥', cl:'#fbbf24', ac:'linear-gradient(90deg,#f59e0b,#d97706)'},
+    {lb:'활동 설계사',   vl:kpis.D+'명',        sb:`가동률 ${fmtP(kpis.F)}`,  ic:'🏃', cl:'#4ade80', ac:'linear-gradient(90deg,#22c55e,#16a34a)'},
+    {lb:'가동률(KPI-F)', vl:fmtP(kpis.F),      sb:`${kpis.D}명 / ${kpis.E}명`, ic:'⚡', cl:rateColor, ac:'linear-gradient(90deg,'+rateColor+','+rateColor+'88)', wide:true, rate:kpis.F},
+    {lb:'전월 대비 성장', vl:(kpis.K>=0?'+':'')+fmtP(kpis.K), sb:'최신월 vs 전월', ic:'📊', cl:growColor, ac:'linear-gradient(90deg,'+growColor+','+growColor+'88)'},
+  ];
+  document.getElementById('kpi-grid').innerHTML=kpiDefs.map(k=>`
+    <div class="kc${k.wide?' wide':''}" style="--ac:${k.ac};--cl:${k.cl};">
+      <div class="kc-ic">${k.ic}</div>
+      <div class="kc-lb">${k.lb}</div>
+      <div class="kc-vl">${k.vl}</div>
+      ${k.rate!=null?`<div class="rate-bg" style="margin-top:8px;"><div class="rate-fg" style="width:${Math.min(k.rate,100)}%"></div></div>`:''}
+      <div class="kc-sb">${k.sb}</div>
+    </div>`).join('');
+
+  // ── 트렌드 차트 ──
+  const tMonths=[...new Set(perfs.map(r=>r.month).filter(Boolean))].sort();
+  const tMap={};
+  perfs.forEach(r=>{
+    if(!tMap[r.month]) tMap[r.month]={premium:0,credit:0};
+    tMap[r.month].premium+=Number(r.premium)||0;
+    tMap[r.month].credit +=Number(r.credit)||0;
+  });
+  makeChart('ch-trend','bar',{
+    labels:tMonths.map(mLabel),
+    datasets:[
+      {type:'bar', label:'월보험료', data:tMonths.map(m=>tMap[m]?.premium||0),
+        backgroundColor:'rgba(99,102,241,.4)', borderColor:'#6366f1', borderWidth:1, borderRadius:4},
+      {type:'bar', label:'인정실적', data:tMonths.map(m=>tMap[m]?.credit||0),
+        backgroundColor:'rgba(16,185,129,.35)', borderColor:'#10b981', borderWidth:1, borderRadius:4},
+    ]
+  },{
+    plugins:{legend:{display:true,labels:{color:'#94a3b8',font:{size:9}}}},
+    scales:{
+      x:{grid:{color:'#1e293b'},ticks:{color:'#94a3b8',font:{size:9}}},
+      y:{grid:{color:'#1e293b'},ticks:{color:'#94a3b8',font:{size:9},callback:v=>fmtK(v)}}
+    }
+  });
+
+  // ── 보험종목 도넛 ──
+  const catMap={};
+  perfs.forEach(r=>{const c=r.category||'기타';catMap[c]=(catMap[c]||0)+(Number(r.premium)||0);});
+  const catE=Object.entries(catMap).sort((a,b)=>b[1]-a[1]);
+  makeChart('ch-cat','doughnut',{
+    labels:catE.map(([k])=>k),
+    datasets:[{data:catE.map(([,v])=>v),backgroundColor:COLORS.slice(0,catE.length),borderColor:'#070c16',borderWidth:3}]
+  },{
+    plugins:{legend:{position:'bottom',labels:{color:'#94a3b8',font:{size:10},boxWidth:10}}},
+    cutout:'60%'
+  });
+
+  // ── 본부 테이블 ──
+  const monthCount=kpis.months.length||1;
+  const bStats=getBranchStats(emps,perfs,kpis).slice(0,10);
+  document.getElementById('branch-tbody').innerHTML=bStats.map((b,i)=>`
+    <tr>
+      <td style="padding-left:12px;">${['🥇','🥈','🥉'][i]||`${i+1}`} ${b.name}</td>
+      <td style="color:#60a5fa;font-family:monospace;">${fmtK(b.credit/monthCount)}</td>
+      <td><span class="badge ${b.actRate<50?'br':b.actRate<70?'by':'bg'}">${fmtP(b.actRate)}</span></td>
+      <td style="color:${b.growthRate>=0?'#4ade80':'#f87171'}">${b.growthRate>=0?'+':''}${fmtP(b.growthRate)}</td>
+      <td style="color:#94a3b8;">${fmtP(b.share)}</td>
+    </tr>`).join('');
+
+  // ── 납입방법 ──
+  const payMap={};
+  perfs.forEach(r=>{
+    const p=r.payMethod||'기타';
+    if(!payMap[p]) payMap[p]={premium:0,cnt:0};
+    payMap[p].premium+=Number(r.premium)||0; payMap[p].cnt++;
+  });
+  const payE=Object.entries(payMap).sort((a,b)=>b[1].premium-a[1].premium);
+  document.getElementById('pay-grid').innerHTML=payE.slice(0,4).map(([nm,v])=>`
+    <div class="pay-c">
+      <div class="pay-lb">${nm}</div>
+      <div class="pay-vl">${fmtK(v.premium)}원</div>
+      <div class="pay-sb">${v.cnt.toLocaleString()}건</div>
+    </div>`).join('');
+
+  // ── TOP 5 ──
+  const agMap={};
+  perfs.forEach(r=>{
+    const key=r.agentId;
+    if(!key) return;
+    if(!agMap[key]){
+      const emp=emps.find(e=>String(e.id)===String(key));
+      agMap[key]={name:r.agentName||(emp?.name)||'알수없음', b1:r.branch1||(emp?.b1)||'', premium:0};
+    }
+    agMap[key].premium+=Number(r.premium)||0;
+  });
+  const top5=Object.values(agMap).sort((a,b)=>b.premium-a.premium).slice(0,5);
+  document.getElementById('top5').innerHTML=top5.map((a,i)=>`
+    <div class="top5-item">
+      <div class="top5-rank">${['🥇','🥈','🥉','4위','5위'][i]}</div>
+      <div class="top5-info">
+        <div class="top5-name">${a.name}</div>
+        <div class="top5-branch">${a.b1}</div>
+      </div>
+      <div class="top5-val">${fmtK(a.premium)}원</div>
+    </div>`).join('');
+}
+
+loadData();
+</script>
+</body>
+</html>
