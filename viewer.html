@@ -150,8 +150,8 @@ td:first-child{text-align:left;font-weight:700;color:#e2e8f0;padding-left:10px;}
 <!-- 기간단위 토글 -->
 <div class="period-row" id="period-row" style="display:none;">
   <span class="period-lb">기간 단위:</span>
-  <button id="btn-total"   class="p-btn active-total"   onclick="setPeriod('total')">연간 합계</button>
-  <button id="btn-monthly" class="p-btn"                onclick="setPeriod('monthly')">월평균</button>
+  <button id="btn-total"   class="p-btn"                onclick="setPeriod('total')">연간 합계</button>
+  <button id="btn-monthly" class="p-btn active-monthly" onclick="setPeriod('monthly')">월평균</button>
   <span class="period-cnt" id="period-cnt"></span>
 </div>
 
@@ -233,7 +233,7 @@ const chartReg = {};
 
 let RAW = { employees:[], performance:[] };
 let FILTERS = { year:'all', month:'all', branch:'all', category:'all', company:'all', payMethod:'all' };
-let periodMode = 'total';
+let periodMode = 'monthly';
 
 // ── 포맷 ──
 function fmtK(n){

@@ -169,11 +169,11 @@ input[type=file]{display:none;}
   <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
     <span style="font-size:11px;color:#64748b;font-weight:700;">기간 단위:</span>
     <button id="vm-total-btn" onclick="setViewMode('total')"
-      style="padding:5px 14px;border-radius:20px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid rgba(59,130,246,.5);background:rgba(59,130,246,.2);color:#93c5fd;">
+      style="padding:5px 14px;border-radius:20px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid rgba(100,116,139,.3);background:transparent;color:#64748b;">
       연간 합계
     </button>
     <button id="vm-monthly-btn" onclick="setViewMode('monthly')"
-      style="padding:5px 14px;border-radius:20px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid rgba(100,116,139,.3);background:transparent;color:#64748b;">
+      style="padding:5px 14px;border-radius:20px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid rgba(16,185,129,.5);background:rgba(16,185,129,.2);color:#6ee7b7;">
       월평균
     </button>
     <span id="vm-period-label" style="font-size:10px;color:#64748b;margin-left:4px;"></span>
@@ -600,7 +600,7 @@ const STATE = {
   filters: { year: new Set(), month: new Set(), branch2: new Set(), category: new Set(), company: new Set(), payMethod: new Set() },
   filtersNone: { year:false, month:false, branch2:false, category:false, company:false, payMethod:false },
   slicerVals: { year:[], month:[], branch2:[], category:[], company:[], payMethod:[] },
-  ui: { tab:'dashboard', dvPage:1, dvSearch:'', mcKey:1, viewMode:'total' },
+  ui: { tab:'dashboard', dvPage:1, dvSearch:'', mcKey:1, viewMode:'monthly' },
   config: { targetKPI: 100000000, isRealData: false, payMethodInitialized: false },
   files: []
 };
