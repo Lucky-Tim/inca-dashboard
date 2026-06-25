@@ -295,7 +295,7 @@ function initFilters(){
   const months   = [...new Set(perfs.map(r=>String(r.month||'').slice(4,6)).filter(Boolean))].sort();
   const branches = [...new Set(perfs.map(r=>{
     const e=emps.find(emp=>String(emp.id)===String(r.agentId));
-    return (r.branch1||(e?.b1)||'').trim();
+    return (r.branch2||(e?.b2)||'').trim();
   }).filter(Boolean))].sort();
   const cats     = [...new Set(perfs.map(r=>(r.category||'').trim()).filter(Boolean))].sort();
   const companies= [...new Set(perfs.map(r=>(r.company||'').trim()).filter(Boolean))].sort();
@@ -307,14 +307,26 @@ function initFilters(){
   fillSelect('f-category', cats);
   fillSelect('f-company',  companies);
   fillSelect('f-paymethod',pays);
+
+  // ── 기본값: 데이터 마지막 년/월, 납입방법 월납 ──
+  const allM=[...new Set(perfs.map(r=>String(r.month||'').trim()).filter(Boolean))].sort();
+  const latFull=allM[allM.length-1]||'';
+  const defY=latFull.slice(0,4), defM=latFull.slice(4,6);
+  if(defY) document.getElementById('f-year').value=defY;
+  if(defM) document.getElementById('f-month').value=defM;
+  if(pays.includes('월납')) document.getElementById('f-paymethod').value='월납';
+
+  // FILTERS 객체 동기화
+  FILTERS.year     =document.getElementById('f-year').value;
+  FILTERS.month    =document.getElementById('f-month').value;
+  FILTERS.payMethod=document.getElementById('f-paymethod').value;
 }
 
 function fillSelect(id, vals, label=(v=>v)){
   const el=document.getElementById(id);
   if(!el) return;
-  const cur=el.value;
   el.innerHTML='<option value="all">전체</option>'+vals.map(v=>`<option value="${v}">${label(v)}</option>`).join('');
-  if(vals.includes(cur)) el.value=cur;
+  el.value='all';
 }
 
 // ── 필터 적용 ──
@@ -340,7 +352,7 @@ function getFiltered(){
     if(FILTERS.payMethod!=='all'&& (r.payMethod||'').trim()!==FILTERS.payMethod)       return false;
     if(FILTERS.branch!=='all'){
       const e=emps.find(emp=>String(emp.id)===String(r.agentId));
-      const b=(r.branch1||(e?.b1)||'').trim();
+      const b=(r.branch2||(e?.b2)||'').trim();
       if(b!==FILTERS.branch) return false;
     }
     return true;
@@ -382,7 +394,7 @@ function getBranchStats(emps, perfs, kpis){
   const map={};
   perfs.forEach(r=>{
     const emp=emps.find(e=>String(e.id)===String(r.agentId));
-    const b=(r.branch1||(emp?.b1)||'미분류').trim();
+    const b=(r.branch2||(emp?.b2)||'미분류').trim();
     if(!map[b]) map[b]={premium:0,credit:0,latP:0,prvP:0};
     map[b].premium+=Number(r.premium)||0;
     map[b].credit +=Number(r.credit)||0;
@@ -394,7 +406,7 @@ function getBranchStats(emps, perfs, kpis){
   return Object.entries(map)
     .filter(([k])=>k&&k!=='미분류')
     .map(([name,v])=>{
-      const branchEmps=regjEmps.filter(e=>(e.b1||'').trim()===name);
+      const branchEmps=regjEmps.filter(e=>(e.b2||'').trim()===name);
       const empCnt=branchEmps.length||1;
       const activeIds=new Set(branchEmps.map(e=>String(e.id)));
       const activeAgents=new Set(perfs.filter(r=>(Number(r.premium)||0)>0&&activeIds.has(String(r.agentId))).map(r=>r.agentId));
@@ -537,7 +549,7 @@ function renderAll(){
   const latBrC={};
   if(isC) latP.forEach(r=>{
     const e=emps.find(x=>String(x.id)===String(r.agentId));
-    const b=(r.branch1||(e?.b1)||'미분류').trim();
+    const b=(r.branch2||(e?.b2)||'미분류').trim();
     latBrC[b]=(latBrC[b]||0)+(Number(r.credit)||0);
   });
   document.getElementById('branch-tbody').innerHTML=bStats.map((b,i)=>{
@@ -564,7 +576,7 @@ function renderAll(){
     if(!r.agentId) return;
     if(!agMap[r.agentId]){
       const e=emps.find(x=>String(x.id)===String(r.agentId));
-      agMap[r.agentId]={name:r.agentName||(e?.name)||'알수없음',b1:(r.branch1||(e?.b1)||''),premium:0};
+      agMap[r.agentId]={name:r.agentName||(e?.name)||'알수없음',b2:(r.branch2||(e?.b2)||''),premium:0};
     }
     agMap[r.agentId].premium+=Number(r.premium)||0;
   });
@@ -581,7 +593,7 @@ function renderAll(){
       <div class="top5-rank">${['🥇','🥈','🥉','4위','5위'][i]}</div>
       <div class="top5-info">
         <div class="top5-name">${a.name||'알수없음'}</div>
-        <div class="top5-branch">${a.b1||''}${a.sub?` · ${a.sub}`:''}</div>
+        <div class="top5-branch">${a.b2||''}${a.sub?` · ${a.sub}`:''}</div>
       </div>
       <div class="top5-val">${fmtK(a.dp||0)}원</div>
     </div>`).join('');
