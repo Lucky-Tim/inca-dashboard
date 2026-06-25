@@ -1354,11 +1354,11 @@ function renderDashboard(kpis, filtered) {
   // Branch matrix mini
   const bm = document.getElementById('branch-matrix-mini');
   if (bm) {
-    const totalC = bStats.reduce((s,b)=>s+b.premium,0);
+    const bmLabel = isMonthly ? '월평균 인정실적' : '인정실적';
     bm.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;">
       <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
         <th style="padding:6px 8px;text-align:left;color:#64748b;">본부</th>
-        <th style="padding:6px 8px;text-align:right;color:#64748b;">인정실적</th>
+        <th style="padding:6px 8px;text-align:right;color:#64748b;">${bmLabel}</th>
         <th style="padding:6px 8px;text-align:center;color:#64748b;">가동률</th>
         <th style="padding:6px 8px;text-align:center;color:#64748b;">성장률</th>
         <th style="padding:6px 8px;text-align:center;color:#64748b;">비중</th>
@@ -1366,14 +1366,14 @@ function renderDashboard(kpis, filtered) {
       <tbody>${bStats.map((b,i) => `
         <tr class="tbl-row" style="border-bottom:1px solid #1e293b;cursor:pointer;" onclick="selectOnly('branch2','${b.name}')">
           <td style="padding:7px 8px;font-weight:700;color:#e2e8f0;">${b.name}</td>
-          <td style="padding:7px 8px;text-align:right;color:#60a5fa;font-family:monospace;">${fmtK(b.credit)}</td>
+          <td style="padding:7px 8px;text-align:right;color:#60a5fa;font-family:monospace;">${fmtK(isMonthly ? b.credit/mc : b.credit)}</td>
           <td style="padding:7px 8px;text-align:center;"><span class="badge ${b.actRate<50?'b-red':b.actRate<70?'b-yellow':'b-green'}">${fmtP(b.actRate)}</span></td>
           <td style="padding:7px 8px;text-align:center;color:${b.growthRate>=0?'#4ade80':'#f87171'};">${b.growthRate>=0?'+':''}${fmtP(b.growthRate)}</td>
           <td style="padding:7px 8px;text-align:center;color:#94a3b8;">${fmtP(b.share)}</td>
         </tr>`).join('')}</tbody>
     </table>`;
   }
-  
+
   // Top 5 agents
   const agentMap = {};
   filtered.forEach(r=>{ if(!agentMap[r.agentId]) agentMap[r.agentId]={name:r.agentName,b2:r.branch2,type:r.agentType,premium:0}; agentMap[r.agentId].premium+=r.premium; });
@@ -1383,7 +1383,7 @@ function renderDashboard(kpis, filtered) {
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1e293b;">
       <div style="font-size:18px;min-width:28px;text-align:center;">${i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}위`}</div>
       <div style="flex:1;"><div style="font-size:12px;font-weight:700;color:#e2e8f0;">${a.name}</div><div style="font-size:10px;color:#64748b;">${a.b2}</div></div>
-      <div style="font-size:12px;font-weight:800;color:#60a5fa;font-family:monospace;">${fmtK(a.premium)}</div>
+      <div style="font-size:12px;font-weight:800;color:#60a5fa;font-family:monospace;">${fmtK(isMonthly ? a.premium/mc : a.premium)}</div>
     </div>`).join('');
 }
 
