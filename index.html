@@ -176,6 +176,10 @@ input[type=file]{display:none;}
       style="padding:5px 14px;border-radius:20px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid rgba(16,185,129,.5);background:rgba(16,185,129,.2);color:#6ee7b7;">
       월평균
     </button>
+    <button id="vm-compare-btn" onclick="setViewMode('compare')"
+      style="padding:5px 14px;border-radius:20px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid rgba(100,116,139,.3);background:transparent;color:#64748b;">
+      당월 비교
+    </button>
     <span id="vm-period-label" style="font-size:10px;color:#64748b;margin-left:4px;"></span>
   </div>
   <!-- KPI CARDS A-H (8 cards) -->
@@ -1238,48 +1242,72 @@ function renderAll() {
 
 // ─── RENDER DASHBOARD ────────────────────────────────────
 function renderDashboard(kpis, filtered) {
-  // 연간/월평균 토글 버튼 상태 업데이트
   const isMonthly = STATE.ui.viewMode === 'monthly';
+  const isCompare = STATE.ui.viewMode === 'compare';
   const mc = kpis.monthCount || 1;
-  const dispA = isMonthly ? kpis.A / mc : kpis.A;
-  const dispB = isMonthly ? kpis.B / mc : kpis.B;
-  const dispG = isMonthly ? kpis.A / mc / (kpis.D || 1) : kpis.G;
-  const labelA = isMonthly ? '월평균 월보험료' : '총 월보험료';
-  const labelB = isMonthly ? '월평균 인정실적' : '총 인정실적';
-  const labelG = isMonthly ? '월평균 생산성' : '설계사 생산성';
-  const subA   = isMonthly ? `${mc}개월 평균 | 달성률 ${fmtP(kpis.M)}` : `목표달성률 ${fmtP(kpis.M)}`;
-  const subB   = isMonthly ? `월평균 계약 ${Math.round(kpis.C/mc).toLocaleString()}건` : `인정실적 ${fmtK(kpis.B)}`;
 
-  // 토글 버튼 스타일 갱신
+  // ── 토글 버튼 스타일 ──
   const btnT = document.getElementById('vm-total-btn');
   const btnM = document.getElementById('vm-monthly-btn');
+  const btnC = document.getElementById('vm-compare-btn');
   const lbl  = document.getElementById('vm-period-label');
-  if (btnT) { btnT.style.background = isMonthly ? 'transparent' : 'rgba(59,130,246,.2)'; btnT.style.color = isMonthly ? '#64748b' : '#93c5fd'; btnT.style.borderColor = isMonthly ? 'rgba(100,116,139,.3)' : 'rgba(59,130,246,.5)'; }
-  if (btnM) { btnM.style.background = isMonthly ? 'rgba(16,185,129,.2)' : 'transparent'; btnM.style.color = isMonthly ? '#6ee7b7' : '#64748b'; btnM.style.borderColor = isMonthly ? 'rgba(16,185,129,.5)' : 'rgba(100,116,139,.3)'; }
-  if (lbl)  lbl.innerText = isMonthly ? `(${mc}개월 기준)` : '';
+  const isT  = !isMonthly && !isCompare;
+  if (btnT) { btnT.style.background=isT?'rgba(59,130,246,.2)':'transparent'; btnT.style.color=isT?'#93c5fd':'#64748b'; btnT.style.borderColor=isT?'rgba(59,130,246,.5)':'rgba(100,116,139,.3)'; }
+  if (btnM) { btnM.style.background=isMonthly?'rgba(16,185,129,.2)':'transparent'; btnM.style.color=isMonthly?'#6ee7b7':'#64748b'; btnM.style.borderColor=isMonthly?'rgba(16,185,129,.5)':'rgba(100,116,139,.3)'; }
+  if (btnC) { btnC.style.background=isCompare?'rgba(251,146,60,.2)':'transparent'; btnC.style.color=isCompare?'#fdba74':'#64748b'; btnC.style.borderColor=isCompare?'rgba(251,146,60,.5)':'rgba(100,116,139,.3)'; }
+  if (lbl)  lbl.innerText = isCompare ? `(${kpis.latM} vs 월평균)` : isMonthly ? `(${mc}개월 기준)` : '';
 
-  // 월평균 파생값
-  const dispC = isMonthly ? Math.round(kpis.C / mc) : kpis.C;
-  const dispD = isMonthly ? (kpis.avgActive || kpis.D) : kpis.D;   // 월별 평균 활동자 수
-  const dispE = kpis.E;                                              // 재직수는 시점값, 나누지 않음
-  const dispF = isMonthly ? (dispE > 0 ? dispD / dispE * 100 : 0) : kpis.F;
-  const labelC = isMonthly ? '월평균 계약건수' : '총 계약건수';
-  const labelD = isMonthly ? '월평균 활동설계사' : '활동 설계사';
-  const labelE = isMonthly ? '월평균 재직설계사' : '재직 설계사';
-  const subC   = isMonthly ? `${mc}개월 평균` : '중복제거 완료';
-  const subD   = isMonthly ? `월평균 가동률 ${fmtP(dispF)}` : `가동률 ${fmtP(kpis.F)}`;
-  const subE   = isMonthly ? `${mc}개월 평균` : '등록구분=재직 기준';
+  // ── 당월 데이터 (compare 모드) ──
+  const latM   = kpis.latM;
+  const latF_  = filtered.filter(r => r.month === latM);
+  const latPrem= latF_.reduce((s,r)=>s+(r.premium||0),0);
+  const latCred= latF_.reduce((s,r)=>s+(r.credit||0),0);
+  const latActS= new Set(latF_.filter(r=>(r.premium||0)>0).map(r=>r.agentId));
+  const latD_  = latActS.size;
+  const latF_R = kpis.E>0?latD_/kpis.E*100:0;
+  const avgA   = mc>0?kpis.A/mc:0;
+  const avgB   = mc>0?kpis.B/mc:0;
+
+  // 비교 HTML 헬퍼
+  function cmpHtml(lat, avg) {
+    if(!isCompare||!avg) return '';
+    const p = avg>0?(lat-avg)/avg*100:0;
+    const cl = p>=0?'#4ade80':'#f87171';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.07);font-size:10px;"><span style="color:#64748b;">월평균 ${fmtK(avg)}</span><span style="color:${cl};font-weight:800;">${p>=0?'+':''}${p.toFixed(1)}%</span></div>`;
+  }
+
+  // ── KPI 파생값 ──
+  const dispA = isCompare ? latPrem : isMonthly ? kpis.A/mc : kpis.A;
+  const dispB = isCompare ? latCred : isMonthly ? kpis.B/mc : kpis.B;
+  const dispG = isCompare ? latPrem/(latD_||1) : isMonthly ? kpis.A/mc/(kpis.D||1) : kpis.G;
+  const dispD = isCompare ? latD_ : isMonthly ? (kpis.avgActive||kpis.D) : kpis.D;
+  const dispE = kpis.E;
+  const dispF = isCompare ? latF_R : isMonthly ? (dispE>0?dispD/dispE*100:0) : kpis.F;
+  const dispC = isCompare ? new Set(latF_.map(r=>r.SUNAB_PK||r['증권번호']).filter(Boolean)).size
+              : isMonthly ? Math.round(kpis.C/mc) : kpis.C;
+
+  const labelA = isCompare?'당월 월보험료':isMonthly?'월평균 월보험료':'총 월보험료';
+  const labelB = isCompare?'당월 인정실적':isMonthly?'월평균 인정실적':'총 인정실적';
+  const labelG = isCompare?'당월 생산성':isMonthly?'월평균 생산성':'설계사 생산성';
+  const labelC = isCompare?'당월 계약건수':isMonthly?'월평균 계약건수':'총 계약건수';
+  const labelD = isCompare?'당월 활동설계사':isMonthly?'월평균 활동설계사':'활동 설계사';
+  const labelE = '재직 설계사';
+  const subA   = isCompare?`${latM} 확정`:isMonthly?`${mc}개월 평균 | 달성률 ${fmtP(kpis.M)}`:`목표달성률 ${fmtP(kpis.M)}`;
+  const subB   = isCompare?`당월 계약 ${dispC}건`:isMonthly?`월평균 계약 ${Math.round(kpis.C/mc)}건`:`인정실적 ${fmtK(kpis.B)}`;
+  const subC   = isCompare?`${latM} 기준`:isMonthly?`${mc}개월 평균`:'중복제거 완료';
+  const subD   = isCompare?`당월 가동률 ${fmtP(dispF)}`:isMonthly?`월평균 가동률 ${fmtP(dispF)}`:`가동률 ${fmtP(kpis.F)}`;
+  const subE   = '등록구분=재직 기준';
 
   // KPI Cards
   const kpiDefs = [
-    { label:labelA,          val:fmtK(dispA),                         sub:subA, icon:'💰', color:'#3b82f6' },
-    { label:labelB,          val:fmtK(dispB),                         sub:subB, icon:'💵', color:'#6366f1' },
-    { label:labelC,          val:dispC.toLocaleString()+'건',          sub:subC, icon:'📋', color:'#8b5cf6' },
-    { label:labelD,          val:dispD+'명',                           sub:subD, icon:'🏃', color:'#10b981' },
-    { label:labelE,          val:dispE+'명',                           sub:subE, icon:'👥', color:'#f59e0b' },
-    { label:'가동률(KPI-F)', val:fmtP(dispF), sub:`${dispD}명 / ${dispE}명`, icon:'⚡', color:dispF<50?'#ef4444':'#22c55e' },
-    { label:labelG,          val:fmtK(dispG),                         sub:'인정실적÷활동설계사', icon:'📈', color:'#14b8a6' },
-    { label:'전월대비 성장', val:(kpis.K>=0?'+':'')+fmtP(kpis.K),   sub:'최신월 vs 전월', icon:'📊', color:kpis.K>=0?'#22c55e':'#ef4444' },
+    { label:labelA, val:fmtK(dispA),                   sub:subA, icon:'💰', color:'#3b82f6', cmp:cmpHtml(latPrem,avgA) },
+    { label:labelB, val:fmtK(dispB),                   sub:subB, icon:'💵', color:'#6366f1', cmp:cmpHtml(latCred,avgB) },
+    { label:labelC, val:dispC.toLocaleString()+'건',    sub:subC, icon:'📋', color:'#8b5cf6', cmp:cmpHtml(dispC,kpis.C/mc) },
+    { label:labelD, val:dispD+'명',                     sub:subD, icon:'🏃', color:'#10b981', cmp:cmpHtml(latD_,kpis.D/mc) },
+    { label:labelE, val:dispE+'명',                     sub:subE, icon:'👥', color:'#f59e0b', cmp:'' },
+    { label:'가동률(KPI-F)', val:fmtP(dispF), sub:`${dispD}명 / ${dispE}명`, icon:'⚡', color:dispF<50?'#ef4444':'#22c55e', cmp:cmpHtml(latF_R,kpis.F) },
+    { label:labelG, val:fmtK(dispG),                   sub:'활동설계사 1인당', icon:'📈', color:'#14b8a6', cmp:cmpHtml(latPrem/(latD_||1),avgA/(kpis.D||1)) },
+    { label:'전월대비 성장', val:(kpis.K>=0?'+':'')+fmtP(kpis.K), sub:'최신월 vs 전월', icon:'📊', color:kpis.K>=0?'#22c55e':'#ef4444', cmp:'' },
   ];
   const grid = document.getElementById('kpi-grid');
   if (!grid) return;
@@ -1291,6 +1319,7 @@ function renderDashboard(kpis, filtered) {
       </div>
       <div style="font-size:20px;font-weight:900;color:${k.color};font-variant-numeric:tabular-nums;">${k.val}</div>
       <div style="font-size:10px;color:#64748b;margin-top:4px;">${k.sub}</div>
+      ${k.cmp}
     </div>`).join('');
   
   // Trend chart
@@ -1354,36 +1383,53 @@ function renderDashboard(kpis, filtered) {
   // Branch matrix mini
   const bm = document.getElementById('branch-matrix-mini');
   if (bm) {
-    const bmLabel = isMonthly ? '월평균 인정실적' : '인정실적';
+    const bmLabel  = isCompare?'당월 인정실적':isMonthly?'월평균 인정실적':'인정실적';
+    const bmGrowth = isCompare?'vs 월평균':'성장률';
+    const latBrMap = {};
+    if(isCompare) latF_.forEach(r=>{ const bk=r.branch2||r.branch1||''; latBrMap[bk]=(latBrMap[bk]||0)+(r.credit||0); });
     bm.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;">
       <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
         <th style="padding:6px 8px;text-align:left;color:#64748b;">본부</th>
         <th style="padding:6px 8px;text-align:right;color:#64748b;">${bmLabel}</th>
         <th style="padding:6px 8px;text-align:center;color:#64748b;">가동률</th>
-        <th style="padding:6px 8px;text-align:center;color:#64748b;">성장률</th>
+        <th style="padding:6px 8px;text-align:center;color:#64748b;">${bmGrowth}</th>
         <th style="padding:6px 8px;text-align:center;color:#64748b;">비중</th>
       </tr></thead>
-      <tbody>${bStats.map((b,i) => `
-        <tr class="tbl-row" style="border-bottom:1px solid #1e293b;cursor:pointer;" onclick="selectOnly('branch2','${b.name}')">
+      <tbody>${bStats.map((b,i) => {
+        const cv = isCompare?(latBrMap[b.name]||0):isMonthly?b.credit/mc:b.credit;
+        const avgCr = b.credit/mc;
+        const g4 = isCompare
+          ? (()=>{ const p=avgCr>0?((latBrMap[b.name]||0)-avgCr)/avgCr*100:0; return `<span style="color:${p>=0?'#4ade80':'#f87171'}">${p>=0?'+':''}${fmtP(p)}</span>`; })()
+          : `<span style="color:${b.growthRate>=0?'#4ade80':'#f87171'}">${b.growthRate>=0?'+':''}${fmtP(b.growthRate)}</span>`;
+        return `<tr class="tbl-row" style="border-bottom:1px solid #1e293b;cursor:pointer;" onclick="selectOnly('branch2','${b.name}')">
           <td style="padding:7px 8px;font-weight:700;color:#e2e8f0;">${b.name}</td>
-          <td style="padding:7px 8px;text-align:right;color:#60a5fa;font-family:monospace;">${fmtK(isMonthly ? b.credit/mc : b.credit)}</td>
+          <td style="padding:7px 8px;text-align:right;color:#60a5fa;font-family:monospace;">${fmtK(cv)}${isCompare?`<br><span style="font-size:9px;color:#64748b">월평균 ${fmtK(avgCr)}</span>`:''}</td>
           <td style="padding:7px 8px;text-align:center;"><span class="badge ${b.actRate<50?'b-red':b.actRate<70?'b-yellow':'b-green'}">${fmtP(b.actRate)}</span></td>
-          <td style="padding:7px 8px;text-align:center;color:${b.growthRate>=0?'#4ade80':'#f87171'};">${b.growthRate>=0?'+':''}${fmtP(b.growthRate)}</td>
+          <td style="padding:7px 8px;text-align:center;">${g4}</td>
           <td style="padding:7px 8px;text-align:center;color:#94a3b8;">${fmtP(b.share)}</td>
-        </tr>`).join('')}</tbody>
+        </tr>`;}).join('')}</tbody>
     </table>`;
   }
 
   // Top 5 agents
   const agentMap = {};
   filtered.forEach(r=>{ if(!agentMap[r.agentId]) agentMap[r.agentId]={name:r.agentName,b2:r.branch2,type:r.agentType,premium:0}; agentMap[r.agentId].premium+=r.premium; });
-  const top5 = Object.values(agentMap).sort((a,b)=>b.premium-a.premium).slice(0,5);
+  const latAgMap = {};
+  if(isCompare) latF_.forEach(r=>{ latAgMap[r.agentId]=(latAgMap[r.agentId]||0)+(r.premium||0); });
+  let top5;
+  if(isCompare){
+    top5=Object.entries(latAgMap).sort((a,b)=>b[1]-a[1]).slice(0,5)
+      .map(([id,lp])=>({...(agentMap[id]||{}),dispPrem:lp,sub:`월평균 ${fmtK((agentMap[id]?.premium||0)/mc)}원`}));
+  } else {
+    top5=Object.values(agentMap).sort((a,b)=>b.premium-a.premium).slice(0,5)
+      .map(a=>({...a,dispPrem:isMonthly?a.premium/mc:a.premium,sub:''}));
+  }
   const t5 = document.getElementById('agent-top5');
   if (t5) t5.innerHTML = top5.map((a,i) => `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1e293b;">
       <div style="font-size:18px;min-width:28px;text-align:center;">${i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}위`}</div>
-      <div style="flex:1;"><div style="font-size:12px;font-weight:700;color:#e2e8f0;">${a.name}</div><div style="font-size:10px;color:#64748b;">${a.b2}</div></div>
-      <div style="font-size:12px;font-weight:800;color:#60a5fa;font-family:monospace;">${fmtK(isMonthly ? a.premium/mc : a.premium)}</div>
+      <div style="flex:1;"><div style="font-size:12px;font-weight:700;color:#e2e8f0;">${a.name||''}</div><div style="font-size:10px;color:#64748b;">${a.b2||''}${a.sub?` · ${a.sub}`:''}</div></div>
+      <div style="font-size:12px;font-weight:800;color:#60a5fa;font-family:monospace;">${fmtK(a.dispPrem||0)}</div>
     </div>`).join('');
 }
 
