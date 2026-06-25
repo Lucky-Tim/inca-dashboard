@@ -1257,8 +1257,9 @@ function renderDashboard(kpis, filtered) {
   if (btnC) { btnC.style.background=isCompare?'rgba(251,146,60,.2)':'transparent'; btnC.style.color=isCompare?'#fdba74':'#64748b'; btnC.style.borderColor=isCompare?'rgba(251,146,60,.5)':'rgba(100,116,139,.3)'; }
   if (lbl)  lbl.innerText = isCompare ? `(${kpis.latM} vs 월평균)` : isMonthly ? `(${mc}개월 기준)` : '';
 
-  // ── 당월 데이터 (compare 모드) ──
-  const latM   = kpis.latM;
+  // ── 당월 데이터 (compare 모드) — 데이터 마지막 월 기준 ──
+  const _months = [...new Set(filtered.map(r=>r.month).filter(Boolean))].sort();
+  const latM   = _months[_months.length - 1];
   const latF_  = filtered.filter(r => r.month === latM);
   const latPrem= latF_.reduce((s,r)=>s+(r.premium||0),0);
   const latCred= latF_.reduce((s,r)=>s+(r.credit||0),0);
