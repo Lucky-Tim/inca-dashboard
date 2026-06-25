@@ -1255,11 +1255,12 @@ function renderDashboard(kpis, filtered) {
   if (btnT) { btnT.style.background=isT?'rgba(59,130,246,.2)':'transparent'; btnT.style.color=isT?'#93c5fd':'#64748b'; btnT.style.borderColor=isT?'rgba(59,130,246,.5)':'rgba(100,116,139,.3)'; }
   if (btnM) { btnM.style.background=isMonthly?'rgba(16,185,129,.2)':'transparent'; btnM.style.color=isMonthly?'#6ee7b7':'#64748b'; btnM.style.borderColor=isMonthly?'rgba(16,185,129,.5)':'rgba(100,116,139,.3)'; }
   if (btnC) { btnC.style.background=isCompare?'rgba(251,146,60,.2)':'transparent'; btnC.style.color=isCompare?'#fdba74':'#64748b'; btnC.style.borderColor=isCompare?'rgba(251,146,60,.5)':'rgba(100,116,139,.3)'; }
-  if (lbl)  lbl.innerText = isCompare ? `(${kpis.latM} vs 월평균)` : isMonthly ? `(${mc}개월 기준)` : '';
-
   // ── 당월 데이터 (compare 모드) — 데이터 마지막 월 기준 ──
   const _months = [...new Set(filtered.map(r=>r.month).filter(Boolean))].sort();
   const latM   = _months[_months.length - 1];
+  const latMLabel = latM ? String(latM).slice(0,4)+'년 '+String(latM).slice(4,6)+'월' : '';
+
+  if (lbl)  lbl.innerText = isCompare ? `(${latMLabel} vs 월평균)` : isMonthly ? `(${mc}개월 기준)` : '';
   const latF_  = filtered.filter(r => r.month === latM);
   const latPrem= latF_.reduce((s,r)=>s+(r.premium||0),0);
   const latCred= latF_.reduce((s,r)=>s+(r.credit||0),0);
@@ -1293,9 +1294,9 @@ function renderDashboard(kpis, filtered) {
   const labelC = isCompare?'당월 계약건수':isMonthly?'월평균 계약건수':'총 계약건수';
   const labelD = isCompare?'당월 활동설계사':isMonthly?'월평균 활동설계사':'활동 설계사';
   const labelE = '재직 설계사';
-  const subA   = isCompare?`${latM} 확정`:isMonthly?`${mc}개월 평균 | 달성률 ${fmtP(kpis.M)}`:`목표달성률 ${fmtP(kpis.M)}`;
+  const subA   = isCompare?`${latMLabel} 확정`:isMonthly?`${mc}개월 평균 | 달성률 ${fmtP(kpis.M)}`:`목표달성률 ${fmtP(kpis.M)}`;
   const subB   = isCompare?`당월 계약 ${dispC}건`:isMonthly?`월평균 계약 ${Math.round(kpis.C/mc)}건`:`인정실적 ${fmtK(kpis.B)}`;
-  const subC   = isCompare?`${latM} 기준`:isMonthly?`${mc}개월 평균`:'중복제거 완료';
+  const subC   = isCompare?`${latMLabel} 기준`:isMonthly?`${mc}개월 평균`:'중복제거 완료';
   const subD   = isCompare?`당월 가동률 ${fmtP(dispF)}`:isMonthly?`월평균 가동률 ${fmtP(dispF)}`:`가동률 ${fmtP(kpis.F)}`;
   const subE   = '등록구분=재직 기준';
 
