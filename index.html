@@ -420,28 +420,6 @@ input[type=file]{display:none;}
 
 <!-- ==================== TAB: UPLOAD ==================== -->
 <div id="tab-upload" class="hidden">
-  <!-- ── 로컬 폴더 연결 ── -->
-  <div class="glass" style="padding:20px;border-radius:16px;margin-bottom:16px;border:1px solid rgba(59,130,246,.3);">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-      <div>
-        <div style="font-size:14px;font-weight:800;color:#60a5fa;display:flex;align-items:center;gap:8px;"><i data-lucide="folder-sync" style="width:16px;height:16px;"></i> 폴더 자동 연결</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:4px;" id="folder-status">폴더를 한 번 연결하면 이후 자동 갱신됩니다 (Chrome·Edge)</div>
-        <div style="font-size:10px;color:#64748b;margin-top:2px;font-family:monospace;" id="folder-path-display">연결된 폴더 없음</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <button id="connect-folder-btn" onclick="connectFolder()" style="background:linear-gradient(135deg,#3b82f6,#6366f1);border:none;color:#fff;padding:10px 18px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;"><i data-lucide="folder-plus" style="width:14px;height:14px;"></i> 폴더 연결</button>
-        <button id="refresh-folder-btn" onclick="refreshFolder()" disabled style="background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#4ade80;padding:10px 18px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;opacity:.5;"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> 폴더 새로고침</button>
-        <button onclick="resetCache()" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#f87171;padding:10px 14px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;" title="캐시 초기화"><i data-lucide="trash-2" style="width:13px;height:13px;"></i></button>
-      </div>
-    </div>
-    <div id="folder-file-list" style="margin-top:12px;display:none;">
-      <div style="font-size:10px;color:#64748b;font-weight:800;text-transform:uppercase;margin-bottom:6px;">감지된 파일</div>
-      <div id="folder-files" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
-    </div>
-    <div id="fsapi-unsupported" style="display:none;margin-top:10px;background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);border-radius:8px;padding:10px;font-size:11px;color:#facc15;">
-      ⚠️ 현재 브라우저는 폴더 자동 연결을 지원하지 않습니다. Chrome 또는 Edge에서 열거나, 아래 드래그앤드롭을 사용하세요.
-    </div>
-  </div>
 
   <!-- ── 클라우드 동기화 ── -->
   <div class="glass" style="padding:20px;border-radius:16px;margin-bottom:16px;border:1px solid rgba(16,185,129,.3);">
@@ -451,18 +429,18 @@ input[type=file]{display:none;}
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
       <!-- STEP 1 -->
       <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:12px;padding:14px;">
-        <div style="font-size:10px;color:#60a5fa;font-weight:800;margin-bottom:6px;">STEP 1 — 로컬 로드</div>
-        <div id="as-load-status" style="font-size:11px;color:#94a3b8;margin-bottom:8px;">폴더 연결 후 새로고침</div>
-        <button onclick="refreshFolder()" style="width:100%;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.4);color:#93c5fd;padding:8px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;">
-          🔄 폴더 새로고침
+        <div style="font-size:10px;color:#60a5fa;font-weight:800;margin-bottom:6px;">STEP 1 — 데이터 불러오기</div>
+        <div id="as-load-status" style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Google Sheets에서 로드</div>
+        <button onclick="pullFromAS()" style="width:100%;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.4);color:#93c5fd;padding:8px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;">
+          🔄 클라우드에서 불러오기
         </button>
       </div>
       <!-- STEP 2 -->
       <div style="background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.2);border-radius:12px;padding:14px;">
-        <div style="font-size:10px;color:#34d399;font-weight:800;margin-bottom:6px;">STEP 2 — 클라우드 저장</div>
-        <div id="as-sync-status" style="font-size:11px;color:#94a3b8;margin-bottom:8px;">로드 완료 후 직접 마감</div>
-        <button onclick="manualPushToAS()" style="width:100%;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#34d399;padding:8px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;">
-          ✅ 마감 동기화
+        <div style="font-size:10px;color:#34d399;font-weight:800;margin-bottom:6px;">STEP 2 — 데이터 수정</div>
+        <div id="as-sync-status" style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Google Sheets 직접 편집</div>
+        <button onclick="window.open('https://docs.google.com/spreadsheets','_blank')" style="width:100%;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#34d399;padding:8px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;">
+          📊 Sheets 열기
         </button>
       </div>
       <!-- STEP 3 -->
@@ -519,8 +497,8 @@ input[type=file]{display:none;}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
       <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;">
         <div style="font-size:9px;color:#60a5fa;font-weight:800;text-transform:uppercase;margin-bottom:4px;">STEP 1</div>
-        <div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:4px;">폴더 경로 확인</div>
-        <div style="font-size:10px;color:#94a3b8;">inka_data_folder 폴더가 바탕화면에 있는지 대소문자 포함 확인</div>
+        <div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:4px;">Sheets 탭 확인</div>
+        <div style="font-size:10px;color:#94a3b8;">인카_운영데이터 스프레드시트에 직원관리·건별실적 탭 존재 확인</div>
       </div>
       <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;">
         <div style="font-size:9px;color:#60a5fa;font-weight:800;text-transform:uppercase;margin-bottom:4px;">STEP 2</div>
@@ -1955,64 +1933,7 @@ function exportCSV(type) {
   a.click();
 }
 
-// ─── FOLDER AUTO-CONNECT (File System Access API) ────────
-const FS_SUPPORTED = ('showDirectoryPicker' in window);
-let DIR_HANDLE = null;
 
-// IndexedDB helpers to persist the directory handle across sessions
-function idbOpen() {
-  return new Promise((res, rej) => {
-    const req = indexedDB.open('inka_fs_db', 1);
-    req.onupgradeneeded = () => req.result.createObjectStore('handles');
-    req.onsuccess = () => res(req.result);
-    req.onerror   = () => rej(req.error);
-  });
-}
-async function idbSet(key, val) {
-  const db = await idbOpen();
-  return new Promise((res, rej) => {
-    const tx = db.transaction('handles', 'readwrite');
-    tx.objectStore('handles').put(val, key);
-    tx.oncomplete = () => res();
-    tx.onerror    = () => rej(tx.error);
-  });
-}
-async function idbGet(key) {
-  const db = await idbOpen();
-  return new Promise((res, rej) => {
-    const tx = db.transaction('handles', 'readonly');
-    const r = tx.objectStore('handles').get(key);
-    r.onsuccess = () => res(r.result);
-    r.onerror   = () => rej(r.error);
-  });
-}
-
-async function verifyPermission(handle) {
-  const opts = { mode: 'readwrite' };
-  if ((await handle.queryPermission(opts)) === 'granted') return true;
-  if ((await handle.requestPermission(opts)) === 'granted') return true;
-  return false;
-}
-
-// User clicks "폴더 연결"
-async function connectFolder() {
-  if (!FS_SUPPORTED) { document.getElementById('fsapi-unsupported').style.display='block'; return; }
-  try {
-    DIR_HANDLE = await window.showDirectoryPicker({ mode:'readwrite' });
-    await idbSet('inka_dir', DIR_HANDLE);
-    document.getElementById('folder-path-display').innerText = '✅ 연결됨: ' + DIR_HANDLE.name + ' (브라우저가 기억함)';
-    document.getElementById('folder-status').innerText = '폴더가 연결되었습니다. 파일을 폴더에 넣고 [폴더 새로고침]을 누르세요.';
-    const btn = document.getElementById('refresh-folder-btn');
-    btn.disabled = false; btn.style.opacity = '1';
-    log('📂 폴더 연결: ' + DIR_HANDLE.name, 'success');
-    await refreshFolder();
-  } catch(err) {
-    if (err.name === 'AbortError') { log('폴더 선택이 취소되었습니다', 'warn'); return; }
-    log('❌ 폴더 연결 실패: ' + err.message, 'error');
-  }
-}
-
-// User clicks "폴더 새로고침" — re-scan the folder for matching files
 // ─── APPS SCRIPT 클라우드 연동 ───────────────────────────
 const AS_DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbzTD7Ix4_YTZq_HNqGF0b2fhIt8f6TL3uqoSQiiudVopMoTA2rI66eoVKKtKbwwc3Ut/exec';
 const AS_URL_LS = 'inka_as_url';
@@ -2036,29 +1957,34 @@ function setAsStatus(msg, color='#64748b') {
   if (el) { el.innerText = msg; el.style.color = color; }
 }
 
-// ─── SYNC 컨트롤 ─────────────────────────────────────────
-// 수동 동기화 버튼
-async function manualPushToAS() {
-  await pushToAS();
-}
-
-// 폴더 로드 완료 후 자동 클라우드 동기화 (백그라운드)
-async function autoSyncToAS() {
+// 클라우드에서 불러오기 → Apps Script GET (주 데이터 로드 경로)
+async function pullFromAS(silent=false) {
   const { url } = loadAsConfig();
-  if (!url) return; // URL 미설정 시 스킵
-  const perfCount = STATE.performance.filter(r => r.status === '실제데이터').length;
-  if (!perfCount) return;
-  const syncEl = document.getElementById('as-sync-status');
-  if (syncEl) syncEl.innerHTML = '<span style="color:#fde68a;">⏳ 클라우드 동기화 중...</span>';
+  if (!url) { if (!silent) setAsStatus('❌ 배포 URL을 먼저 입력하세요', '#f87171'); return false; }
+  if (!silent) setAsStatus('⏳ 불러오는 중...', '#fde68a');
   try {
-    await pushToAS(true); // silent
-    if (syncEl) syncEl.innerHTML = `<span style="color:#4ade80;">✅ 동기화 완료 (${new Date().toLocaleTimeString()})</span>`;
-  } catch(e) {
-    if (syncEl) syncEl.innerHTML = `<span style="color:#f87171;">❌ 동기화 실패 — 수동 동기화 버튼 사용</span>`;
+    const res  = await fetch(url + '?t=' + Date.now());
+    const data = await res.json();
+    if (!data.employees?.length) throw new Error('데이터 없음 — Sheets 직원관리 탭 확인 또는 재배포 필요');
+    STATE.employees   = data.employees;
+    STATE.performance = (data.performance || []).map(r => ({...r, month: String(r.month||'').trim()}));
+    STATE.config.isRealData = true;
+    mergeData(); checkRealData();
+    const msg = `✅ 로드 완료 — 직원 ${data.employees.length}명 · 실적 ${data.performance?.length||0}건`;
+    if (!silent) setAsStatus(msg, '#34d399');
+    const loadEl = document.getElementById('as-load-status');
+    if (loadEl) loadEl.innerHTML = `<span style="color:#4ade80;">${msg}</span>`;
+    log('☁️ ' + msg, 'success');
+    return true;
+  } catch(err) {
+    const loadEl = document.getElementById('as-load-status');
+    if (loadEl) loadEl.innerHTML = `<span style="color:#f87171;">❌ ${err.message}</span>`;
+    if (!silent) setAsStatus('❌ ' + err.message, '#f87171');
+    return false;
   }
 }
 
-// 클라우드 업로드 → Apps Script POST
+// 클라우드 업로드 → Apps Script POST (드래그앤드롭 후 Sheets 반영용)
 async function pushToAS(silent=false) {
   const { url, key } = loadAsConfig();
   if (!url) { if (!silent) setAsStatus('❌ 배포 URL을 먼저 입력하세요', '#f87171'); return; }
@@ -2077,266 +2003,10 @@ async function pushToAS(silent=false) {
       log('☁️ 클라우드 업로드 완료', 'success');
     } else {
       if (!silent) setAsStatus('❌ ' + (data.error || '오류'), '#f87171');
-      else throw new Error(data.error || '오류');
     }
   } catch(err) {
     if (!silent) setAsStatus('❌ ' + err.message, '#f87171');
-    else throw err;
   }
-}
-
-// 클라우드에서 불러오기 → Apps Script GET
-async function pullFromAS(silent=false) {
-  const { url } = loadAsConfig();
-  if (!url) { if (!silent) setAsStatus('❌ 배포 URL을 먼저 입력하세요', '#f87171'); return false; }
-  if (!silent) setAsStatus('⏳ 불러오는 중...', '#fde68a');
-  try {
-    const res  = await fetch(url + '?t=' + Date.now());
-    const data = await res.json();
-    if (!data.employees?.length) throw new Error('데이터 없음 — 드라이브 파일 확인 또는 강제 갱신 필요');
-    STATE.employees   = data.employees;
-    STATE.performance = (data.performance || []).map(r => ({...r, month: String(r.month||"").trim()}));
-    STATE.config.isRealData = true;
-    mergeData(); checkRealData();
-    const msg = `✅ 로드 완료 — 직원 ${data.employees.length}명 · 실적 ${data.performance?.length||0}건`;
-    if (!silent) setAsStatus(msg, '#34d399');
-    const loadEl = document.getElementById('as-load-status');
-    if (loadEl) loadEl.innerHTML = `<span style="color:#4ade80;">${msg}</span>`;
-    log('☁️ ' + msg, 'success');
-    return true;
-  } catch(err) {
-    const loadEl = document.getElementById('as-load-status');
-    if (loadEl) loadEl.innerHTML = `<span style="color:#f87171;">❌ ${err.message}</span>`;
-    if (!silent) setAsStatus('❌ ' + err.message, '#f87171');
-    return false;
-  }
-}
-
-// ─── CACHE SYSTEM ────────────────────────────────────────
-const CACHE_FILE = '_인카_cache.json';
-
-async function readCache() {
-  try {
-    const fh   = await DIR_HANDLE.getFileHandle(CACHE_FILE);
-    const file = await fh.getFile();
-    return JSON.parse(await file.text());
-  } catch(e) { return null; }
-}
-
-async function writeCache(cache) {
-  try {
-    const fh = await DIR_HANDLE.getFileHandle(CACHE_FILE, { create: true });
-    const w  = await fh.createWritable();
-    await w.write(JSON.stringify(cache));
-    await w.close();
-  } catch(e) { log('⚠️ 캐시 저장 실패: ' + e.message, 'warn'); }
-}
-
-// 캐시 초기화 버튼
-async function resetCache() {
-  if (!DIR_HANDLE) { log('❌ 폴더가 연결되지 않았습니다', 'error'); return; }
-  try {
-    await DIR_HANDLE.removeEntry(CACHE_FILE);
-    log('🗑️ 캐시 초기화 완료 — 새로고침 시 전체 재로드됩니다', 'success');
-  } catch(e) { log('캐시 파일 없음 (이미 초기화 상태)', 'info'); }
-}
-
-// 순수 직원 파서 (STATE 직접 수정 없이 배열 반환)
-function parseEmpRowsPure(rows) {
-  const hi = detectHeaderRow(rows, ['사원번호','성명','등록구분']);
-  if (hi < 0) return [];
-  const headers = rows[hi].map(h => String(h).trim());
-  const ix = k => headers.indexOf(k);
-  const parsed = [];
-  for (let i = hi + 1; i < rows.length; i++) {
-    const r = rows[i];
-    if (!r[ix('사원번호')]) continue;
-    parsed.push({
-      id:       String(r[ix('사원번호')]).trim(),
-      name:     String(r[ix('성명')]       || '').trim(),
-      type:     String(r[ix('등록구분')]   || '재직').trim(),
-      b1:       String(r[ix('소속_1단계')] || '').trim(),
-      b2:       String(r[ix('소속_2단계')] || '').trim(),
-      b3:       String(r[ix('소속_3단계')] || '').trim(),
-      joinDate: String(r[ix('입사일')]     || '').trim(),
-      _source:  'real'
-    });
-  }
-  return parsed;
-}
-
-// 순수 실적 파서 (증권번호 기준 중복 제거, 기존 Set 전달)
-function parsePerfRowsPure(rows, existingCerts) {
-  const hi = detectHeaderRow(rows, ['SUNAB_PK','담당자코드','납입월도','인정실적']);
-  const skip = hi >= 0 ? hi : 7;
-  const vrows = rows.slice(skip);
-  const hdrs  = vrows[0].map(h => String(h).trim());
-  const ix    = k => hdrs.indexOf(k);
-  if (ix('담당자코드') < 0 || ix('인정실적') < 0) return [];
-  const parsed = [];
-  for (let i = 1; i < vrows.length; i++) {
-    const r = vrows[i];
-    if (!r[ix('담당자코드')] || !r[ix('납입월도')]) continue;
-    const cert = String(r[ix('증권번호')] || '').trim();
-    const pk   = String(r[ix('SUNAB_PK')] || '').trim();
-    const key  = cert || pk;
-    if (key && existingCerts.has(key)) continue;
-    if (key) existingCerts.add(key);
-    parsed.push({
-      SUNAB_PK:  pk || `AUTO_${i}`,
-      증권번호:  cert,
-      month:     String(r[ix('납입월도')]).trim(),
-      agentId:   String(r[ix('담당자코드')]).trim(),
-      premium:   cn(r[ix('월보험료')]),
-      credit:    cn(r[ix('인정실적')]),
-      category:  String(r[ix('보험종목')]  || '').trim(),
-      company:   String(r[ix('보험회사')]  || '').trim(),
-      payMethod: String(r[ix('납입방법')]  || '월납').trim(),
-      status:    '실제데이터'
-    });
-  }
-  return parsed;
-}
-
-async function refreshFolder() {
-  if (!DIR_HANDLE) { log('❌ 먼저 폴더를 연결하세요', 'error'); return; }
-
-  const pathEl = document.getElementById('folder-path-display');
-  if (pathEl) pathEl.innerText = '🔄 권한 확인 중...';
-  if (!(await verifyPermission(DIR_HANDLE))) {
-    if (pathEl) pathEl.innerText = '❌ 권한이 거부되었습니다. [폴더 연결]을 다시 클릭하세요.';
-    log('❌ 폴더 권한 거부', 'error'); return;
-  }
-
-  const btn = document.getElementById('refresh-folder-btn');
-  if (btn) {
-    btn.style.background = 'rgba(34,197,94,.12)';
-    btn.style.border = '1px solid rgba(34,197,94,.3)';
-    btn.style.color  = '#4ade80';
-    btn.innerHTML    = '<i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> 폴더 새로고침';
-    lucide.createIcons();
-  }
-
-  // ── 1. 캐시 로드 ──
-  log('📦 캐시 확인 중...', 'info');
-  let cache = await readCache();
-  const isFirstLoad = !cache;
-  if (!cache) {
-    cache = { version:1, processedFiles:{}, latestEmployeeFile:null, employees:[], performance:[], lastUpdated:null };
-    log('📦 캐시 없음 → 전체 초기 로드', 'info');
-  } else {
-    log(`📦 캐시 로드 완료 (실적 ${cache.performance.length}건, 마지막 업데이트: ${cache.lastUpdated?.slice(0,10)||'?'})`, 'info');
-  }
-
-  // ── 2. 폴더 스캔 ──
-  const allEmpFiles  = [];
-  const allPerfFiles = [];
-  const fileBadges   = [];
-  try {
-    for await (const entry of DIR_HANDLE.values()) {
-      if (entry.kind !== 'file') continue;
-      const nm = entry.name;
-      if (nm === CACHE_FILE) continue;
-      if (!/\.(xlsx|xls|csv)$/i.test(nm)) continue;
-      if      (nm.startsWith('직원관리')) { allEmpFiles.push(nm);  fileBadges.push({nm, type:'emp',  isNew:!cache.processedFiles[nm]}); }
-      else if (nm.startsWith('건별실적')) { allPerfFiles.push(nm); fileBadges.push({nm, type:'perf', isNew:!cache.processedFiles[nm]}); }
-    }
-  } catch(err) { log('❌ 폴더 스캔 오류: ' + err.message, 'error'); return; }
-
-  allEmpFiles.sort();
-  allPerfFiles.sort();
-
-  // ── 파일 배지 UI ──
-  const flist = document.getElementById('folder-file-list');
-  const fbox  = document.getElementById('folder-files');
-  if (flist) flist.style.display = 'block';
-  if (fbox) fbox.innerHTML = fileBadges.length ? fileBadges.map(f =>
-    `<span class="badge ${f.type==='emp'?'b-blue':'b-purple'}" style="font-size:10px;padding:4px 10px;opacity:${f.isNew?1:.45};">${f.type==='emp'?'👤':'📊'} ${f.nm}${f.isNew?' 🆕':''}</span>`
-  ).join('') : '<span style="font-size:11px;color:#f87171;">매칭 파일 없음</span>';
-
-  // ── 3. 직원관리: 최신 파일만 (파일명 날짜 기준) ──
-  const latestEmp = allEmpFiles[allEmpFiles.length - 1];
-  if (latestEmp && latestEmp !== cache.latestEmployeeFile) {
-    log(`👤 직원관리 신규: ${latestEmp}`, 'info');
-    const fh   = await DIR_HANDLE.getFileHandle(latestEmp);
-    const file = await fh.getFile();
-    const buf  = await file.arrayBuffer();
-    const wb   = XLSX.read(new Uint8Array(buf), {type:'array'});
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
-    cache.employees = parseEmpRowsPure(rows);
-    cache.latestEmployeeFile = latestEmp;
-    cache.processedFiles[latestEmp] = new Date().toISOString();
-    log(`✅ 직원관리 ${cache.employees.length}명 로드`, 'success');
-  } else {
-    log(`✅ 직원관리 캐시 사용 (${cache.employees.length}명)`, 'info');
-  }
-
-  // ── 4. 건별실적: 신규 파일만 증분 로드 ──
-  const newPerfFiles = allPerfFiles.filter(nm => !cache.processedFiles[nm]);
-  if (newPerfFiles.length > 0) {
-    log(`📊 신규 건별실적 ${newPerfFiles.length}개 처리 중...`, 'info');
-    const existingKeys = new Set(cache.performance.map(r => r.증권번호 || r.SUNAB_PK));
-    for (const nm of newPerfFiles) {
-      const fh   = await DIR_HANDLE.getFileHandle(nm);
-      const file = await fh.getFile();
-      const buf  = await file.arrayBuffer();
-      const wb   = XLSX.read(new Uint8Array(buf), {type:'array'});
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
-      const newRecs = parsePerfRowsPure(rows, existingKeys);
-      cache.performance.push(...newRecs);
-      cache.processedFiles[nm] = new Date().toISOString();
-      log(`✅ ${nm}: 신규 ${newRecs.length}건 추가 (누적 ${cache.performance.length}건)`, 'success');
-    }
-  } else {
-    log('✅ 건별실적 신규 파일 없음 — 캐시 그대로 사용', 'info');
-  }
-
-  // ── 5. STATE 반영 ──
-  STATE.employees   = cache.employees;
-  STATE.performance = cache.performance;
-  cache.lastUpdated = new Date().toISOString();
-
-  // ── 6. 캐시 저장 ──
-  await writeCache(cache);
-  log('💾 캐시 저장 완료', 'success');
-
-  if (pathEl) pathEl.innerText = `✅ ${DIR_HANDLE.name} | 실적 ${cache.performance.length}건 | 마지막: ${cache.lastUpdated.slice(0,10)}`;
-
-  mergeData();
-  checkRealData();
-}
-
-// On page load, try to silently restore a previously connected folder
-async function restoreFolder() {
-  if (!FS_SUPPORTED) { document.getElementById('fsapi-unsupported').style.display='block'; return; }
-  try {
-    const saved = await idbGet('inka_dir');
-    if (!saved) return;
-    DIR_HANDLE = saved;
-
-    // ── 방향 B: 권한이 살아있으면 클릭 없이 자동 로드 ──
-    const perm = await saved.queryPermission({ mode: 'read' });
-    const pathEl  = document.getElementById('folder-path-display');
-    const btn     = document.getElementById('refresh-folder-btn');
-    btn.disabled = false; btn.style.opacity = '1';
-
-    if (perm === 'granted') {
-      // 탭 유지 중 새로고침 등 — 권한 살아있음 → 자동 로드
-      pathEl.innerText = '✅ 자동 연결됨: ' + saved.name + ' — 데이터 로딩 중...';
-      document.getElementById('folder-status').innerText = '이전 폴더 권한이 유지되어 자동으로 데이터를 불러옵니다.';
-      await refreshFolder();
-    } else {
-      // 탭 닫고 재오픈 등 — 권한 만료 → 버튼 1번만 요청
-      pathEl.innerText = '🔗 이전 폴더: ' + saved.name;
-      document.getElementById('folder-status').innerText = '이전에 연결한 폴더가 있습니다. [폴더 새로고침]을 클릭하면 권한 확인 후 자동 로드됩니다.';
-      // 버튼 강조 — 클릭 1번이면 끝
-      btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
-      btn.style.border = 'none';
-      btn.style.color  = '#fff';
-      btn.innerHTML    = '<i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> 클릭하면 자동 로드';
-      lucide.createIcons();
-    }
-  } catch(err) { /* ignore */ }
 }
 
 // ─── FILE UPLOAD ─────────────────────────────────────────
@@ -2594,15 +2264,7 @@ window.onload = () => {
   // Apps Script에서 자동 로드 (드라이브 자동화 모드)
   pullFromAS(true);
   switchMC(1);
-  // If browser doesn't support folder API, disable the connect button visually
-  if (!FS_SUPPORTED) {
-    const cb = document.getElementById('connect-folder-btn');
-    if (cb) { cb.style.opacity='.5'; cb.style.cursor='not-allowed'; }
-    document.getElementById('fsapi-unsupported').style.display='block';
-  } else {
-    restoreFolder();
-  }
 };
 </script>
 </body>
-</html>
+</html>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
