@@ -156,8 +156,8 @@ td:first-child{text-align:left;font-weight:700;color:#e2e8f0;padding-left:10px;}
 <div class="period-row" id="period-row" style="display:none;">
   <span class="period-lb">기간 단위:</span>
   <button id="btn-total"   class="p-btn"                onclick="setPeriod('total')">연간 합계</button>
-  <button id="btn-monthly" class="p-btn active-monthly" onclick="setPeriod('monthly')">월평균</button>
-  <button id="btn-compare" class="p-btn"                onclick="setPeriod('compare')">당월 비교</button>
+  <button id="btn-monthly" class="p-btn"                onclick="setPeriod('monthly')">월평균</button>
+  <button id="btn-compare" class="p-btn active-compare" onclick="setPeriod('compare')">당월 비교</button>
   <span class="period-cnt" id="period-cnt"></span>
 </div>
 
@@ -239,7 +239,7 @@ const chartReg = {};
 
 let RAW = { employees:[], performance:[] };
 let FILTERS = { year:'all', month:'all', branch:'all', category:'all', company:'all', payMethod:'all' };
-let periodMode = 'monthly';
+let periodMode = 'compare';
 
 // ── 포맷 ──
 function fmtK(n){
@@ -308,17 +308,17 @@ function initFilters(){
   fillSelect('f-company',  companies);
   fillSelect('f-paymethod',pays);
 
-  // ── 기본값: 데이터 마지막 년/월, 납입방법 월납 ──
+  // ── 기본값: 납입연도=마지막연도, 납입월=전체, 납입방법=월납, 기간단위=당월비교 ──
   const allM=[...new Set(perfs.map(r=>String(r.month||'').trim()).filter(Boolean))].sort();
   const latFull=allM[allM.length-1]||'';
-  const defY=latFull.slice(0,4), defM=latFull.slice(4,6);
+  const defY=latFull.slice(0,4);
   if(defY) document.getElementById('f-year').value=defY;
-  if(defM) document.getElementById('f-month').value=defM;
+  // 납입월은 전체(all) 유지 — 당월비교 모드에서 자동으로 최신월 사용
   if(pays.includes('월납')) document.getElementById('f-paymethod').value='월납';
 
   // FILTERS 객체 동기화
   FILTERS.year     =document.getElementById('f-year').value;
-  FILTERS.month    =document.getElementById('f-month').value;
+  FILTERS.month    ='all';
   FILTERS.payMethod=document.getElementById('f-paymethod').value;
 }
 
