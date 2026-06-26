@@ -421,31 +421,75 @@ input[type=file]{display:none;}
 <!-- ==================== TAB: UPLOAD ==================== -->
 <div id="tab-upload" class="hidden">
 
-  <!-- ── 클라우드 동기화 ── -->
-  <div class="glass" style="padding:20px;border-radius:16px;margin-bottom:16px;border:1px solid rgba(16,185,129,.3);">
-    <div style="font-size:14px;font-weight:800;color:#34d399;display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-      <i data-lucide="share-2" style="width:16px;height:16px;"></i> 경영진 공유
+  <!-- ── 프로세스 흐름 안내 ── -->
+  <div style="display:grid;grid-template-columns:1fr 28px 1fr 28px 1fr 28px 1fr;gap:8px;align-items:center;margin-bottom:16px;">
+    <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.4);border-radius:12px;padding:14px;text-align:center;">
+      <div style="font-size:9px;color:#60a5fa;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">STEP 1</div>
+      <div style="font-size:13px;font-weight:900;color:#fff;margin-bottom:3px;">📁 신규파일 업로드</div>
+      <div style="font-size:10px;color:#64748b;">xlsx 드래그앤드롭</div>
     </div>
+    <div style="color:#334155;font-size:20px;font-weight:700;text-align:center;">→</div>
+    <div style="background:rgba(234,179,8,.05);border:1px solid rgba(234,179,8,.25);border-radius:12px;padding:14px;text-align:center;">
+      <div style="font-size:9px;color:#fbbf24;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">STEP 2</div>
+      <div style="font-size:13px;font-weight:900;color:#fff;margin-bottom:3px;">🔀 데이터 병합</div>
+      <div style="font-size:10px;color:#64748b;">기존+신규 자동 결합</div>
+    </div>
+    <div style="color:#334155;font-size:20px;font-weight:700;text-align:center;">→</div>
+    <div style="background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.25);border-radius:12px;padding:14px;text-align:center;">
+      <div style="font-size:9px;color:#34d399;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">STEP 3</div>
+      <div style="font-size:13px;font-weight:900;color:#fff;margin-bottom:3px;">☁️ 클라우드 불러오기</div>
+      <div style="font-size:10px;color:#64748b;">AS 저장 → 대시보드 갱신</div>
+    </div>
+    <div style="color:#334155;font-size:20px;font-weight:700;text-align:center;">→</div>
+    <div style="background:rgba(139,92,246,.05);border:1px solid rgba(139,92,246,.25);border-radius:12px;padding:14px;text-align:center;">
+      <div style="font-size:9px;color:#a78bfa;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">STEP 4</div>
+      <div style="font-size:13px;font-weight:900;color:#fff;margin-bottom:3px;">📋 링크복사 공유</div>
+      <div style="font-size:10px;color:#64748b;">경영진 뷰어 배포</div>
+    </div>
+  </div>
+
+  <!-- ── STEP 1 + 2: 파일 업로드 & 병합 로그 ── -->
+  <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:16px;">
+    <div class="glass" style="padding:20px;border-radius:16px;border:1px solid rgba(59,130,246,.3);">
+      <div style="font-size:13px;font-weight:800;color:#60a5fa;margin-bottom:4px;">① 신규파일 업로드</div>
+      <div style="font-size:10px;color:#475569;margin-bottom:12px;">직원관리 · 건별실적 xlsx 드래그 또는 클릭</div>
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" multiple accept=".xlsx,.xls,.csv" onchange="handleFiles(this.files)">
+        <div style="font-size:32px;margin-bottom:8px;">📁</div>
+        <div style="font-size:12px;font-weight:700;color:#e2e8f0;">드래그 또는 클릭하여 업로드</div>
+        <div style="font-size:10px;color:#64748b;margin-top:4px;">직원관리_*.xlsx · 건별실적_*.xlsx</div>
+      </div>
+      <button onclick="resetToMock()" style="width:100%;margin-top:10px;background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:8px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">🔄 샘플 데이터로 초기화</button>
+    </div>
+    <div class="glass" style="padding:20px;border-radius:16px;border:1px solid rgba(234,179,8,.2);">
+      <div style="font-size:13px;font-weight:800;color:#fbbf24;margin-bottom:4px;display:flex;align-items:center;gap:6px;"><i data-lucide="activity" style="width:14px;height:14px;"></i> ② 병합 처리 로그</div>
+      <div style="font-size:10px;color:#475569;margin-bottom:8px;">기존 AS 데이터 + 신규 파일 자동 결합 결과</div>
+      <div class="console-box" id="parse-console"><span style="color:#64748b;">[대기] 파일을 업로드하면 병합 파이프라인이 시작됩니다.</span></div>
+    </div>
+  </div>
+
+  <!-- ── STEP 3 + 4: 클라우드 저장 · 불러오기 · 공유 ── -->
+  <div class="glass" style="padding:20px;border-radius:16px;margin-bottom:16px;border:1px solid rgba(16,185,129,.3);">
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
-      <!-- STEP 1 -->
+      <!-- 3a: AS에 저장 -->
+      <div style="background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.2);border-radius:12px;padding:14px;">
+        <div style="font-size:10px;color:#34d399;font-weight:800;margin-bottom:6px;">③-a 클라우드에 저장</div>
+        <div id="as-sync-status" style="font-size:11px;color:#94a3b8;margin-bottom:8px;">병합 데이터 → AS 전송</div>
+        <button onclick="pushToAS()" style="width:100%;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#34d399;padding:8px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;">
+          ☁️ 클라우드에 저장
+        </button>
+      </div>
+      <!-- 3b: 불러오기 -->
       <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:12px;padding:14px;">
-        <div style="font-size:10px;color:#60a5fa;font-weight:800;margin-bottom:6px;">STEP 1 — 데이터 불러오기</div>
-        <div id="as-load-status" style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Google Sheets에서 로드</div>
+        <div style="font-size:10px;color:#60a5fa;font-weight:800;margin-bottom:6px;">③-b 대시보드 갱신</div>
+        <div id="as-load-status" style="font-size:11px;color:#94a3b8;margin-bottom:8px;">저장 후 확인 불러오기</div>
         <button onclick="pullFromAS()" style="width:100%;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.4);color:#93c5fd;padding:8px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;">
           🔄 클라우드에서 불러오기
         </button>
       </div>
-      <!-- STEP 2 -->
-      <div style="background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.2);border-radius:12px;padding:14px;">
-        <div style="font-size:10px;color:#34d399;font-weight:800;margin-bottom:6px;">STEP 2 — 데이터 수정</div>
-        <div id="as-sync-status" style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Google Sheets 직접 편집</div>
-        <button onclick="window.open('https://docs.google.com/spreadsheets','_blank')" style="width:100%;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#34d399;padding:8px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;">
-          📊 Sheets 열기
-        </button>
-      </div>
-      <!-- STEP 3 -->
+      <!-- 4: 링크 공유 -->
       <div style="background:rgba(139,92,246,.05);border:1px solid rgba(139,92,246,.2);border-radius:12px;padding:14px;">
-        <div style="font-size:10px;color:#a78bfa;font-weight:800;margin-bottom:6px;">STEP 3 — 링크 공유</div>
+        <div style="font-size:10px;color:#a78bfa;font-weight:800;margin-bottom:6px;">④ 링크 복사 공유</div>
         <div style="font-size:11px;color:#94a3b8;margin-bottom:6px;">경영진에게 공유</div>
         <div style="font-size:10px;background:rgba(15,23,42,.8);border:1px solid #1e293b;border-radius:6px;padding:5px 8px;color:#7c3aed;font-family:monospace;word-break:break-all;margin-bottom:6px;">
           Lucky-Tim.github.io/inca-dashboard/viewer.html
@@ -475,48 +519,6 @@ input[type=file]{display:none;}
     </details>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:16px;">
-    <div class="glass" style="padding:20px;border-radius:16px;">
-      <div style="font-size:13px;font-weight:800;color:#60a5fa;margin-bottom:16px;">📂 수동 업로드 (드래그앤드롭)</div>
-      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
-        <input type="file" id="file-input" multiple accept=".xlsx,.xls,.csv" onchange="handleFiles(this.files)">
-        <div style="font-size:32px;margin-bottom:8px;">📁</div>
-        <div style="font-size:12px;font-weight:700;color:#e2e8f0;">파일을 드래그하거나 클릭하여 업로드</div>
-        <div style="font-size:10px;color:#64748b;margin-top:4px;">직원관리_*.xlsx · 건별실적_*.xlsx</div>
-      </div>
-      <button onclick="resetToMock()" style="width:100%;margin-top:10px;background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:8px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">🔄 샘플 데이터로 초기화</button>
-    </div>
-    <div class="glass" style="padding:20px;border-radius:16px;">
-      <div style="font-size:13px;font-weight:800;color:#4ade80;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><i data-lucide="activity" style="width:14px;height:14px;"></i> 파이프라인 처리 로그</div>
-      <div class="console-box" id="parse-console"><span style="color:#64748b;">[대기] 파일을 업로드하면 파이프라인이 시작됩니다.</span></div>
-    </div>
-  </div>
-  <!-- Validation steps -->
-  <div class="glass" style="padding:16px;border-radius:16px;margin-bottom:16px;">
-    <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">✅ 자가 진단 체크리스트</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
-      <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;">
-        <div style="font-size:9px;color:#60a5fa;font-weight:800;text-transform:uppercase;margin-bottom:4px;">STEP 1</div>
-        <div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:4px;">Sheets 탭 확인</div>
-        <div style="font-size:10px;color:#94a3b8;">인카_운영데이터 스프레드시트에 직원관리·건별실적 탭 존재 확인</div>
-      </div>
-      <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;">
-        <div style="font-size:9px;color:#60a5fa;font-weight:800;text-transform:uppercase;margin-bottom:4px;">STEP 2</div>
-        <div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:4px;">파일 형식 확인</div>
-        <div style="font-size:10px;color:#94a3b8;">.xlsx 파일 확인. CSV가 아닌 Excel 파일 기준으로 M-Code 적용</div>
-      </div>
-      <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;">
-        <div style="font-size:9px;color:#60a5fa;font-weight:800;text-transform:uppercase;margin-bottom:4px;">STEP 3</div>
-        <div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:4px;">건별실적 7행 제거</div>
-        <div style="font-size:10px;color:#94a3b8;">상위 1~7행이 요약 헤더. 파일별 처리 후 결합. 결합 후 제거 금지</div>
-      </div>
-      <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;">
-        <div style="font-size:9px;color:#60a5fa;font-weight:800;text-transform:uppercase;margin-bottom:4px;">STEP 4</div>
-        <div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:4px;">조인 키 확인</div>
-        <div style="font-size:10px;color:#94a3b8;">담당자코드(Text) ↔ 사원번호(Text) 형식 일치 확인</div>
-      </div>
-    </div>
-  </div>
   <!-- File cards -->
   <div id="file-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;"></div>
 </div>
