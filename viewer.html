@@ -54,7 +54,7 @@ body{background:#050d1a;color:#e2e8f0;font-family:'Apple SD Gothic Neo','Noto Sa
 .bar-inner{display:flex;align-items:flex-end;gap:6px;height:140px;min-width:max-content;}
 .bar-col{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:36px;}
 .bar-val{font-size:8px;color:#64748b;white-space:nowrap;height:14px;display:flex;align-items:center;}
-.bar-wrap{flex:1;width:100%;display:flex;align-items:flex-end;max-height:110px;}
+.bar-wrap{width:100%;display:flex;align-items:flex-end;height:110px;}
 .bar-fg{width:100%;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#6366f1,#4f46e5);transition:height .5s ease;min-height:2px;}
 .bar-fg.bar-lat{background:linear-gradient(180deg,#10b981,#059669);}
 .bar-lbl{font-size:8px;color:#64748b;white-space:nowrap;writing-mode:vertical-rl;transform:rotate(180deg);height:36px;display:flex;align-items:center;}
@@ -444,13 +444,13 @@ function renderTrend(kpis) {
 
   document.getElementById('trend-chart').innerHTML = allMonths.map((m, i) => {
     const v   = vals[i];
-    const h   = Math.max(Math.round(v / maxVal * 100), v > 0 ? 2 : 0);
+    const h   = Math.max(Math.round(v / maxVal * 110), v > 0 ? 2 : 0);
     const isL = m === latM;
     return `
       <div class="bar-col">
         <div class="bar-val">${v > 0 ? fmtK(v) : ''}</div>
-        <div class="bar-wrap" style="max-height:110px;">
-          <div class="bar-fg${isL ? ' bar-lat' : ''}" style="height:${h}%;width:100%;"></div>
+        <div class="bar-wrap">
+          <div class="bar-fg${isL ? ' bar-lat' : ''}" style="height:${h}px;width:100%;"></div>
         </div>
         <div class="bar-lbl">${mLabel(m)}</div>
       </div>`;
