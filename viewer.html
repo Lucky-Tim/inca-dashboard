@@ -342,20 +342,38 @@ function applyFilters(){
 
 // ── 필터된 실적 ──
 function getFiltered(){
-  const emps = RAW.employees;
+  const empMap=new Map(RAW.employees.map(e=>[String(e.id),e]));
   return RAW.performance.filter(r=>{
     const m=String(r.month||'');
-    if(FILTERS.year!=='all'     && m.slice(0,4)!==FILTERS.year)                        return false;
-    if(FILTERS.month!=='all'    && m.slice(4,6)!==FILTERS.month)                       return false;
-    if(FILTERS.category!=='all' && (r.category||'').trim()!==FILTERS.category)         return false;
-    if(FILTERS.company!=='all'  && (r.company||'').trim()!==FILTERS.company)           return false;
-    if(FILTERS.payMethod!=='all'&& (r.payMethod||'').trim()!==FILTERS.payMethod)       return false;
+    if(FILTERS.year!=='all'     && m.slice(0,4)!==FILTERS.year)                return false;
+    if(FILTERS.month!=='all'    && m.slice(4,6)!==FILTERS.month)               return false;
+    if(FILTERS.category!=='all' && (r.category||'').trim()!==FILTERS.category) return false;
+    if(FILTERS.company!=='all'  && (r.company||'').trim()!==FILTERS.company)   return false;
+    if(FILTERS.payMethod!=='all'&& (r.payMethod||'').trim()!==FILTERS.payMethod) return false;
     if(FILTERS.branch!=='all'){
-      const e=emps.find(emp=>String(emp.id)===String(r.agentId));
+      const e=empMap.get(String(r.agentId));
       const b=(r.branch2||(e?.b2)||'').trim();
       if(b!==FILTERS.branch) return false;
     }
     return true;
+  });
+}
+
+// ── 납입방법 필터 제외 (활동설계사·가동률 전용) ──
+function getAllPayFiltered(){
+  const empMap=new Map(RAW.employees.map(e=>[String(e.id),e]));
+  return RAW.performance.filter(r=>{
+    const m=String(r.month||'');
+    if(FILTERS.year!=='all'     && m.slice(0,4)!==FILTERS.year)                return false;
+    if(FILTERS.month!=='all'    && m.slice(4,6)!==FILTERS.month)               return false;
+    if(FILTERS.category!=='all' && (r.category||'').trim()!==FILTERS.category) return false;
+    if(FILTERS.company!=='all'  && (r.company||'').trim()!==FILTERS.company)   return false;
+    if(FILTERS.branch!=='all'){
+      const e=empMap.get(String(r.agentId));
+      const b=(r.branch2||(e?.b2)||'').trim();
+      if(b!==FILTERS.branch) return false;
+    }
+    return true; // payMethod 필터 제외
   });
 }
 
@@ -369,23 +387,35 @@ function setPeriod(mode){
 }
 
 // ── KPI 계산 ──
-function calcKPIs(emps, perfs){
+function calcKPIs(emps, perfs, perfsAllPay){
   const regjEmps=emps.filter(e=>(e.type||'').replace(/\s/g,'')==='재직');
   const regIdSet=new Set(regjEmps.map(e=>String(e.id)));
   const kpiA=perfs.reduce((s,r)=>s+(Number(r.premium)||0),0);
   const kpiB=perfs.reduce((s,r)=>s+(Number(r.credit)||0),0);
   const kpiC=new Set(perfs.map(r=>r.SUNAB_PK||r['증권번호']).filter(Boolean)).size;
-  const activeSet=new Set(perfs.filter(r=>(Number(r.premium)||0)>0&&regIdSet.has(String(r.agentId))).map(r=>r.agentId));
+  // 활동설계사·가동률: 납입방법 필터 제외 (perfsAllPay 기준)
+  const activeSet=new Set(perfsAllPay.filter(r=>(Number(r.premium)||0)>0&&regIdSet.has(String(r.agentId))).map(r=>r.agentId));
   const kpiD=activeSet.size;
   const kpiE=regjEmps.length||emps.length;
   const kpiF=kpiE>0?(kpiD/kpiE*100):0;
   const kpiG=kpiD>0?kpiA/kpiD:0;
-  const months=[...new Set(perfs.map(r=>r.month).filter(Boolean))].sort();
+  const months=[...new Set(perfsAllPay.map(r=>r.month).filter(Boolean))].sort();
   const latM=months[months.length-1], prvM=months[months.length-2];
   const latSum=perfs.filter(r=>r.month===latM).reduce((s,r)=>s+(Number(r.premium)||0),0);
   const prvSum=perfs.filter(r=>r.month===prvM).reduce((s,r)=>s+(Number(r.premium)||0),0);
   const kpiK=prvSum>0?((latSum-prvSum)/prvSum*100):0;
-  return {A:kpiA,B:kpiB,C:kpiC,D:kpiD,E:kpiE,F:kpiF,G:kpiG,K:kpiK,months,latM,prvM,monthCount:months.length||1};
+  // 월별 활동설계사 → 월평균 및 월평균 가동률
+  const monthActiveMap={};
+  perfsAllPay.forEach(r=>{
+    if((Number(r.premium)||0)>0&&regIdSet.has(String(r.agentId))){
+      if(!monthActiveMap[r.month]) monthActiveMap[r.month]=new Set();
+      monthActiveMap[r.month].add(r.agentId);
+    }
+  });
+  const maCounts=Object.values(monthActiveMap).map(s=>s.size);
+  const avgD=maCounts.length>0?maCounts.reduce((a,b)=>a+b,0)/maCounts.length:kpiD;
+  const avgF=kpiE>0?avgD/kpiE*100:0;
+  return {A:kpiA,B:kpiB,C:kpiC,D:kpiD,E:kpiE,F:kpiF,G:kpiG,K:kpiK,months,latM,prvM,monthCount:months.length||1,avgD,avgF};
 }
 
 // ── 본부 통계 ──
@@ -429,9 +459,10 @@ function makeChart(id, type, data, opts={}){
 
 // ── 전체 렌더 ──
 function renderAll(){
-  const emps =RAW.employees;
-  const perfs=getFiltered();
-  const kpis =calcKPIs(emps,perfs);
+  const emps        =RAW.employees;
+  const perfs       =getFiltered();
+  const perfsAllPay =getAllPayFiltered();
+  const kpis        =calcKPIs(emps,perfs,perfsAllPay);
   const mc   =kpis.monthCount;
   const isM  =periodMode==='monthly';
   const isC  =periodMode==='compare';
@@ -440,22 +471,24 @@ function renderAll(){
   // ── 당월 데이터 (compare 모드) ──
   const latM =kpis.latM;
   const latP =perfs.filter(r=>r.month===latM);
+  const latPAP=perfsAllPay.filter(r=>r.month===latM); // 납입방법 필터 제외 당월
   const regjE=emps.filter(e=>(e.type||'').replace(/\s/g,'')==='재직');
   const regId=new Set(regjE.map(e=>String(e.id)));
   const latA =latP.reduce((s,r)=>s+(Number(r.premium)||0),0);
   const latB =latP.reduce((s,r)=>s+(Number(r.credit)||0),0);
   const latC =new Set(latP.map(r=>r.SUNAB_PK||r['증권번호']).filter(Boolean)).size;
-  const latAct=new Set(latP.filter(r=>(Number(r.premium)||0)>0&&regId.has(String(r.agentId))).map(r=>r.agentId));
+  const latAct=new Set(latPAP.filter(r=>(Number(r.premium)||0)>0&&regId.has(String(r.agentId))).map(r=>r.agentId));
   const latD =latAct.size;
   const latF =kpis.E>0?latD/kpis.E*100:0;
   const avgA =mc>0?kpis.A/mc:0;
   const avgB =mc>0?kpis.B/mc:0;
 
-  // 비교 HTML 헬퍼
-  function cmp(lat,avg){
+  // 비교 HTML 헬퍼 (unit: 'money'|'person'|'pct'|'cnt')
+  function cmp(lat,avg,unit='money'){
     if(!isC||!avg) return '';
     const p=avg>0?(lat-avg)/avg*100:0;
-    return `<div class="kc-cmp"><span class="kc-avg-lbl">월평균 ${fmtK(avg)}</span><span class="${p>=0?'kc-up':'kc-dn'}">${p>=0?'+':''}${p.toFixed(1)}%</span></div>`;
+    const fa=unit==='pct'?fmtP(avg):unit==='person'?Math.round(avg).toLocaleString()+'명':unit==='cnt'?Math.round(avg).toLocaleString()+'건':fmtK(avg)+'원';
+    return `<div class="kc-cmp"><span class="kc-avg-lbl">월평균 ${fa}</span><span class="${p>=0?'kc-up':'kc-dn'}">${p>=0?'+':''}${p.toFixed(1)}%</span></div>`;
   }
 
   document.getElementById('period-cnt').textContent=
@@ -477,23 +510,23 @@ function renderAll(){
     {lb:isC?'당월 계약건수':isM?'월평균 계약건수':'총 계약건수',
      vl:Math.round(isC?latC:isM?kpis.C/mc:kpis.C).toLocaleString()+'건',
      sb:'중복제거 완료',
-     cm:cmp(latC,kpis.C/mc), ic:'📋',cl:'#22d3ee',ac:'linear-gradient(90deg,#06b6d4,#0891b2)'},
+     cm:cmp(latC,kpis.C/mc,'cnt'), ic:'📋',cl:'#22d3ee',ac:'linear-gradient(90deg,#06b6d4,#0891b2)'},
     {lb:isC?'당월 생산성':isM?'월평균 생산성':'설계사 생산성',
      vl:fmtK(isC?latA/(latD||1):isM?kpis.A/mc/(kpis.D||1):kpis.G)+'원',
      sb:'활동설계사 1인당',
-     cm:cmp(latA/(latD||1),avgA/(kpis.D||1)), ic:'📈',cl:'#34d399',ac:'linear-gradient(90deg,#10b981,#059669)'},
+     cm:cmp(latA/(latD||1),avgA/(kpis.avgD||1),'money'), ic:'📈',cl:'#34d399',ac:'linear-gradient(90deg,#10b981,#059669)'},
     {lb:'재직 설계사',vl:kpis.E+'명',sb:'등록구분=재직 기준',cm:'',
      ic:'👥',cl:'#fbbf24',ac:'linear-gradient(90deg,#f59e0b,#d97706)'},
     {lb:isC?'당월 활동설계사':'활동 설계사',
      vl:(isC?latD:kpis.D)+'명',
      sb:isC?`당월 가동률 ${fmtP(latF)}`:`가동률 ${fmtP(kpis.F)}`,
-     cm:cmp(latD,kpis.D/mc), ic:'🏃',cl:'#4ade80',ac:'linear-gradient(90deg,#22c55e,#16a34a)'},
+     cm:cmp(latD,kpis.avgD,'person'), ic:'🏃',cl:'#4ade80',ac:'linear-gradient(90deg,#22c55e,#16a34a)'},
     {lb:isC?'당월 가동률':'가동률(KPI-F)',
      vl:fmtP(isC?latF:kpis.F),
      sb:`${isC?latD:kpis.D}명 / ${kpis.E}명`,
      ic:'⚡',cl:isC?lrc:rc,ac:'linear-gradient(90deg,'+(isC?lrc:rc)+','+(isC?lrc:rc)+'88)',
      wide:true,rate:isC?latF:kpis.F,
-     cm:cmp(latF,kpis.F)},
+     cm:cmp(latF,kpis.avgF,'pct')},
     {lb:'전월 대비 성장',vl:(kpis.K>=0?'+':'')+fmtP(kpis.K),sb:'최신월 vs 전월',cm:'',
      ic:'📊',cl:gc,ac:'linear-gradient(90deg,'+gc+','+gc+'88)'},
   ];
