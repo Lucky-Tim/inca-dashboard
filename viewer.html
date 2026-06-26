@@ -427,7 +427,7 @@ function renderKPICards(kpis) {
 const _chartReg = {};
 function renderTrend(kpis) {
   const agg = getAgg();
-  const { allMonths } = kpis;
+  const allMonths = kpis.allMonths.slice(-6); // 직전 6개월만 표시
 
   // 월별 premium + credit 합산
   const monthMap = {};
