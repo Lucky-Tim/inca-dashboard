@@ -22,25 +22,22 @@ body{
 .hdr{
   background:linear-gradient(160deg,#1a0505 0%,#120303 60%,#0a0604 100%);
   padding:14px 16px 11px;
-  border-bottom:1px solid rgba(197,48,48,.2);
+  border-bottom:1px solid rgba(164,0,0,.2);
   position:sticky;top:0;z-index:100;
 }
 .hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}
 .logo{display:flex;align-items:center;gap:10px;}
 .logo-ic{
-  width:34px;height:34px;
-  background:linear-gradient(135deg,#c53030,#7f1d1d);
-  border-radius:10px;
+  width:36px;height:36px;
   display:flex;align-items:center;justify-content:center;
-  font-size:18px;font-weight:900;color:#fff;
-  letter-spacing:-1px;
-  box-shadow:0 2px 12px rgba(197,48,48,.4);
+  flex-shrink:0;
+  filter:drop-shadow(0 2px 8px rgba(164,0,0,.5));
 }
 .logo-tx{font-size:14px;font-weight:800;color:#f5e6e6;line-height:1.2;letter-spacing:-.3px;}
 .logo-sb{font-size:10px;color:#7a5a5a;font-weight:500;letter-spacing:.02em;}
 .ref-btn{
-  background:rgba(197,48,48,.12);
-  border:1px solid rgba(197,48,48,.3);
+  background:rgba(164,0,0,.12);
+  border:1px solid rgba(164,0,0,.3);
   color:#e87878;
   border-radius:9px;padding:7px 12px;
   font-size:11px;font-weight:700;
@@ -48,10 +45,10 @@ body{
   font-family:inherit;
   transition:background .2s;
 }
-.ref-btn:active{background:rgba(197,48,48,.25);}
+.ref-btn:active{background:rgba(164,0,0,.25);}
 .stamp{
-  background:rgba(197,48,48,.06);
-  border:1px solid rgba(197,48,48,.15);
+  background:rgba(164,0,0,.06);
+  border:1px solid rgba(164,0,0,.15);
   border-radius:8px;padding:7px 11px;
   display:flex;align-items:center;justify-content:space-between;
 }
@@ -61,7 +58,7 @@ body{
 /* ── 필터바 ── */
 .filter-bar{
   background:#0d0606;
-  border-bottom:1px solid rgba(197,48,48,.1);
+  border-bottom:1px solid rgba(164,0,0,.1);
   padding:10px 16px;
   display:flex;gap:12px;
   overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
@@ -71,13 +68,13 @@ body{
 .f-lb{font-size:9px;color:#6b4444;font-weight:700;white-space:nowrap;letter-spacing:.05em;text-transform:uppercase;}
 .f-sel{
   background:#160808;
-  border:1px solid rgba(197,48,48,.2);
+  border:1px solid rgba(164,0,0,.2);
   color:#d4b8b8;
   border-radius:8px;padding:6px 7px;
   font-size:10px;font-family:inherit;
   cursor:pointer;-webkit-appearance:none;appearance:none;width:100%;
 }
-.f-sel:focus{outline:none;border-color:#c53030;}
+.f-sel:focus{outline:none;border-color:#a40000;}
 
 /* ── 섹션 ── */
 .sec{padding:12px 16px 0;}
@@ -90,7 +87,7 @@ body{
 .sec-ttl::before{
   content:'';display:inline-block;
   width:3px;height:13px;border-radius:2px;
-  background:var(--ac,#c53030);
+  background:var(--ac,#a40000);
 }
 
 /* ── KPI 카드 ── */
@@ -98,18 +95,18 @@ body{
 .kc{
   background:linear-gradient(145deg,rgba(26,5,5,.95),rgba(45,10,10,.7));
   border-radius:14px;padding:13px 12px;
-  border:1px solid rgba(197,48,48,.12);
+  border:1px solid rgba(164,0,0,.12);
   position:relative;overflow:hidden;
 }
 .kc::after{
   content:'';position:absolute;top:0;left:0;right:0;height:2px;
-  background:var(--ac,linear-gradient(90deg,#c53030,#7f1d1d));
+  background:var(--ac,linear-gradient(90deg,#a40000,#5a0000));
 }
 /* 노을 배경 광채 */
 .kc::before{
   content:'';position:absolute;top:-30px;right:-20px;
   width:80px;height:80px;
-  background:radial-gradient(circle,var(--glow,rgba(197,48,48,.08)) 0%,transparent 70%);
+  background:radial-gradient(circle,var(--glow,rgba(164,0,0,.08)) 0%,transparent 70%);
   pointer-events:none;
 }
 .kc-ic{font-size:16px;margin-bottom:5px;}
@@ -117,12 +114,12 @@ body{
 .kc-vl{font-size:22px;font-weight:900;color:#f5e6e6;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.5px;}
 .kc-sb{font-size:9px;color:#5a3a3a;margin-top:3px;}
 .kc.wide{grid-column:1/-1;}
-.rate-bg{background:rgba(197,48,48,.12);border-radius:99px;height:5px;margin:7px 0 4px;}
-.rate-fg{height:5px;border-radius:99px;background:linear-gradient(90deg,#c53030,#f87171);transition:width .8s ease;}
+.rate-bg{background:rgba(164,0,0,.12);border-radius:99px;height:5px;margin:7px 0 4px;}
+.rate-fg{height:5px;border-radius:99px;background:linear-gradient(90deg,#a40000,#f87171);transition:width .8s ease;}
 .kc-cmp{
   display:flex;justify-content:space-between;align-items:center;
   margin-top:6px;padding-top:5px;
-  border-top:1px solid rgba(197,48,48,.1);
+  border-top:1px solid rgba(164,0,0,.1);
   font-size:10px;
 }
 .kc-avg-lbl{color:#7a5a5a;}
@@ -132,7 +129,7 @@ body{
 /* ── 차트 ── */
 .chart-box{
   background:linear-gradient(145deg,rgba(20,5,5,.9),rgba(30,8,8,.6));
-  border:1px solid rgba(197,48,48,.15);
+  border:1px solid rgba(164,0,0,.15);
   border-radius:14px;padding:14px 13px 13px;
 }
 .chart-ttl{font-size:11px;font-weight:800;color:#d4b8b8;margin-bottom:3px;letter-spacing:-.2px;}
@@ -142,14 +139,14 @@ body{
 /* ── 본부 테이블 ── */
 .tbl-wrap{
   background:linear-gradient(145deg,rgba(20,5,5,.9),rgba(30,8,8,.6));
-  border:1px solid rgba(197,48,48,.15);
+  border:1px solid rgba(164,0,0,.15);
   border-radius:14px;overflow:hidden;
 }
 table{width:100%;border-collapse:collapse;font-size:11px;}
-thead tr{background:rgba(197,48,48,.08);border-bottom:1px solid rgba(197,48,48,.15);}
+thead tr{background:rgba(164,0,0,.08);border-bottom:1px solid rgba(164,0,0,.15);}
 th{padding:8px 7px;text-align:right;color:#6b4444;font-weight:700;white-space:nowrap;font-size:10px;letter-spacing:.03em;}
 th:first-child{text-align:left;padding-left:11px;}
-tbody tr{border-bottom:1px solid rgba(197,48,48,.06);}
+tbody tr{border-bottom:1px solid rgba(164,0,0,.06);}
 tbody tr:last-child{border-bottom:none;}
 td{padding:8px 7px;text-align:right;color:#c4a0a0;font-size:11px;}
 td:first-child{text-align:left;font-weight:700;color:#f0dada;padding-left:11px;}
@@ -161,10 +158,10 @@ td:first-child{text-align:left;font-weight:700;color:#f0dada;padding-left:11px;}
 /* ── TOP 10 ── */
 .top-wrap{
   background:linear-gradient(145deg,rgba(20,5,5,.9),rgba(30,8,8,.6));
-  border:1px solid rgba(197,48,48,.15);
+  border:1px solid rgba(164,0,0,.15);
   border-radius:14px;padding:13px 14px;
 }
-.top-item{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid rgba(197,48,48,.08);}
+.top-item{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid rgba(164,0,0,.08);}
 .top-item:last-child{border-bottom:none;}
 .top-rank{font-size:14px;min-width:28px;text-align:center;font-weight:900;color:#5a3a3a;}
 .top-info{flex:1;}
@@ -177,16 +174,16 @@ td:first-child{text-align:left;font-weight:700;color:#f0dada;padding-left:11px;}
 .ctr{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;}
 .spin{
   width:36px;height:36px;
-  border:3px solid rgba(197,48,48,.15);
-  border-top-color:#c53030;
+  border:3px solid rgba(164,0,0,.15);
+  border-top-color:#a40000;
   border-radius:50%;
   animation:sp .8s linear infinite;
 }
 @keyframes sp{to{transform:rotate(360deg);}}
 .ld-tx{font-size:13px;color:#6b4444;}
 .err-bx{
-  background:rgba(197,48,48,.08);
-  border:1px solid rgba(197,48,48,.2);
+  background:rgba(164,0,0,.08);
+  border:1px solid rgba(164,0,0,.2);
   border-radius:13px;padding:18px;
   text-align:center;font-size:13px;color:#f87171;
   line-height:1.6;max-width:300px;
@@ -195,14 +192,14 @@ td:first-child{text-align:left;font-weight:700;color:#f0dada;padding-left:11px;}
 /* ── 구분선 ── */
 .divider{
   margin:16px 16px 0;
-  border:none;border-top:1px solid rgba(197,48,48,.08);
+  border:none;border-top:1px solid rgba(164,0,0,.08);
 }
 
 /* ── 푸터 ── */
 .footer{
   margin:18px 16px 0;padding:11px;
   background:rgba(26,5,5,.5);
-  border:1px solid rgba(197,48,48,.08);
+  border:1px solid rgba(164,0,0,.08);
   border-radius:10px;
   text-align:center;font-size:9px;color:#3a1a1a;line-height:1.9;
 }
@@ -214,7 +211,18 @@ td:first-child{text-align:left;font-weight:700;color:#f0dada;padding-left:11px;}
 <div class="hdr">
   <div class="hdr-top">
     <div class="logo">
-      <div class="logo-ic">⊕</div>
+      <div class="logo-ic">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Having 브랜드 심볼: 레드 원형 + 화이트 플레이/크레센트 -->
+          <circle cx="18" cy="18" r="18" fill="#a40000"/>
+          <!-- 플레이 트라이앵글 (흰색) -->
+          <path d="M14 11L26 18L14 25V11Z" fill="white"/>
+          <!-- 하단 크레센트 마스크 (레드) -->
+          <ellipse cx="18" cy="25" rx="12" ry="7" fill="#a40000"/>
+          <!-- 하단 흰색 스마일 호 -->
+          <ellipse cx="18" cy="24.5" rx="9" ry="5" fill="white"/>
+        </svg>
+      </div>
       <div>
         <div class="logo-tx">해빙 Having</div>
         <div class="logo-sb">총괄사업단 운영현황</div>
@@ -245,7 +253,7 @@ td:first-child{text-align:left;font-weight:700;color:#f0dada;padding-left:11px;}
 
   <!-- KPI 카드 -->
   <div class="sec" style="margin-top:14px;">
-    <div class="sec-ttl" style="--ac:#c53030;">핵심 KPI <span id="kpi-period" style="font-size:9px;color:#5a3a3a;font-weight:400;margin-left:4px;"></span></div>
+    <div class="sec-ttl" style="--ac:#a40000;">핵심 KPI <span id="kpi-period" style="font-size:9px;color:#5a3a3a;font-weight:400;margin-left:4px;"></span></div>
     <div class="kpi-grid" id="kpi-grid"></div>
   </div>
 
@@ -484,8 +492,8 @@ function renderKPICards(kpis) {
       vl: fmtK(latA) + '원',
       sb: mLabel(latM) + ' 확정',
       cm: cmp(latA, avgA, 'money'),
-      cl: '#f87171', ac: 'linear-gradient(90deg,#c53030,#9b1c1c)',
-      glow: 'rgba(197,48,48,.1)'
+      cl: '#f87171', ac: 'linear-gradient(90deg,#a40000,#9b1c1c)',
+      glow: 'rgba(164,0,0,.1)'
     },
     {
       ic: '📋', lb: '당월 계약건수',
@@ -525,7 +533,7 @@ function renderKPICards(kpis) {
       sb: latD + '명 / ' + latE + '명',
       cm: cmp(latF, avgF, 'pct'),
       cl: rc, ac: `linear-gradient(90deg,${rc},${rc}99)`,
-      glow: `rgba(197,48,48,.08)`,
+      glow: `rgba(164,0,0,.08)`,
       wide: true, rate: latF
     },
   ];
@@ -576,7 +584,7 @@ function renderTrend(kpis) {
       labels,
       datasets: [
         { type:'bar', label:'월보험료', data:premData,
-          backgroundColor:'rgba(197,48,48,.45)', borderColor:'#c53030',
+          backgroundColor:'rgba(164,0,0,.45)', borderColor:'#a40000',
           borderWidth:1, borderRadius:4, yAxisID:'y' },
         { type:'bar', label:'인정실적', data:credData,
           backgroundColor:'rgba(217,119,6,.4)', borderColor:'#d97706',
@@ -596,8 +604,8 @@ function renderTrend(kpis) {
         },
       },
       scales:{
-        x:{ grid:{color:'rgba(197,48,48,.07)'}, ticks:{color:'#6b4444', font:{size:10}} },
-        y:{ type:'linear', position:'left', grid:{color:'rgba(197,48,48,.07)'},
+        x:{ grid:{color:'rgba(164,0,0,.07)'}, ticks:{color:'#6b4444', font:{size:10}} },
+        y:{ type:'linear', position:'left', grid:{color:'rgba(164,0,0,.07)'},
           ticks:{ color:'#6b4444', font:{size:9}, callback:v=>{
             if(v===0) return '0';
             const a=Math.abs(v);
