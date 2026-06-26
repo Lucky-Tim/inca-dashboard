@@ -752,9 +752,9 @@ function calcKPIs(data) {
     });
   const kpiB = dataAllPay.reduce((s,r) => s + r.credit, 0); // 인정실적(부지표)
   const kpiC = data.length;
-  // 가동률 정합: 분자(활동)를 분모(재직 명부)와 동일 모집단으로 제한 — 퇴사자·미매칭 실적 제외
+  // 가동률·활동설계사: 납입방법 필터 제외 (dataAllPay 기준) — 월납 필터가 활동 집계를 왜곡하지 않도록
   const regIdSet = new Set(registeredInFilter.map(e => String(e.id)));
-  const activeSet = new Set(data.filter(r => r.premium > 0 && regIdSet.has(String(r.agentId))).map(r => r.agentId));
+  const activeSet = new Set(dataAllPay.filter(r => r.premium > 0 && regIdSet.has(String(r.agentId))).map(r => r.agentId));
   const kpiD = activeSet.size;
   const kpiE = registeredInFilter.length;
   const kpiF = kpiE > 0 ? (kpiD / kpiE * 100) : 0;
@@ -762,7 +762,7 @@ function calcKPIs(data) {
   const kpiH = kpiE > 0 ? kpiA / kpiE : 0;
   const target = STATE.config.targetKPI;
   const kpiM = target > 0 ? (kpiA / target * 100) : 0;
-  
+
   // Month-over-month growth (KPI K)
   const months = [...new Set(STATE.merged.map(r=>r.month))].sort();
   const latestM = months[months.length-1];
@@ -770,11 +770,11 @@ function calcKPIs(data) {
   const latestPremium = STATE.merged.filter(r=>r.month===latestM).reduce((s,r)=>s+r.premium,0);
   const prevPremium   = STATE.merged.filter(r=>r.month===prevM).reduce((s,r)=>s+r.premium,0);
   const kpiK = prevPremium > 0 ? ((latestPremium - prevPremium) / prevPremium * 100) : 0;
-  
-  const monthCount = new Set(data.map(r=>r.month).filter(Boolean)).size || 1;
-  // 월별 활동 설계사 수 → 월평균 계산용
+
+  const monthCount = new Set(dataAllPay.map(r=>r.month).filter(Boolean)).size || 1;
+  // 월별 활동 설계사 수 → 월평균 계산용 (납입방법 필터 제외)
   const monthActiveMap = {};
-  data.forEach(r => {
+  dataAllPay.forEach(r => {
     if (r.premium > 0 && regIdSet.has(String(r.agentId))) {
       if (!monthActiveMap[r.month]) monthActiveMap[r.month] = new Set();
       monthActiveMap[r.month].add(r.agentId);
