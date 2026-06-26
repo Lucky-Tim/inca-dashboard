@@ -479,8 +479,11 @@ function renderTrend(kpis) {
         x:{grid:{color:'#1e293b'}, ticks:{color:'#94a3b8'}},
         y:{type:'linear', position:'left', grid:{color:'#1e293b'},
           ticks:{color:'#94a3b8', callback:v=>{
+            if(v===0) return '0';
             const a=Math.abs(v);
-            if(a>=100000000) return (v/100000000).toFixed(1)+'억';
+            if(a>=100000000) return (v/100000000).toFixed(1).replace(/\.0$/,'')+'억';
+            if(a>=10000000)  return (v/10000000).toFixed(0)+'천만';
+            if(a>=1000000)   return (v/1000000).toFixed(0)+'백만';
             return (v/10000).toFixed(0)+'만';
           }}
         },
