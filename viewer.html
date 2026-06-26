@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>인카금융 해빙총괄 | 경영현황</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 body{background:#050d1a;color:#e2e8f0;font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;min-height:100vh;padding-bottom:48px;}
@@ -49,15 +50,9 @@ body{background:#050d1a;color:#e2e8f0;font-family:'Apple SD Gothic Neo','Noto Sa
 .kc-up{color:#4ade80;font-weight:800;}
 .kc-dn{color:#f87171;font-weight:800;}
 
-/* ── CSS 바차트 ── */
-.bar-chart{background:rgba(15,23,42,.7);border:1px solid rgba(51,65,85,.5);border-radius:13px;padding:13px 10px 8px;overflow-x:auto;}
-.bar-inner{display:flex;align-items:flex-end;gap:6px;height:140px;min-width:max-content;}
-.bar-col{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:36px;}
-.bar-val{font-size:8px;color:#64748b;white-space:nowrap;height:14px;display:flex;align-items:center;}
-.bar-wrap{width:100%;display:flex;align-items:flex-end;height:110px;}
-.bar-fg{width:100%;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#6366f1,#4f46e5);transition:height .5s ease;min-height:2px;}
-.bar-fg.bar-lat{background:linear-gradient(180deg,#10b981,#059669);}
-.bar-lbl{font-size:8px;color:#64748b;white-space:nowrap;writing-mode:vertical-rl;transform:rotate(180deg);height:36px;display:flex;align-items:center;}
+/* ── 차트 ── */
+.chart-box{background:rgba(15,23,42,.7);border:1px solid rgba(51,65,85,.5);border-radius:13px;padding:13px;}
+.chart-box canvas{max-height:220px;}
 
 /* ── 본부 테이블 ── */
 .tbl-wrap{background:rgba(15,23,42,.7);border:1px solid rgba(51,65,85,.5);border-radius:13px;overflow:hidden;}
@@ -135,11 +130,11 @@ td:first-child{text-align:left;font-weight:700;color:#e2e8f0;padding-left:10px;}
     <div class="kpi-grid" id="kpi-grid"></div>
   </div>
 
-  <!-- 월별 실적 추이 (CSS 바차트) -->
+  <!-- 월별 실적 추이 -->
   <div class="sec" style="margin-top:12px;">
-    <div class="sec-ttl" style="--ac:#8b5cf6;">월별 실적 추이</div>
-    <div class="bar-chart">
-      <div class="bar-inner" id="trend-chart"></div>
+    <div class="sec-ttl" style="--ac:#8b5cf6;">월별 실적 추이 <span style="font-size:9px;color:#475569;font-weight:400;">(보라=월보험료 / 초록=인정실적)</span></div>
+    <div class="chart-box">
+      <canvas id="ch-trend"></canvas>
     </div>
   </div>
 
@@ -428,33 +423,62 @@ function renderKPICards(kpis) {
     </div>`).join('');
 }
 
-// ── 월별 트렌드 (CSS 바차트) ──
+// ── 월별 트렌드 (Chart.js) ──
+const _chartReg = {};
 function renderTrend(kpis) {
-  const agg       = getAgg();
-  const { latM, allMonths } = kpis;
+  const agg = getAgg();
+  const { allMonths } = kpis;
 
-  // 월별 premium 합산
+  // 월별 premium + credit 합산
   const monthMap = {};
   agg.forEach(r => {
-    monthMap[r.month] = (monthMap[r.month] || 0) + r.premium;
+    if (!monthMap[r.month]) monthMap[r.month] = { premium: 0, credit: 0 };
+    monthMap[r.month].premium += r.premium;
+    monthMap[r.month].credit  += r.credit;
   });
 
-  const vals   = allMonths.map(m => monthMap[m] || 0);
-  const maxVal = Math.max(...vals, 1);
+  // 전년동월 (YYYYMM → -1년, branch 필터만 적용)
+  const allAggMap = {};
+  RAW.aggregated.filter(r => FILTERS.branch === 'all' || r.branch === FILTERS.branch)
+    .forEach(r => { allAggMap[r.month] = (allAggMap[r.month] || 0) + r.premium; });
+  const yoyData = allMonths.map(m => {
+    const prevM = String(parseInt(m.slice(0, 4)) - 1) + m.slice(4, 6);
+    return allAggMap[prevM] != null ? allAggMap[prevM] : null;
+  });
 
-  document.getElementById('trend-chart').innerHTML = allMonths.map((m, i) => {
-    const v   = vals[i];
-    const h   = Math.max(Math.round(v / maxVal * 110), v > 0 ? 2 : 0);
-    const isL = m === latM;
-    return `
-      <div class="bar-col">
-        <div class="bar-val">${v > 0 ? fmtK(v) : ''}</div>
-        <div class="bar-wrap">
-          <div class="bar-fg${isL ? ' bar-lat' : ''}" style="height:${h}px;width:100%;"></div>
-        </div>
-        <div class="bar-lbl">${mLabel(m)}</div>
-      </div>`;
-  }).join('');
+  const labels   = allMonths.map(m => mLabel(m) + '월');
+  const premData = allMonths.map(m => monthMap[m]?.premium || 0);
+  const credData = allMonths.map(m => monthMap[m]?.credit  || 0);
+
+  if (_chartReg['trend']) _chartReg['trend'].destroy();
+  const ctx = document.getElementById('ch-trend');
+  if (!ctx) return;
+  _chartReg['trend'] = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        { type:'bar',  label:'월보험료',        data:premData,
+          backgroundColor:'rgba(99,102,241,.5)', borderColor:'#6366f1', borderWidth:1, borderRadius:4 },
+        { type:'bar',  label:'인정실적',         data:credData,
+          backgroundColor:'rgba(16,185,129,.45)', borderColor:'#10b981', borderWidth:1, borderRadius:4 },
+        { type:'line', label:'전년동월(월보험료)', data:yoyData,
+          borderColor:'#f59e0b', borderWidth:2, borderDash:[6,4],
+          pointRadius:4, pointBackgroundColor:'#f59e0b',
+          fill:false, tension:0, spanGaps:true },
+      ],
+    },
+    options: {
+      responsive:true, maintainAspectRatio:true, animation:{duration:400},
+      plugins:{
+        legend:{display:true, labels:{color:'#94a3b8', font:{size:10}, boxWidth:14}},
+        tooltip:{callbacks:{label: c => ' ' + fmtK(c.parsed.y) + '원'}},
+      },
+      scales:{
+        x:{grid:{color:'#1e293b'}, ticks:{color:'#94a3b8', font:{size:9}}},
+        y:{grid:{color:'#1e293b'}, ticks:{color:'#94a3b8', font:{size:9}, callback:v=>fmtK(v)}},
+      },
+    },
+  });
 }
 
 // ── 본부별 매트릭스 ──
