@@ -459,7 +459,7 @@ input[type=file]{display:none;}
         <div style="font-size:12px;font-weight:700;color:#e2e8f0;">드래그 또는 클릭하여 업로드</div>
         <div style="font-size:10px;color:#64748b;margin-top:4px;">직원관리_*.xlsx · 건별실적_*.xlsx</div>
       </div>
-      <button onclick="resetToMock()" style="width:100%;margin-top:10px;background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:8px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">🔄 샘플 데이터로 초기화</button>
+      <button onclick="resetToCloud()" style="width:100%;margin-top:10px;background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:8px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">🔄 업로드 전 데이터로 초기화</button>
     </div>
     <div class="glass" style="padding:20px;border-radius:16px;border:1px solid rgba(234,179,8,.2);">
       <div style="font-size:13px;font-weight:800;color:#fbbf24;margin-bottom:4px;display:flex;align-items:center;gap:6px;"><i data-lucide="activity" style="width:14px;height:14px;"></i> ② 병합 처리 로그</div>
@@ -1969,7 +1969,7 @@ async function pullFromAS(silent=false) {
     const data = await res.json();
     if (!data.employees?.length) throw new Error('데이터 없음 — Sheets 직원관리 탭 확인 또는 재배포 필요');
     STATE.employees   = data.employees;
-    STATE.performance = (data.performance || []).map(r => ({...r, month: String(r.month||'').trim()}));
+    STATE.performance = (data.performance || []).map(r => ({...r, month: String(r.month||'').trim(), status: '실제데이터'}));
     STATE.config.isRealData = true;
     mergeData(); checkRealData();
     const msg = `✅ 로드 완료 — 직원 ${data.employees.length}명 · 실적 ${data.performance?.length||0}건`;
@@ -2036,6 +2036,7 @@ async function handleFiles(files) {
       else                   parsePerfSheet(rawRows, file.name);
     } catch(err) { log(`❌ ${file.name}: ${err.message}`, 'error'); }
   }
+  log(`✅ 파일 처리 100% 완료 — 직원 ${STATE.employees.filter(e=>e.type==='재직').length}명 재직 · 실적 ${STATE.performance.filter(p=>p.status==='실제데이터').length}건`, 'success');
 }
 
 function detectHeaderRow(rows, keys) {
@@ -2125,6 +2126,13 @@ function resetToMock() {
   document.getElementById('data-mode-text').innerText = '샘플 데이터';
   log('🔄 샘플 데이터로 초기화되었습니다', 'warn');
   mergeData(); renderAll();
+}
+
+async function resetToCloud() {
+  log('🔄 클라우드 데이터로 복원 중...', 'info');
+  const ok = await pullFromAS();
+  if (!ok) log('⚠️ 클라우드 복원 실패 — 배포 URL 확인 또는 클라우드에서 불러오기 버튼 사용', 'error');
+  else log('✅ 업로드 전 상태로 복원 완료', 'success');
 }
 
 // ─── M-CODE ──────────────────────────────────────────────
