@@ -2009,7 +2009,8 @@ async function pullFromAS(silent=false) {
 async function pushToAS(silent=false) {
   const { url, key } = loadAsConfig();
   if (!url) { if (!silent) setAsStatus('❌ 배포 URL을 먼저 입력하세요', '#f87171'); return; }
-  const perf = STATE.performance.filter(r => r.status === '실제데이터');
+  // STATE.merged: SUNAB_PK 중복제거된 확정 데이터 → 뷰어와 동일 모집단 유지
+  const perf = STATE.merged.length ? STATE.merged : STATE.performance.filter(r => r.status === '실제데이터');
   if (!STATE.employees.length && !perf.length) { if (!silent) setAsStatus('❌ 업로드할 데이터 없음', '#f87171'); return; }
   if (!silent) setAsStatus(`⏳ 업로드 중... (직원 ${STATE.employees.length}명 · 실적 ${perf.length}건)`, '#fde68a');
   try {
