@@ -51,8 +51,8 @@ body{background:#050d1a;color:#e2e8f0;font-family:'Apple SD Gothic Neo','Noto Sa
 .kc-dn{color:#f87171;font-weight:800;}
 
 /* ── 차트 ── */
-.chart-box{background:rgba(15,23,42,.7);border:1px solid rgba(51,65,85,.5);border-radius:13px;padding:13px;}
-.chart-box canvas{max-height:220px;}
+.chart-box{background:rgba(15,23,42,.7);border:1px solid rgba(51,65,85,.5);border-radius:13px;padding:14px 13px 12px;}
+.chart-canvas-wrap{position:relative;height:clamp(170px,52vw,220px);width:100%;}
 
 /* ── 본부 테이블 ── */
 .tbl-wrap{background:rgba(15,23,42,.7);border:1px solid rgba(51,65,85,.5);border-radius:13px;overflow:hidden;}
@@ -135,7 +135,7 @@ td:first-child{text-align:left;font-weight:700;color:#e2e8f0;padding-left:10px;}
     <div class="chart-box">
       <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">월별 실적 추이 (보라=월보험료 / 초록=인정실적)</div>
       <div style="font-size:10px;color:#64748b;margin-bottom:12px;">전월대비·YoY 보조선 포함</div>
-      <div style="height:220px;position:relative;"><canvas id="ch-trend"></canvas></div>
+      <div class="chart-canvas-wrap"><canvas id="ch-trend"></canvas></div>
     </div>
   </div>
 
