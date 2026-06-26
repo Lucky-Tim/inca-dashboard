@@ -910,11 +910,17 @@ function calcForecast() {
 
 // ─── UTILS ───────────────────────────────────────────────
 const fmt  = n => n ? Math.round(n).toLocaleString() + '원' : '0원';
-const fmtM = n => n ? (n/10000).toFixed(0)+'만원' : '0원';
+const fmtM = n => {
+  if (!n) return '0원';
+  const abs = Math.abs(n);
+  if (abs >= 100000000) return (n/100000000).toFixed(1)+'억원';
+  return Math.round(n/10000).toLocaleString()+'만원';
+};
 const fmtP = n => n.toFixed(1) + '%';
 const fmtK = n => {
-  if (Math.abs(n)>=100000000) return (n/100000000).toFixed(1)+'억원';
-  if (Math.abs(n)>=10000) return (n/10000).toFixed(0)+'만원';
+  const abs = Math.abs(n);
+  if (abs >= 100000000) return (n/100000000).toFixed(1)+'억원';
+  if (abs >= 10000) return Math.round(n/10000).toLocaleString()+'만원';
   return Math.round(n).toLocaleString()+'원';
 };
 const levelColor = { critical:'#ef4444', high:'#f97316', medium:'#eab308', good:'#22c55e' };
@@ -1252,12 +1258,16 @@ function renderDashboard(kpis, filtered) {
   const avgA   = mc>0?kpis.A/mc:0;
   const avgB   = mc>0?kpis.B/mc:0;
 
-  // 비교 HTML 헬퍼
-  function cmpHtml(lat, avg) {
+  // 비교 HTML 헬퍼 (unit: 'money'|'cnt'|'person'|'pct')
+  function cmpHtml(lat, avg, unit='money') {
     if(!isCompare||!avg) return '';
     const p = avg>0?(lat-avg)/avg*100:0;
     const cl = p>=0?'#4ade80':'#f87171';
-    return `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.07);font-size:10px;"><span style="color:#64748b;">월평균 ${fmtK(avg)}</span><span style="color:${cl};font-weight:800;">${p>=0?'+':''}${p.toFixed(1)}%</span></div>`;
+    const fmtAvg = unit==='pct'    ? fmtP(avg)
+                 : unit==='person' ? Math.round(avg).toLocaleString()+'명'
+                 : unit==='cnt'    ? Math.round(avg).toLocaleString()+'건'
+                 : fmtK(avg);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.07);font-size:10px;"><span style="color:#64748b;">월평균 ${fmtAvg}</span><span style="color:${cl};font-weight:800;">${p>=0?'+':''}${p.toFixed(1)}%</span></div>`;
   }
 
   // ── KPI 파생값 ──
@@ -1282,16 +1292,23 @@ function renderDashboard(kpis, filtered) {
   const subD   = isCompare?`당월 가동률 ${fmtP(dispF)}`:isMonthly?`월평균 가동률 ${fmtP(dispF)}`:`가동률 ${fmtP(kpis.F)}`;
   const subE   = '등록구분=재직 기준';
 
+  // 전월대비 성장 년월 라벨
+  const _allMonths = [...new Set(STATE.merged.map(r=>r.month).filter(Boolean))].sort();
+  const _latM = _allMonths[_allMonths.length-1];
+  const _prevM = _allMonths[_allMonths.length-2];
+  const _latLabel  = _latM  ? String(_latM).slice(0,4)+'년 '+String(_latM).slice(4,6)+'월' : '최신월';
+  const _prevLabel = _prevM ? String(_prevM).slice(0,4)+'년 '+String(_prevM).slice(4,6)+'월' : '전월';
+
   // KPI Cards
   const kpiDefs = [
-    { label:labelA, val:fmtK(dispA),                   sub:subA, icon:'💰', color:'#3b82f6', cmp:cmpHtml(latPrem,avgA) },
-    { label:labelB, val:fmtK(dispB),                   sub:subB, icon:'💵', color:'#6366f1', cmp:cmpHtml(latCred,avgB) },
-    { label:labelC, val:dispC.toLocaleString()+'건',    sub:subC, icon:'📋', color:'#8b5cf6', cmp:cmpHtml(dispC,kpis.C/mc) },
-    { label:labelD, val:dispD+'명',                     sub:subD, icon:'🏃', color:'#10b981', cmp:cmpHtml(latD_,kpis.D/mc) },
+    { label:labelA, val:fmtK(dispA),                   sub:subA, icon:'💰', color:'#3b82f6', cmp:cmpHtml(latPrem,avgA,'money') },
+    { label:labelB, val:fmtK(dispB),                   sub:subB, icon:'💵', color:'#6366f1', cmp:cmpHtml(latCred,avgB,'money') },
+    { label:labelC, val:dispC.toLocaleString()+'건',    sub:subC, icon:'📋', color:'#8b5cf6', cmp:cmpHtml(dispC,kpis.C/mc,'cnt') },
+    { label:labelD, val:dispD+'명',                     sub:subD, icon:'🏃', color:'#10b981', cmp:cmpHtml(latD_,kpis.D/mc,'person') },
     { label:labelE, val:dispE+'명',                     sub:subE, icon:'👥', color:'#f59e0b', cmp:'' },
-    { label:'가동률(KPI-F)', val:fmtP(dispF), sub:`${dispD}명 / ${dispE}명`, icon:'⚡', color:dispF<50?'#ef4444':'#22c55e', cmp:cmpHtml(latF_R,kpis.F) },
-    { label:labelG, val:fmtK(dispG),                   sub:'활동설계사 1인당', icon:'📈', color:'#14b8a6', cmp:cmpHtml(latPrem/(latD_||1),avgA/(kpis.D||1)) },
-    { label:'전월대비 성장', val:(kpis.K>=0?'+':'')+fmtP(kpis.K), sub:'최신월 vs 전월', icon:'📊', color:kpis.K>=0?'#22c55e':'#ef4444', cmp:'' },
+    { label:'가동률(KPI-F)', val:fmtP(dispF), sub:`${dispD}명 / ${dispE}명`, icon:'⚡', color:dispF<50?'#ef4444':'#22c55e', cmp:cmpHtml(latF_R,kpis.F,'pct') },
+    { label:labelG, val:fmtK(dispG),                   sub:'활동설계사 1인당', icon:'📈', color:'#14b8a6', cmp:cmpHtml(latPrem/(latD_||1),avgA/(kpis.D||1),'money') },
+    { label:'전월대비 성장', val:(kpis.K>=0?'+':'')+fmtP(kpis.K), sub:`${_latLabel} vs ${_prevLabel}`, icon:'📊', color:kpis.K>=0?'#22c55e':'#ef4444', cmp:'' },
   ];
   const grid = document.getElementById('kpi-grid');
   if (!grid) return;
@@ -1340,7 +1357,7 @@ function renderDashboard(kpis, filtered) {
     plugins:{ legend:{ display:true, labels:{ color:'#94a3b8', font:{ size:9 } } } },
     scales:{
       x:{ grid:{ color:'#1e293b' }, ticks:{ color:'#94a3b8' } },
-      y:{ type:'linear', position:'left', grid:{ color:'#1e293b' }, ticks:{ color:'#94a3b8', callback:v=>(v/10000).toFixed(0)+'만' } }
+      y:{ type:'linear', position:'left', grid:{ color:'#1e293b' }, ticks:{ color:'#94a3b8', callback:v=>{ const a=Math.abs(v); if(a>=100000000) return (v/100000000).toFixed(1)+'억'; return (v/10000).toFixed(0)+'만'; } } }
     }
   });
   
@@ -1368,7 +1385,7 @@ function renderDashboard(kpis, filtered) {
   const bm = document.getElementById('branch-matrix-mini');
   if (bm) {
     const bmLabel  = isCompare?'당월 인정실적':isMonthly?'월평균 인정실적':'인정실적';
-    const bmGrowth = isCompare?'vs 월평균':'성장률';
+    const bmGrowth = isCompare?'월평균 대비(인정실적)':'성장률';
     const latBrMap = {};
     if(isCompare) latF_.forEach(r=>{ const bk=r.branch2||r.branch1||''; latBrMap[bk]=(latBrMap[bk]||0)+(r.credit||0); });
     bm.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;">
