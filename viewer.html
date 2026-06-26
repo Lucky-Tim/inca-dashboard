@@ -292,10 +292,11 @@ function calcKPIs() {
   const allMonths = [...new Set(RAW.aggregated.map(r => r.month).filter(Boolean))].sort();
   const latM      = allMonths[allMonths.length - 1] || '';
 
-  // 마감 완료 월 (당월 제외)
+  // 마감 완료 월 (당월 제외) → 직전 6개월만 사용
   const closedMonths = allMonths.filter(m => m < currM);
-  const closedSet    = new Set(closedMonths);
-  const mc           = closedMonths.length || 1;
+  const last6Closed  = closedMonths.slice(-6);
+  const closedSet    = new Set(last6Closed);
+  const mc           = last6Closed.length || 1;
 
   // 등록 설계사 수 (재직, branch 필터 반영)
   const regEmps = (RAW.employees || []).filter(e => (e.type || '').replace(/\s/g, '') === '재직');
@@ -364,7 +365,7 @@ function renderKPICards(kpis) {
   const { latA, latC, latD, latE, latF, latProd, avgA, avgC, avgD, avgF, avgProd, mc, latM } = kpis;
 
   document.getElementById('kpi-period').textContent =
-    latM ? `(${mLabel(latM)} vs 월평균 · ${mc}개월)` : '';
+    latM ? `(${mLabel(latM)} vs 직전 6개월 월평균)` : '';
 
   const rc   = latF < 50 ? '#ef4444' : latF < 70 ? '#fbbf24' : '#4ade80';
   const defs = [
