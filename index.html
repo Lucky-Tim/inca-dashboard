@@ -689,6 +689,8 @@ function buildMockData() {
 // ─── MERGE & DEDUP ───────────────────────────────────────
 function mergeData() {
   const { employees, performance } = STATE;
+  // O(1) 조회를 위해 Map으로 변환 (employees.find 대신 → 1.2억 → 6만 연산)
+  const empMap = new Map(employees.map(e => [String(e.id), e]));
   // SUNAB_PK 기반 중복제거
   const seen = new Set();
   const deduped = performance.filter(p => {
@@ -696,9 +698,9 @@ function mergeData() {
     seen.add(p.SUNAB_PK);
     return true;
   });
-  // Left Outer Join
+  // Left Outer Join (Map 조회 → O(n+m))
   STATE.merged = deduped.map(p => {
-    const emp = employees.find(e => String(e.id) === String(p.agentId)) || {
+    const emp = empMap.get(String(p.agentId)) || {
       id: p.agentId, name:'미매칭', type:'미정', b2:'기타', b3:'기타', joinDate:'20000101'
     };
     return { ...p, agentName: emp.name, agentType: emp.type, branch2: emp.b2, branch3: emp.b3, joinDate: emp.joinDate };
@@ -1971,7 +1973,7 @@ async function pullFromAS(silent=false) {
     STATE.employees   = data.employees;
     STATE.performance = (data.performance || []).map(r => ({...r, month: String(r.month||'').trim(), status: '실제데이터'}));
     STATE.config.isRealData = true;
-    mergeData(); checkRealData();
+    mergeData(); checkRealData(); renderAll();
     const msg = `✅ 로드 완료 — 직원 ${data.employees.length}명 · 실적 ${data.performance?.length||0}건`;
     if (!silent) setAsStatus(msg, '#34d399');
     const loadEl = document.getElementById('as-load-status');
@@ -2036,6 +2038,8 @@ async function handleFiles(files) {
       else                   parsePerfSheet(rawRows, file.name);
     } catch(err) { log(`❌ ${file.name}: ${err.message}`, 'error'); }
   }
+  // 모든 파일 처리 완료 후 한 번만 mergeData + checkRealData + renderAll
+  mergeData(); checkRealData(); renderAll();
   log(`✅ 파일 처리 100% 완료 — 직원 ${STATE.employees.filter(e=>e.type==='재직').length}명 재직 · 실적 ${STATE.performance.filter(p=>p.status==='실제데이터').length}건`, 'success');
 }
 
@@ -2067,7 +2071,7 @@ function parseEmployeeSheet(rows, fname) {
     return true;
   });
   log(`✅ 직원관리 ${parsed.length}명 로드 완료 → 중복제거 후 재직계: ${STATE.employees.filter(e=>e.type==='재직').length}명`, 'success');
-  checkRealData();
+  // renderAll은 handleFiles 완료 후 한 번만 호출
 }
 
 const cn = v => { if(!v) return 0; const s=String(v).replace(/[",]/g,'').trim(); return isNaN(s)?0:parseInt(s)||0; };
@@ -2103,7 +2107,7 @@ function parsePerfSheet(rows, fname) {
   }
   STATE.performance = [...STATE.performance, ...parsed];
   log(`✅ 건별실적 ${parsed.length}건 로드 완료 (${skipCount}행 스킵, 중복제거 적용)`, 'success');
-  checkRealData();
+  // renderAll은 handleFiles 완료 후 한 번만 호출
 }
 
 function checkRealData() {
@@ -2113,8 +2117,7 @@ function checkRealData() {
   document.getElementById('sim-badge').style.color = hasReal ? '#4ade80' : '#fde68a';
   document.getElementById('data-mode-text').innerText = hasReal ? '실제 데이터' : '샘플 데이터';
   document.getElementById('data-mode-dot').style.background = hasReal ? '#4ade80' : '#facc15';
-  mergeData();
-  renderAll();
+  // mergeData/renderAll은 호출부에서 처리 (중복 실행 방지)
 }
 
 function resetToMock() {
