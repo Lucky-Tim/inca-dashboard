@@ -242,6 +242,22 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:11px;}
     <div class="kpi-grid" id="kpi-grid"></div>
   </div>
 
+  <!-- 당월 조직별 실적현황 -->
+  <div class="sec" style="margin-top:14px;">
+    <div class="sec-ttl" style="--ac:#A40000;">당월 조직별 실적현황 <span id="cur-month-ttl" style="font-size:9px;color:#5a3a3a;font-weight:400;margin-left:4px;"></span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>본부</th>
+          <th>월보험료</th>
+          <th>인정실적</th>
+          <th>가동</th>
+        </tr></thead>
+        <tbody id="cur-branch-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- 월별 실적 추이 -->
   <div class="sec" style="margin-top:14px;">
     <div class="chart-box">
@@ -458,9 +474,59 @@ function cmp(lat, avg, unit) {
 function renderAll() {
   const kpis = calcKPIs();
   renderKPICards(kpis);
+  renderCurrentMonth(kpis);
   renderTrend(kpis);
   renderBranchTable(kpis);
   renderTop10();
+}
+
+// ── 당월 조직별 실적현황 ──
+function renderCurrentMonth(kpis) {
+  const { latM } = kpis;
+  const yr  = latM ? latM.slice(0, 4) : '';
+  const mo  = latM ? latM.slice(4)    : '';
+  document.getElementById('cur-month-ttl').textContent =
+    latM ? `(${yr}.${mo} 진행중)` : '';
+
+  const agg   = getAgg();
+  const aggAP = getAggAllPay();
+
+  const curAgg   = agg.filter(r => r.month === latM);
+  const curAggAP = aggAP.filter(r => r.month === latM);
+
+  if (!curAgg.length) {
+    document.getElementById('cur-branch-tbody').innerHTML =
+      '<tr><td colspan="4" style="text-align:center;color:#888;font-size:11px;padding:10px;">당월 데이터 없음</td></tr>';
+    return;
+  }
+
+  const bMap = {};
+  curAgg.forEach(r => {
+    const b = r.branch || '미분류';
+    if (!bMap[b]) bMap[b] = { premium: 0, credit: 0 };
+    bMap[b].premium += r.premium;
+    bMap[b].credit  += r.credit;
+  });
+
+  const actMap = {};
+  curAggAP.forEach(r => {
+    const b = r.branch || '미분류';
+    actMap[b] = (actMap[b] || 0) + r.activeAgents;
+  });
+
+  const rows = Object.entries(bMap)
+    .filter(([k]) => k && k !== '미분류')
+    .map(([name, v]) => ({ name, premium: v.premium, credit: v.credit, act: actMap[name] || 0 }))
+    .filter(b => b.premium > 0)
+    .sort((a, b) => b.credit - a.credit);
+
+  document.getElementById('cur-branch-tbody').innerHTML = rows.map(b => `
+    <tr>
+      <td>${b.name}</td>
+      <td style="font-family:monospace;color:#666;">${fmtK(b.premium)}원</td>
+      <td style="font-family:monospace;color:#A40000;">${fmtK(b.credit)}원</td>
+      <td style="color:#888;">${b.act}명</td>
+    </tr>`).join('');
 }
 
 // ── KPI 카드 ──
@@ -634,20 +700,23 @@ function renderBranchTable(kpis) {
     branchReg[b] = (branchReg[b] || 0) + 1;
   });
 
-  const totalPrem = Object.values(bMap).reduce((s, v) => s + v.premium, 0) || 1;
-
-  const rows = Object.entries(bMap)
+  // 1차: avgCr 먼저 계산
+  const mapped = Object.entries(bMap)
     .filter(([k]) => k && k !== '미분류')
     .map(([name, v]) => {
       const reg     = FILTERS.branch !== 'all' ? kpis.latE : (branchReg[name] || 0);
       const act     = latActive[name] || 0;
       const actRate = reg > 0 ? act / reg * 100 : 0;
-      const share   = v.premium / totalPrem * 100;
-      const avgCr   = (bMap[name]?.creditClosed ?? 0) / (mc || 1);
-      return { name, premium: v.premium, actRate, share, avgCr };
+      const avgCr   = (v.creditClosed ?? 0) / (mc || 1);
+      return { name, premium: v.premium, actRate, avgCr };
     })
-    .filter(b => b.premium > 0)
-    .sort((a, b) => b.premium - a.premium);
+    .filter(b => b.premium > 0);
+
+  // 2차: 직전 6M 인정실적 기준 비중 계산 + 정렬
+  const totalAvgCr = mapped.reduce((s, r) => s + r.avgCr, 0) || 1;
+  const rows = mapped
+    .map(b => ({ ...b, share: b.avgCr / totalAvgCr * 100 }))
+    .sort((a, b) => b.avgCr - a.avgCr);
 
   const medals = ['🥇', '🥈', '🥉'];
   document.getElementById('branch-tbody').innerHTML = rows.map((b, i) => `
