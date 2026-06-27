@@ -260,7 +260,7 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:11px;}
       <table>
         <thead><tr>
           <th>본부</th>
-          <th>월보험료</th>
+          <th>월평균 인정실적<br><span style="font-size:9px;font-weight:400;">(직전 6M)</span></th>
           <th>가동률</th>
           <th>비중</th>
         </tr></thead>
@@ -611,14 +611,16 @@ function renderTrend(kpis) {
 function renderBranchTable(kpis) {
   const agg   = getAgg();
   const aggAP = getAggAllPay();
-  const { latM, mc } = kpis;
+  const { latM, mc, closedMonths } = kpis;
+  const closedSet = new Set((closedMonths || []).slice(-6));
 
   const bMap = {};
   agg.forEach(r => {
     const b = r.branch || '미분류';
-    if (!bMap[b]) bMap[b] = { premium: 0, credit: 0 };
+    if (!bMap[b]) bMap[b] = { premium: 0, credit: 0, creditClosed: 0 };
     bMap[b].premium += r.premium;
     bMap[b].credit  += r.credit;
+    if (closedSet.has(r.month)) bMap[b].creditClosed += r.credit;
   });
 
   const latActive = {};
@@ -643,7 +645,7 @@ function renderBranchTable(kpis) {
       const act     = latActive[name] || 0;
       const actRate = reg > 0 ? act / reg * 100 : 0;
       const share   = v.premium / totalPrem * 100;
-      const avgCr   = v.credit / mc;
+      const avgCr   = (bMap[name]?.creditClosed ?? 0) / (mc || 1);
       return { name, premium: v.premium, actRate, share, avgCr };
     })
     .filter(b => b.premium > 0)
