@@ -23,32 +23,34 @@ body{
   background:#fff;
   color:#1a1a1a;
   font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+  font-size:14px;
+  line-height:1.5;
   min-height:100vh;
-  padding-bottom:56px;
+  padding-bottom:64px;
 }
 
 /* ── 헤더 ── */
 .hdr{
   background:#fff;
-  padding:14px 16px 11px;
+  padding:16px 16px 12px;
   border-bottom:2px solid #A40000;
   position:sticky;top:0;z-index:100;
 }
-.hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}
+.hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
 .logo{display:flex;align-items:center;gap:10px;}
 .logo-ic{
   width:36px;height:36px;
   display:flex;align-items:center;justify-content:center;
   flex-shrink:0;
 }
-.logo-tx{font-size:14px;font-weight:800;color:#1a1a1a;line-height:1.2;letter-spacing:-.3px;}
-.logo-sb{font-size:10px;color:#A40000;font-weight:600;letter-spacing:.02em;}
+.logo-tx{font-size:15px;font-weight:800;color:#1a1a1a;line-height:1.2;letter-spacing:-.3px;}
+.logo-sb{font-size:12px;color:#A40000;font-weight:600;letter-spacing:.02em;margin-top:2px;}
 .ref-btn{
   background:transparent;
   border:1.5px solid #A40000;
   color:#A40000;
-  border-radius:7px;padding:5px 11px;
-  font-size:10px;font-weight:700;
+  border-radius:8px;padding:7px 14px;
+  font-size:13px;font-weight:700;
   cursor:pointer;display:flex;align-items:center;gap:4px;
   font-family:inherit;letter-spacing:.02em;
   transition:all .15s;white-space:nowrap;flex-shrink:0;
@@ -57,69 +59,69 @@ body{
 .stamp{
   background:#FFF5F5;
   border:1px solid rgba(164,0,0,.15);
-  border-radius:8px;padding:7px 11px;
+  border-radius:9px;padding:8px 13px;
   display:flex;align-items:center;justify-content:space-between;
 }
-.stamp-lb{font-size:10px;color:#A40000;font-weight:700;letter-spacing:.02em;}
-.stamp-tm{font-size:10px;color:#888;}
+.stamp-lb{font-size:12px;color:#A40000;font-weight:700;letter-spacing:.02em;}
+.stamp-tm{font-size:12px;color:#888;}
 
 /* ── 필터바 ── */
 .filter-bar{
   background:#F7F4F4;
   border-bottom:1px solid #E8E0E0;
-  padding:10px 16px;
-  display:flex;gap:12px;
+  padding:11px 16px;
+  display:flex;gap:14px;
   overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
 }
 .filter-bar::-webkit-scrollbar{display:none;}
-.f-wrap{display:flex;flex-direction:column;gap:3px;min-width:84px;}
-.f-lb{font-size:9px;color:#A40000;font-weight:700;white-space:nowrap;letter-spacing:.05em;text-transform:uppercase;}
+.f-wrap{display:flex;flex-direction:column;gap:4px;min-width:90px;}
+.f-lb{font-size:11px;color:#A40000;font-weight:700;white-space:nowrap;letter-spacing:.03em;}
 .f-sel{
   background:#fff;
   border:1px solid #E0D0D0;
   color:#1a1a1a;
-  border-radius:8px;padding:6px 7px;
-  font-size:10px;font-family:inherit;
+  border-radius:8px;padding:7px 9px;
+  font-size:13px;font-family:inherit;
   cursor:pointer;-webkit-appearance:none;appearance:none;width:100%;
 }
 .f-sel:focus{outline:none;border-color:#A40000;}
 
 /* ── 섹션 ── */
-.sec{padding:12px 16px 0;}
+.sec{padding:14px 16px 0;}
 .sec-ttl{
-  font-size:10px;font-weight:800;color:#A40000;
-  text-transform:uppercase;letter-spacing:.1em;
-  margin-bottom:10px;
-  display:flex;align-items:center;gap:7px;
+  font-size:13px;font-weight:800;color:#A40000;
+  letter-spacing:.04em;
+  margin-bottom:12px;
+  display:flex;align-items:center;gap:8px;
 }
 .sec-ttl::before{
   content:'';display:inline-block;
-  width:3px;height:13px;border-radius:2px;
+  width:4px;height:16px;border-radius:2px;
   background:var(--ac,#A40000);
 }
 
 /* ── KPI 카드 ── */
-.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .kc{
   background:#FFF5F5;
-  border-radius:14px;padding:13px 12px;
+  border-radius:14px;padding:15px 14px;
   border-left:3px solid #A40000;
   position:relative;overflow:hidden;
 }
 .kc::after{content:none;}
 .kc::before{content:none;}
-.kc-ic{font-size:16px;margin-bottom:5px;}
-.kc-lb{font-size:9px;color:#A40000;font-weight:700;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em;}
-.kc-vl{font-size:22px;font-weight:900;color:#1a1a1a;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.5px;}
-.kc-sb{font-size:9px;color:#888;margin-top:3px;}
+.kc-ic{font-size:20px;margin-bottom:6px;}
+.kc-lb{font-size:11px;color:#A40000;font-weight:700;margin-bottom:3px;letter-spacing:.03em;}
+.kc-vl{font-size:26px;font-weight:900;color:#1a1a1a;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.5px;}
+.kc-sb{font-size:11px;color:#888;margin-top:4px;}
 .kc.wide{grid-column:1/-1;}
-.rate-bg{background:rgba(164,0,0,.12);border-radius:99px;height:5px;margin:7px 0 4px;}
-.rate-fg{height:5px;border-radius:99px;background:linear-gradient(90deg,#A40000,#f87171);transition:width .8s ease;}
+.rate-bg{background:rgba(164,0,0,.12);border-radius:99px;height:6px;margin:8px 0 5px;}
+.rate-fg{height:6px;border-radius:99px;background:linear-gradient(90deg,#A40000,#f87171);transition:width .8s ease;}
 .kc-cmp{
   display:flex;justify-content:space-between;align-items:center;
-  margin-top:6px;padding-top:5px;
+  margin-top:7px;padding-top:6px;
   border-top:1px solid rgba(164,0,0,.15);
-  font-size:10px;
+  font-size:12px;
 }
 .kc-avg-lbl{color:#888;}
 .kc-up{color:#A40000;font-weight:800;}
@@ -129,11 +131,11 @@ body{
 .chart-box{
   background:#FFF5F5;
   border:1px solid rgba(164,0,0,.12);
-  border-radius:14px;padding:14px 13px 13px;
+  border-radius:14px;padding:16px 14px 14px;
 }
-.chart-ttl{font-size:11px;font-weight:800;color:#1a1a1a;margin-bottom:3px;letter-spacing:-.2px;}
-.chart-sub{font-size:9px;color:#888;margin-bottom:13px;}
-.chart-canvas-wrap{position:relative;height:clamp(170px,52vw,210px);width:100%;}
+.chart-ttl{font-size:14px;font-weight:800;color:#1a1a1a;margin-bottom:4px;letter-spacing:-.2px;}
+.chart-sub{font-size:11px;color:#888;margin-bottom:14px;}
+.chart-canvas-wrap{position:relative;height:clamp(180px,54vw,230px);width:100%;}
 
 /* ── 본부 테이블 ── */
 .tbl-wrap{
@@ -141,15 +143,15 @@ body{
   border:1px solid rgba(164,0,0,.12);
   border-radius:14px;overflow:hidden;
 }
-table{width:100%;border-collapse:collapse;font-size:11px;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
 thead tr{background:#FFF5F5;border-bottom:1px solid rgba(164,0,0,.15);}
-th{padding:8px 7px;text-align:right;color:#A40000;font-weight:700;white-space:nowrap;font-size:10px;letter-spacing:.03em;}
-th:first-child{text-align:left;padding-left:11px;}
+th{padding:10px 9px;text-align:right;color:#A40000;font-weight:700;white-space:nowrap;font-size:12px;letter-spacing:.02em;}
+th:first-child{text-align:left;padding-left:13px;}
 tbody tr{border-bottom:1px solid #F0EAEA;}
 tbody tr:last-child{border-bottom:none;}
-td{padding:8px 7px;text-align:right;color:#555;font-size:11px;}
-td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:11px;}
-.badge{display:inline-block;padding:2px 7px;border-radius:5px;font-size:9px;font-weight:800;}
+td{padding:11px 9px;text-align:right;color:#555;font-size:13px;}
+td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
+.badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:800;}
 .bg{background:rgba(164,0,0,.12);color:#A40000;}
 .by{background:rgba(217,119,6,.12);color:#B45309;}
 .br{background:rgba(120,53,15,.12);color:#92400E;}
@@ -158,34 +160,34 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:11px;}
 .top-wrap{
   background:#fff;
   border:1px solid rgba(164,0,0,.12);
-  border-radius:14px;padding:13px 14px;
+  border-radius:14px;padding:14px 16px;
 }
-.top-item{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid #F0EAEA;}
+.top-item{display:flex;align-items:center;gap:13px;padding:11px 0;border-bottom:1px solid #F0EAEA;}
 .top-item:last-child{border-bottom:none;}
-.top-rank{font-size:14px;min-width:28px;text-align:center;font-weight:900;color:#CCC;}
+.top-rank{font-size:16px;min-width:30px;text-align:center;font-weight:900;color:#CCC;}
 .top-info{flex:1;}
-.top-name{font-size:13px;font-weight:700;color:#1a1a1a;letter-spacing:-.2px;}
-.top-branch{font-size:10px;color:#888;margin-top:1px;}
-.top-val{font-size:13px;font-weight:800;color:#A40000;font-family:monospace;letter-spacing:-.3px;}
-.top-note{font-size:9px;color:#888;margin-top:3px;text-align:right;}
+.top-name{font-size:15px;font-weight:700;color:#1a1a1a;letter-spacing:-.2px;}
+.top-branch{font-size:12px;color:#888;margin-top:2px;}
+.top-val{font-size:15px;font-weight:800;color:#A40000;font-family:monospace;letter-spacing:-.3px;}
+.top-note{font-size:11px;color:#888;margin-top:3px;text-align:right;}
 
 /* ── 로딩·에러 ── */
 .ctr{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;}
 .spin{
-  width:36px;height:36px;
+  width:38px;height:38px;
   border:3px solid rgba(164,0,0,.15);
   border-top-color:#A40000;
   border-radius:50%;
   animation:sp .8s linear infinite;
 }
 @keyframes sp{to{transform:rotate(360deg);}}
-.ld-tx{font-size:13px;color:#888;}
+.ld-tx{font-size:14px;color:#888;}
 .err-bx{
   background:#FFF5F5;
   border:1px solid rgba(164,0,0,.2);
-  border-radius:13px;padding:18px;
-  text-align:center;font-size:13px;color:#A40000;
-  line-height:1.6;max-width:300px;
+  border-radius:13px;padding:20px;
+  text-align:center;font-size:14px;color:#A40000;
+  line-height:1.7;max-width:320px;
 }
 
 /* ── 구분선 ── */
@@ -196,11 +198,11 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:11px;}
 
 /* ── 푸터 ── */
 .footer{
-  margin:18px 16px 0;padding:11px;
+  margin:20px 16px 0;padding:13px;
   background:#FFF5F5;
   border:1px solid rgba(164,0,0,.1);
   border-radius:10px;
-  text-align:center;font-size:9px;color:#888;line-height:1.9;
+  text-align:center;font-size:11px;color:#888;line-height:2;
 }
 </style>
 </head>
@@ -238,13 +240,13 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:11px;}
 
   <!-- KPI 카드 -->
   <div class="sec" style="margin-top:14px;">
-    <div class="sec-ttl" style="--ac:#A40000;">핵심 KPI <span id="kpi-period" style="font-size:9px;color:#5a3a3a;font-weight:400;margin-left:4px;"></span></div>
+    <div class="sec-ttl" style="--ac:#A40000;">핵심 KPI <span id="kpi-period" style="font-size:11px;color:#5a3a3a;font-weight:400;margin-left:5px;"></span></div>
     <div class="kpi-grid" id="kpi-grid"></div>
   </div>
 
   <!-- 당월 조직별 실적현황 -->
   <div class="sec" style="margin-top:14px;">
-    <div class="sec-ttl" style="--ac:#A40000;">당월 조직별 실적현황 <span id="cur-month-ttl" style="font-size:9px;color:#5a3a3a;font-weight:400;margin-left:4px;"></span></div>
+    <div class="sec-ttl" style="--ac:#A40000;">당월 조직별 실적현황 <span id="cur-month-ttl" style="font-size:11px;color:#5a3a3a;font-weight:400;margin-left:5px;"></span></div>
     <div class="tbl-wrap">
       <table>
         <thead><tr>
@@ -274,7 +276,7 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:11px;}
       <table>
         <thead><tr>
           <th>본부</th>
-          <th>월평균 인정실적<br><span style="font-size:9px;font-weight:400;">(직전 6M)</span></th>
+          <th>월평균 인정실적<br><span style="font-size:11px;font-weight:400;">(직전 6M)</span></th>
           <th>가동률</th>
           <th>비중</th>
         </tr></thead>
@@ -285,7 +287,7 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:11px;}
 
   <!-- 설계사 TOP 10 -->
   <div class="sec" style="margin-top:14px;">
-    <div class="sec-ttl" style="--ac:#f59e0b;">설계사 TOP 10 <span style="font-size:9px;color:#5a3a3a;font-weight:400;margin-left:4px;" id="top10-period"></span></div>
+    <div class="sec-ttl" style="--ac:#f59e0b;">설계사 TOP 10 <span style="font-size:11px;color:#5a3a3a;font-weight:400;margin-left:5px;" id="top10-period"></span></div>
     <div class="top-wrap" id="top10"></div>
   </div>
 
@@ -723,7 +725,7 @@ function renderBranchTable(kpis) {
     <tr>
       <td>${medals[i] || (i + 1)} ${b.name}</td>
       <td style="color:#A40000;font-family:monospace;">${fmtK(b.avgCr)}원<br>
-        <span style="font-size:9px;color:#5a3a3a;">월평균</span></td>
+        <span style="font-size:11px;color:#5a3a3a;">월평균</span></td>
       <td><span class="badge ${b.actRate < 50 ? 'br' : b.actRate < 70 ? 'by' : 'bg'}">${fmtP(b.actRate)}</span></td>
       <td style="color:#888">${fmtP(b.share)}</td>
     </tr>`).join('');
