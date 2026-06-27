@@ -251,9 +251,8 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
       <table>
         <thead><tr>
           <th>본부</th>
-          <th>월보험료</th>
-          <th>인정실적</th>
-          <th>가동</th>
+          <th style="text-align:left;padding-left:13px;">월실적 현황</th>
+          <th>추세</th>
         </tr></thead>
         <tbody id="cur-branch-tbody"></tbody>
       </table>
@@ -484,21 +483,29 @@ function renderAll() {
 
 // ── 당월 조직별 실적현황 ──
 function renderCurrentMonth(kpis) {
-  const { latM } = kpis;
-  const yr  = latM ? latM.slice(0, 4) : '';
-  const mo  = latM ? latM.slice(4)    : '';
+  const { latM, mc, closedMonths } = kpis;
+  const yr = latM ? latM.slice(0, 4) : '';
+  const mo = latM ? latM.slice(4)    : '';
   document.getElementById('cur-month-ttl').textContent =
     latM ? `(${yr}.${mo} 진행중)` : '';
 
-  const agg   = getAgg();
-  const aggAP = getAggAllPay();
+  const agg = getAgg();
 
-  const curAgg   = agg.filter(r => r.month === latM);
-  const curAggAP = aggAP.filter(r => r.month === latM);
+  // 직전 6M 본부별 avgCr (추세 기준선)
+  const closedSet = new Set((closedMonths || []).slice(-6));
+  const avgCrMap  = {};
+  agg.forEach(r => {
+    if (!closedSet.has(r.month)) return;
+    const b = r.branch || '미분류';
+    avgCrMap[b] = (avgCrMap[b] || 0) + r.credit;
+  });
+  Object.keys(avgCrMap).forEach(b => { avgCrMap[b] /= (mc || 1); });
 
+  // 당월 집계
+  const curAgg = agg.filter(r => r.month === latM);
   if (!curAgg.length) {
     document.getElementById('cur-branch-tbody').innerHTML =
-      '<tr><td colspan="4" style="text-align:center;color:#888;font-size:11px;padding:10px;">당월 데이터 없음</td></tr>';
+      '<tr><td colspan="3" style="text-align:center;color:#888;font-size:11px;padding:10px;">당월 데이터 없음</td></tr>';
     return;
   }
 
@@ -510,25 +517,46 @@ function renderCurrentMonth(kpis) {
     bMap[b].credit  += r.credit;
   });
 
-  const actMap = {};
-  curAggAP.forEach(r => {
-    const b = r.branch || '미분류';
-    actMap[b] = (actMap[b] || 0) + r.activeAgents;
-  });
+  // 경과율 (오늘 날짜 / 해당월 총 일수)
+  const now        = new Date();
+  const daysInMo   = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const elapsed    = Math.min(now.getDate() / daysInMo, 1);
+
+  // 전체 인정실적 합 (비중 계산용)
+  const totalCredit = Object.values(bMap).reduce((s, v) => s + v.credit, 0) || 1;
 
   const rows = Object.entries(bMap)
     .filter(([k]) => k && k !== '미분류')
-    .map(([name, v]) => ({ name, premium: v.premium, credit: v.credit, act: actMap[name] || 0 }))
+    .map(([name, v]) => {
+      const share  = v.credit / totalCredit * 100;
+      const avgCr  = avgCrMap[name] || 0;
+      const pace   = elapsed > 0 ? v.credit / elapsed : 0;
+      const diff   = avgCr > 0 ? (pace / avgCr - 1) * 100 : null;
+      return { name, premium: v.premium, credit: v.credit, share, diff };
+    })
     .filter(b => b.premium > 0)
     .sort((a, b) => b.credit - a.credit);
 
-  document.getElementById('cur-branch-tbody').innerHTML = rows.map(b => `
+  document.getElementById('cur-branch-tbody').innerHTML = rows.map(b => {
+    // 추세 렌더링
+    let trend = '<span style="color:#ccc;">-</span>';
+    if (b.diff !== null) {
+      const sign = b.diff >= 0 ? '+' : '';
+      const pct  = `${sign}${b.diff.toFixed(0)}%`;
+      if      (b.diff >  10) trend = `<span style="color:#A40000;font-weight:800;font-size:12px;">▲ ${pct}</span>`;
+      else if (b.diff < -10) trend = `<span style="color:#D97706;font-weight:800;font-size:12px;">▼ ${pct}</span>`;
+      else                   trend = `<span style="color:#888;font-weight:700;font-size:12px;">→ ${pct}</span>`;
+    }
+    return `
     <tr>
       <td>${b.name}</td>
-      <td style="font-family:monospace;color:#666;">${fmtK(b.premium)}원</td>
-      <td style="font-family:monospace;color:#A40000;">${fmtK(b.credit)}원</td>
-      <td style="color:#888;">${b.act}명</td>
-    </tr>`).join('');
+      <td style="text-align:left;padding-left:13px;">
+        <div style="font-family:monospace;font-weight:800;color:#A40000;">${fmtK(b.credit)}원</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">월납 ${fmtK(b.premium)}원 &nbsp;·&nbsp; ${fmtP(b.share)}</div>
+      </td>
+      <td style="white-space:nowrap;">${trend}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ── KPI 카드 ──
