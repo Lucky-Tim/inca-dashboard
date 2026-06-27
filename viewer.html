@@ -15,6 +15,7 @@
 <!-- 폰트·차트 -->
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 /* ── 리셋 ── */
@@ -251,7 +252,7 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
       <table>
         <thead><tr>
           <th>본부</th>
-          <th style="text-align:left;padding-left:13px;">월실적 현황</th>
+          <th style="text-align:left;padding-left:13px;">월납(인정/비중) 현황</th>
           <th>추세</th>
         </tr></thead>
         <tbody id="cur-branch-tbody"></tbody>
@@ -481,9 +482,32 @@ function renderAll() {
   renderTop10();
 }
 
+// ── 추세 배지 (5단계: 급성장/성장/유지/부진/위험) ──
+function trendBadge(diff) {
+  if (diff === null) return '<span style="color:#ccc;font-size:13px;">-</span>';
+
+  let cfg;
+  if      (diff >  20) cfg = { icon:'ti-trending-up',      label:'급성장', color:'#16a34a', bg:'rgba(22,163,74,0.10)',    fw:900, is:22 };
+  else if (diff >   5) cfg = { icon:'ti-arrow-up-right',   label:'성장',   color:'#166534', bg:'rgba(22,101,52,0.08)',    fw:700, is:18 };
+  else if (diff >= -5) cfg = { icon:'ti-arrow-right',      label:'유지',   color:'#6b7280', bg:'rgba(107,114,128,0.07)', fw:500, is:16 };
+  else if (diff >= -20)cfg = { icon:'ti-arrow-down-right', label:'부진',   color:'#991b1b', bg:'rgba(153,27,27,0.08)',   fw:700, is:18 };
+  else                  cfg = { icon:'ti-trending-down',   label:'위험',   color:'#dc2626', bg:'rgba(220,38,38,0.10)',   fw:900, is:22 };
+
+  const sign    = diff >= 0 ? '+' : '';
+  const pct     = `${sign}${diff.toFixed(0)}%`;
+  const lblSize = cfg.fw === 900 ? 11 : cfg.fw === 500 ? 10 : 11;
+  const valSize = cfg.fw === 900 ? 12 : cfg.fw === 500 ? 11 : 12;
+
+  return `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;background:${cfg.bg};border-radius:8px;padding:5px 8px;min-width:54px;">
+    <i class="ti ${cfg.icon}" style="font-size:${cfg.is}px;color:${cfg.color};"></i>
+    <span style="font-size:${lblSize}px;font-weight:${cfg.fw};color:${cfg.color};letter-spacing:-0.2px;">${cfg.label}</span>
+    <span style="font-size:${valSize}px;font-weight:700;color:${cfg.color};">${pct}</span>
+  </div>`;
+}
+
 // ── 당월 조직별 실적현황 ──
 function renderCurrentMonth(kpis) {
-  const { latM, mc, closedMonths } = kpis;
+  const { latM, closedMonths } = kpis;
   const yr = latM ? latM.slice(0, 4) : '';
   const mo = latM ? latM.slice(4)    : '';
   document.getElementById('cur-month-ttl').textContent =
@@ -491,15 +515,18 @@ function renderCurrentMonth(kpis) {
 
   const agg = getAgg();
 
-  // 직전 6M 본부별 avgCr (추세 기준선)
-  const closedSet = new Set((closedMonths || []).slice(-6));
-  const avgCrMap  = {};
+  // MoM 기준: 직전 마감월 vs 전전 마감월 (안정된 완결 데이터끼리 비교)
+  const sortedClosed = [...(closedMonths || [])].sort();
+  const latClosed    = sortedClosed[sortedClosed.length - 1];
+  const prevClosed   = sortedClosed[sortedClosed.length - 2];
+
+  const latCrMap  = {};
+  const prevCrMap = {};
   agg.forEach(r => {
-    if (!closedSet.has(r.month)) return;
     const b = r.branch || '미분류';
-    avgCrMap[b] = (avgCrMap[b] || 0) + r.credit;
+    if (r.month === latClosed)  latCrMap[b]  = (latCrMap[b]  || 0) + r.credit;
+    if (r.month === prevClosed) prevCrMap[b] = (prevCrMap[b] || 0) + r.credit;
   });
-  Object.keys(avgCrMap).forEach(b => { avgCrMap[b] /= (mc || 1); });
 
   // 당월 집계
   const curAgg = agg.filter(r => r.month === latM);
@@ -517,46 +544,29 @@ function renderCurrentMonth(kpis) {
     bMap[b].credit  += r.credit;
   });
 
-  // 경과율 (오늘 날짜 / 해당월 총 일수)
-  const now        = new Date();
-  const daysInMo   = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const elapsed    = Math.min(now.getDate() / daysInMo, 1);
-
-  // 전체 인정실적 합 (비중 계산용)
   const totalCredit = Object.values(bMap).reduce((s, v) => s + v.credit, 0) || 1;
 
   const rows = Object.entries(bMap)
     .filter(([k]) => k && k !== '미분류')
     .map(([name, v]) => {
       const share  = v.credit / totalCredit * 100;
-      const avgCr  = avgCrMap[name] || 0;
-      const pace   = elapsed > 0 ? v.credit / elapsed : 0;
-      const diff   = avgCr > 0 ? (pace / avgCr - 1) * 100 : null;
+      const latCr  = latCrMap[name]  || 0;
+      const prevCr = prevCrMap[name] || 0;
+      const diff   = prevCr > 0 ? (latCr / prevCr - 1) * 100 : null;
       return { name, premium: v.premium, credit: v.credit, share, diff };
     })
     .filter(b => b.premium > 0)
-    .sort((a, b) => b.credit - a.credit);
+    .sort((a, b) => b.premium - a.premium);
 
-  document.getElementById('cur-branch-tbody').innerHTML = rows.map(b => {
-    // 추세 렌더링
-    let trend = '<span style="color:#ccc;">-</span>';
-    if (b.diff !== null) {
-      const sign = b.diff >= 0 ? '+' : '';
-      const pct  = `${sign}${b.diff.toFixed(0)}%`;
-      if      (b.diff >  10) trend = `<span style="color:#A40000;font-weight:800;font-size:12px;">▲ ${pct}</span>`;
-      else if (b.diff < -10) trend = `<span style="color:#D97706;font-weight:800;font-size:12px;">▼ ${pct}</span>`;
-      else                   trend = `<span style="color:#888;font-weight:700;font-size:12px;">→ ${pct}</span>`;
-    }
-    return `
+  document.getElementById('cur-branch-tbody').innerHTML = rows.map(b => `
     <tr>
       <td>${b.name}</td>
       <td style="text-align:left;padding-left:13px;">
-        <div style="font-family:monospace;font-weight:800;color:#A40000;">${fmtK(b.credit)}원</div>
-        <div style="font-size:11px;color:#999;margin-top:2px;">월납 ${fmtK(b.premium)}원 &nbsp;·&nbsp; ${fmtP(b.share)}</div>
+        <div style="font-weight:800;color:#A40000;font-size:14px;">${fmtK(b.premium)}원</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">인정 ${fmtK(b.credit)}원 &nbsp;·&nbsp; ${fmtP(b.share)}</div>
       </td>
-      <td style="white-space:nowrap;">${trend}</td>
-    </tr>`;
-  }).join('');
+      <td style="text-align:center;padding:7px 5px;">${trendBadge(b.diff)}</td>
+    </tr>`).join('');
 }
 
 // ── KPI 카드 ──
