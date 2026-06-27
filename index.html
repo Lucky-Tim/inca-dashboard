@@ -864,12 +864,12 @@ function calcRisks() {
         desc:`가동률 ${branch.actRate.toFixed(0)}%`,
         action:'가동률 개선 계획 수립', tag:'위험', branch });
     }
-    if (branch.prevCredit > 0 && branch.growthRate < -30) {
+    if (branch.prevPremium > 0 && branch.growthRate < -30) {
       risks.push({ type:'branch', level:'critical', score:85, icon:'🔴',
         title:`실적 급락: ${branch.name}`,
-        desc:`전월 대비 ${branch.growthRate.toFixed(0)}% 하락 | ${fmt(branch.prevCredit)} → ${fmt(branch.latestCredit)}`,
+        desc:`전월 대비 ${branch.growthRate.toFixed(0)}% 하락 | ${fmt(branch.prevPremium)} → ${fmt(branch.latestPremium)}`,
         action:'원인 분석 즉각 착수', tag:'급락', branch });
-    } else if (branch.prevCredit > 0 && branch.growthRate < -15) {
+    } else if (branch.prevPremium > 0 && branch.growthRate < -15) {
       risks.push({ type:'branch', level:'medium', score:55, icon:'🟡',
         title:`성장 둔화: ${branch.name}`,
         desc:`전월 대비 ${branch.growthRate.toFixed(0)}% 하락`,
