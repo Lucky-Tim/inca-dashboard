@@ -167,11 +167,7 @@ input[type=file]{display:none;}
 <div id="tab-dashboard">
   <!-- 연간/월평균 토글 -->
   <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
-    <span style="font-size:11px;color:#64748b;font-weight:700;">기간 단위:</span>
-    <button id="vm-total-btn" onclick="setViewMode('total')"
-      style="padding:5px 14px;border-radius:20px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid rgba(100,116,139,.3);background:transparent;color:#64748b;">
-      연간 합계
-    </button>
+    
     <button id="vm-monthly-btn" onclick="setViewMode('monthly')"
       style="padding:5px 14px;border-radius:20px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid rgba(16,185,129,.5);background:rgba(16,185,129,.2);color:#6ee7b7;">
       월평균
@@ -184,6 +180,35 @@ input[type=file]{display:none;}
   </div>
   <!-- KPI CARDS A-H (8 cards) -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;" id="kpi-grid"></div>
+
+  <!-- 당월 조직별 실적현황 + 조직별 주요지표 -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:2px;">당월 조직별 실적현황</div>
+      <div id="cur-month-sub" style="font-size:10px;color:#64748b;margin-bottom:10px;"></div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
+          <th style="padding:6px 8px;text-align:left;color:#64748b;">본부</th>
+          <th style="padding:6px 8px;text-align:right;color:#64748b;">월보험료 (인정·비중)</th>
+          <th style="padding:6px 8px;text-align:center;color:#64748b;">MoM</th>
+        </tr></thead>
+        <tbody id="cur-month-tbody"></tbody>
+      </table>
+    </div>
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:2px;">조직별 주요지표</div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:10px;">월평균 인정실적(직전 6M)·가동률·비중</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
+          <th style="padding:6px 8px;text-align:left;color:#64748b;">본부</th>
+          <th style="padding:6px 8px;text-align:right;color:#64748b;">월평균 인정실적<br><span style="font-size:9px;font-weight:400;">(직전 6M)</span></th>
+          <th style="padding:6px 8px;text-align:center;color:#64748b;">가동률</th>
+          <th style="padding:6px 8px;text-align:center;color:#64748b;">비중</th>
+        </tr></thead>
+        <tbody id="branch-kpi-tbody"></tbody>
+      </table>
+    </div>
+  </div>
 
   <!-- CHARTS ROW -->
   <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:16px;margin-bottom:20px;">
@@ -584,7 +609,7 @@ const STATE = {
   filters: { year: new Set(), month: new Set(), branch2: new Set(), category: new Set(), company: new Set(), payMethod: new Set() },
   filtersNone: { year:false, month:false, branch2:false, category:false, company:false, payMethod:false },
   slicerVals: { year:[], month:[], branch2:[], category:[], company:[], payMethod:[] },
-  ui: { tab:'dashboard', dvPage:1, dvSearch:'', mcKey:1, viewMode:'monthly' },
+  ui: { tab:'dashboard', dvPage:1, dvSearch:'', mcKey:1, viewMode:'compare' },
   config: { targetKPI: 100000000, isRealData: false, payMethodInitialized: false },
   files: []
 };
@@ -1239,16 +1264,14 @@ function renderDashboard(kpis, filtered) {
   const btnM = document.getElementById('vm-monthly-btn');
   const btnC = document.getElementById('vm-compare-btn');
   const lbl  = document.getElementById('vm-period-label');
-  const isT  = !isMonthly && !isCompare;
-  if (btnT) { btnT.style.background=isT?'rgba(59,130,246,.2)':'transparent'; btnT.style.color=isT?'#93c5fd':'#64748b'; btnT.style.borderColor=isT?'rgba(59,130,246,.5)':'rgba(100,116,139,.3)'; }
-  if (btnM) { btnM.style.background=isMonthly?'rgba(16,185,129,.2)':'transparent'; btnM.style.color=isMonthly?'#6ee7b7':'#64748b'; btnM.style.borderColor=isMonthly?'rgba(16,185,129,.5)':'rgba(100,116,139,.3)'; }
+    if (btnM) { btnM.style.background=isMonthly?'rgba(16,185,129,.2)':'transparent'; btnM.style.color=isMonthly?'#6ee7b7':'#64748b'; btnM.style.borderColor=isMonthly?'rgba(16,185,129,.5)':'rgba(100,116,139,.3)'; }
   if (btnC) { btnC.style.background=isCompare?'rgba(251,146,60,.2)':'transparent'; btnC.style.color=isCompare?'#fdba74':'#64748b'; btnC.style.borderColor=isCompare?'rgba(251,146,60,.5)':'rgba(100,116,139,.3)'; }
   // ── 당월 데이터 (compare 모드) — 데이터 마지막 월 기준 ──
   const _months = [...new Set(filtered.map(r=>r.month).filter(Boolean))].sort();
   const latM   = _months[_months.length - 1];
   const latMLabel = latM ? String(latM).slice(0,4)+'년 '+String(latM).slice(4,6)+'월' : '';
 
-  if (lbl)  lbl.innerText = isCompare ? `(${latMLabel} vs 월평균)` : isMonthly ? `(${mc}개월 기준)` : '';
+  if (lbl)  lbl.innerText = isCompare ? `(${latMLabel} vs ${mc}개월 월평균)` : isMonthly ? `(${mc}개월 기준)` : '';
   const latF_  = filtered.filter(r => r.month === latM);
   const latPrem= latF_.reduce((s,r)=>s+(r.premium||0),0);
   const latCred= latF_.reduce((s,r)=>s+(r.credit||0),0);
@@ -1304,7 +1327,7 @@ function renderDashboard(kpis, filtered) {
     { label:labelA, val:fmtK(dispA),                   sub:subA, icon:'💰', color:'#3b82f6', cmp:cmpHtml(latPrem,avgA,'money') },
     { label:labelB, val:fmtK(dispB),                   sub:subB, icon:'💵', color:'#6366f1', cmp:cmpHtml(latCred,avgB,'money') },
     { label:labelC, val:dispC.toLocaleString()+'건',    sub:subC, icon:'📋', color:'#8b5cf6', cmp:cmpHtml(dispC,kpis.C/mc,'cnt') },
-    { label:labelD, val:dispD+'명',                     sub:subD, icon:'🏃', color:'#10b981', cmp:cmpHtml(latD_,kpis.D/mc,'person') },
+    { label:labelD, val:dispD+'명',                     sub:subD, icon:'🏃', color:'#10b981', cmp:cmpHtml(latD_,kpis.avgActive,'person') },
     { label:labelE, val:dispE+'명',                     sub:subE, icon:'👥', color:'#f59e0b', cmp:'' },
     { label:'가동률(KPI-F)', val:fmtP(dispF), sub:`${dispD}명 / ${dispE}명`, icon:'⚡', color:dispF<50?'#ef4444':'#22c55e', cmp:cmpHtml(latF_R,kpis.F,'pct') },
     { label:labelG, val:fmtK(dispG),                   sub:'활동설계사 1인당', icon:'📈', color:'#14b8a6', cmp:cmpHtml(latPrem/(latD_||1),avgA/(kpis.D||1),'money') },
@@ -1467,6 +1490,82 @@ function renderActionCenter() {
         <div style="font-size:9px;color:#64748b;">위험점수</div>
       </div>
     </div>`).join('');
+  // ── 당월 조직별 실적현황 ──
+  const curMonthSub = document.getElementById('cur-month-sub');
+  const curMonthTbody = document.getElementById('cur-month-tbody');
+  if (curMonthTbody) {
+    const latMLabel2 = latM ? String(latM).slice(0,4)+'년 '+String(latM).slice(4,6)+'월' : '';
+    if (curMonthSub) curMonthSub.textContent = latMLabel2;
+    const sortedClosed = [...new Set(filtered.map(r=>r.month).filter(Boolean))].sort().filter(m=>m<latM);
+    const latClosed = sortedClosed[sortedClosed.length - 1];
+    const prevClosed = sortedClosed[sortedClosed.length - 2];
+    const latCrMap = {}, prevCrMap = {};
+    filtered.forEach(row => {
+      const b = row.branch2 || '';
+      if (row.month === latClosed) latCrMap[b] = (latCrMap[b]||0)+(row.credit||0);
+      if (row.month === prevClosed) prevCrMap[b] = (prevCrMap[b]||0)+(row.credit||0);
+    });
+    const curRows = {};
+    latF_.forEach(row => {
+      const b = row.branch2 || '미분류';
+      if (!curRows[b]) curRows[b] = {premium:0, credit:0};
+      curRows[b].premium += row.premium||0;
+      curRows[b].credit  += row.credit||0;
+    });
+    const totalCurCredit = Object.values(curRows).reduce((s,v)=>s+v.credit,0)||1;
+    const curSorted = Object.entries(curRows)
+      .filter(([k,v])=>k&&k!=='미분류'&&v.premium>0)
+      .map(([name,v])=>{
+        const share = v.credit/totalCurCredit*100;
+        const lCr = latCrMap[name]||0, pCr = prevCrMap[name]||0;
+        const diff = pCr>0?(lCr/pCr-1)*100:null;
+        return {name,premium:v.premium,credit:v.credit,share,diff};
+      }).sort((a,b)=>b.premium-a.premium);
+    curMonthTbody.innerHTML = curSorted.length===0
+      ? '<tr><td colspan="3" style="text-align:center;color:#64748b;padding:10px;">당월 데이터 없음</td></tr>'
+      : curSorted.map(b=>{
+          const diffHtml = b.diff===null ? '<span style="color:#64748b">-</span>'
+            : '<span style="color:'+(b.diff>=0?'#4ade80':'#f87171')+';font-weight:800">'+(b.diff>=0?'▲':'▼')+Math.abs(b.diff).toFixed(1)+'%</span>';
+          return '<tr style="border-bottom:1px solid #1e293b"><td style="padding:6px 8px;font-weight:700;color:#e2e8f0">'+b.name+'</td>'
+            +'<td style="padding:6px 8px;text-align:right"><div style="font-weight:800;color:#f87171;font-family:monospace">'+fmtK(b.premium)+'원</div>'
+            +'<div style="font-size:10px;color:#64748b">인정 '+fmtK(b.credit)+'원·'+b.share.toFixed(1)+'%</div></td>'
+            +'<td style="padding:6px 8px;text-align:center">'+diffHtml+'</td></tr>';
+        }).join('');
+  }
+  // ── 조직별 주요지표 ──
+  const branchKpiTbody = document.getElementById('branch-kpi-tbody');
+  if (branchKpiTbody) {
+    const allMo = [...new Set(filtered.map(r=>r.month).filter(Boolean))].sort();
+    const last6M = new Set(allMo.filter(m=>m<(latM||'')).slice(-6));
+    const bkMap = {};
+    filtered.forEach(row => {
+      const b = row.branch2||'미분류';
+      if (!bkMap[b]) bkMap[b] = {creditClosed:0};
+      if (last6M.has(row.month)) bkMap[b].creditClosed += row.credit||0;
+    });
+    const latActByBranch = {};
+    latF_.forEach(row=>{
+      const b=row.branch2||'미분류';
+      if((row.premium||0)>0){if(!latActByBranch[b])latActByBranch[b]=new Set();latActByBranch[b].add(row.agentId);}
+    });
+    const regByBranch = {};
+    STATE.employees.filter(e=>e.type==='재직').forEach(e=>{
+      const b=(e.b2||'').trim()||'미분류'; regByBranch[b]=(regByBranch[b]||0)+1;
+    });
+    const n6 = last6M.size||1;
+    const bkRows = Object.entries(bkMap).filter(([k,v])=>k&&k!=='미분류')
+      .map(([name,v])=>({name,avgCr:v.creditClosed/n6,actRate:((latActByBranch[name]?.size)||0)/(regByBranch[name]||1)*100}));
+    const totalAvgCr = bkRows.reduce((s,rr)=>s+rr.avgCr,0)||1;
+    bkRows.sort((a,b)=>b.avgCr-a.avgCr);
+    const md=['🥇','🥈','🥉'];
+    branchKpiTbody.innerHTML = bkRows.map((b,i)=>
+      '<tr style="border-bottom:1px solid #1e293b">'
+      +'<td style="padding:6px 8px;font-weight:700;color:#e2e8f0">'+(md[i]||'')+' '+b.name+'</td>'
+      +'<td style="padding:6px 8px;text-align:right;color:#f87171;font-family:monospace">'+fmtK(b.avgCr)+'원</td>'
+      +'<td style="padding:6px 8px;text-align:center"><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;background:'+(b.actRate<50?'rgba(239,68,68,.2)':b.actRate<70?'rgba(245,158,11,.2)':'rgba(34,197,94,.2)')+';color:'+(b.actRate<50?'#f87171':b.actRate<70?'#fbbf24':'#4ade80')+'">'+b.actRate.toFixed(1)+'%</span></td>'
+      +'<td style="padding:6px 8px;text-align:center;color:#94a3b8">'+(b.avgCr/totalAvgCr*100).toFixed(1)+'%</td></tr>'
+    ).join('');
+  }
 }
 
 // ─── RENDER BRANCH ────────────────────────────────────────
@@ -2299,4 +2398,4 @@ window.onload = () => {
 };
 </script>
 </body>
-</html>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+</html>
