@@ -1455,6 +1455,94 @@ function renderDashboard(kpis, filtered) {
       <div style="flex:1;"><div style="font-size:12px;font-weight:700;color:#e2e8f0;">${a.name||''}</div><div style="font-size:10px;color:#64748b;">${a.b2||''}${a.sub?` · ${a.sub}`:''}</div></div>
       <div style="font-size:12px;font-weight:800;color:#60a5fa;font-family:monospace;">${fmtK(a.dispPrem||0)}</div>
     </div>`).join('');
+  const curMonthSub = document.getElementById('cur-month-sub');
+  const curMonthTbody = document.getElementById('cur-month-tbody');
+  if (curMonthTbody) {
+    const latMLabel2 = latM ? String(latM).slice(0,4)+'´년 '+String(latM).slice(4,6)+'월 진행중' : '';
+    if (curMonthSub) curMonthSub.textContent = latMLabel2;
+    const sortedClosed = [...new Set(filtered.map(r=>r.month).filter(Boolean))].sort().filter(m=>m<latM);
+    const latClosed  = sortedClosed[sortedClosed.length - 1];
+    const prevClosed = sortedClosed[sortedClosed.length - 2];
+    const latCrMap = {}, prevCrMap = {};
+    filtered.forEach(r => {
+      const b = r.branch2 || r.branch1 || r.branch || '';
+      if (r.month === latClosed)  latCrMap[b]  = (latCrMap[b]  || 0) + (r.credit || 0);
+      if (r.month === prevClosed) prevCrMap[b] = (prevCrMap[b] || 0) + (r.credit || 0);
+    });
+    const curRows = {};
+    latF_.forEach(r => {
+      const b = r.branch2 || r.branch1 || r.branch || '미분류';
+      if (!curRows[b]) curRows[b] = { premium: 0, credit: 0 };
+      curRows[b].premium += r.premium || 0;
+      curRows[b].credit  += r.credit  || 0;
+    });
+    const totalCurCredit = Object.values(curRows).reduce((s,v)=>s+v.credit,0) || 1;
+    const curSorted = Object.entries(curRows)
+      .filter(([k,v])=>k&&k!=='미분류'&&v.premium>0)
+      .map(([name,v])=>{
+        const share = v.credit/totalCurCredit*100;
+        const lCr = latCrMap[name]||0, pCr = prevCrMap[name]||0;
+        const diff = pCr>0?(lCr/pCr-1)*100:null;
+        return {name,premium:v.premium,credit:v.credit,share,diff};
+      })
+      .sort((a,b)=>b.premium-a.premium);
+    if (!curSorted.length) {
+      curMonthTbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#64748b;font-size:11px;padding:10px;">당월 데이터 없음</td></tr>';
+    } else {
+      curMonthTbody.innerHTML = curSorted.map(b => {
+        const diffHtml = b.diff===null ? '<span style="color:#64748b;font-size:10px;">-</span>'
+          : `<span style="color:${b.diff>=0?'#4ade80':'#f87171'};font-weight:800;font-size:11px;">${b.diff>=0?'▲':'▼'}${Math.abs(b.diff).toFixed(1)}%</span>`;
+        return `<tr style="border-bottom:1px solid #1e293b;">
+          <td style="padding:6px 8px;font-weight:700;color:#e2e8f0;">${b.name}</td>
+          <td style="padding:6px 8px;text-align:right;">
+            <div style="font-weight:800;color:#f87171;font-family:monospace;">${fmtK(b.premium)}원</div>
+            <div style="font-size:10px;color:#64748b;">인정 ${fmtK(b.credit)}원 · ${b.share.toFixed(1)}%</div>
+          </td>
+          <td style="padding:6px 8px;text-align:center;">${diffHtml}</td>
+        </tr>`;
+      }).join('');
+    }
+  }
+  const branchKpiTbody = document.getElementById('branch-kpi-tbody');
+  if (branchKpiTbody) {
+    const allMonths = [...new Set(filtered.map(r=>r.month).filter(Boolean))].sort();
+    const last6M    = new Set(allMonths.filter(m=>m<(latM||'')).slice(-6));
+    const bkMap = {};
+    filtered.forEach(r => {
+      const b = r.branch2 || r.branch1 || r.branch || '미분류';
+      if (!bkMap[b]) bkMap[b] = { premium:0, creditClosed:0 };
+      bkMap[b].premium += r.premium || 0;
+      if (last6M.has(r.month)) bkMap[b].creditClosed += r.credit || 0;
+    });
+    const latActByBranch = {};
+    latF_.forEach(r => {
+      const b = r.branch2 || r.branch1 || r.branch || '미분류';
+      if ((r.premium||0)>0) { if(!latActByBranch[b]) latActByBranch[b]=new Set(); latActByBranch[b].add(r.agentId); }
+    });
+    const regByBranch = {};
+    STATE.employees.filter(e=>e.type==='재직')
+      .forEach(e => { const b=(e.b2||'').trim()||'미분류'; regByBranch[b]=(regByBranch[b]||0)+1; });
+    const n6 = last6M.size || 1;
+    const bkRows = Object.entries(bkMap)
+      .filter(([k,v])=>k&&k!=='미분류'&&v.premium>0)
+      .map(([name,v])=>{
+        const avgCr  = v.creditClosed / n6;
+        const act    = (latActByBranch[name]?.size)||0;
+        const reg    = regByBranch[name]||0;
+        const actRate= reg>0?act/reg*100:0;
+        return {name,avgCr,actRate};
+      });
+    const totalAvgCr = bkRows.reduce((s,r)=>s+r.avgCr,0)||1;
+    bkRows.sort((a,b)=>b.avgCr-a.avgCr);
+    const medals2=['🥇','🥈','🥉'];
+    branchKpiTbody.innerHTML = bkRows.map((b,i)=>`
+      <tr style="border-bottom:1px solid #1e293b;">
+        <td style="padding:6px 8px;font-weight:700;color:#e2e8f0;">${medals2[i]||''} ${b.name}</td>
+        <td style="padding:6px 8px;text-align:right;color:#f87171;font-family:monospace;">${fmtK(b.avgCr)}원</td>
+        <td style="padding:6px 8px;text-align:center;"><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;background:${b.actRate<50?'rgba(239,68,68,.2)':b.actRate<70?'rgba(245,158,11,.2)':'rgba(34,197,94,.2)'};color:${b.actRate<50?'#f87171':b.actRate<70?'#fbbf24':'#4ade80'};">${b.actRate.toFixed(1)}%</span></td>
+        <td style="padding:6px 8px;text-align:center;color:#94a3b8;">${(b.avgCr/totalAvgCr*100).toFixed(1)}%</td>
+      </tr>`).join('');
+  }
 }
 
 // ─── RENDER ACTION CENTER ─────────────────────────────────
