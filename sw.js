@@ -1,12 +1,11 @@
-const CACHE = 'haebing-v1';
+const CACHE = 'haebing-v2';
 const STATIC = [
-  '/inca-dashboard/viewer.html',
-  '/inca-dashboard/manifest.json',
   '/inca-dashboard/icon-192.png',
   '/inca-dashboard/icon-512.png',
   'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
 ];
+// viewer.html, manifest.json 은 캐시 제외 → 항상 최신 버전 로드
 
 // 설치: 정적 자산 캐시
 self.addEventListener('install', e => {
