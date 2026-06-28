@@ -104,15 +104,13 @@ body{
 /* ── KPI 카드 ── */
 .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .kc{
-  background:#FFF5F5;
-  border-radius:14px;padding:15px 14px;
-  border-left:3px solid #A40000;
-  position:relative;overflow:hidden;
+  background:var(--kc-bg,rgba(164,0,0,.06));
+  border-radius:16px;padding:18px 14px 14px;
+  border:1px solid var(--kc-bd,rgba(164,0,0,.18));
+  text-align:center;
 }
-.kc::after{content:none;}
-.kc::before{content:none;}
-.kc-ic{font-size:20px;margin-bottom:6px;}
-.kc-lb{font-size:11px;color:#A40000;font-weight:700;margin-bottom:3px;letter-spacing:.03em;}
+.kc-ic{font-size:32px;margin-bottom:10px;line-height:1;}
+.kc-lb{font-size:11px;color:var(--kc-cl,#A40000);font-weight:700;margin-bottom:4px;letter-spacing:.03em;}
 .kc-vl{font-size:26px;font-weight:900;color:#1a1a1a;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.5px;}
 .kc-sb{font-size:11px;color:#888;margin-top:4px;}
 .kc.wide{grid-column:1/-1;}
@@ -253,7 +251,8 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
         <thead><tr>
           <th>본부</th>
           <th style="text-align:left;padding-left:13px;">월납(인정/비중) 현황</th>
-          <th>추세</th>
+          <th style="text-align:center;">가동률</th>
+          <th style="text-align:center;">추세</th>
         </tr></thead>
         <tbody id="cur-branch-tbody"></tbody>
       </table>
@@ -266,22 +265,6 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
       <div class="chart-ttl">월별 실적 추이</div>
       <div class="chart-sub">레드=월보험료 · 골드=인정실적 · 점선=전년동월</div>
       <div class="chart-canvas-wrap"><canvas id="ch-trend"></canvas></div>
-    </div>
-  </div>
-
-  <!-- 본부별 매트릭스 -->
-  <div class="sec" style="margin-top:14px;">
-    <div class="sec-ttl" style="--ac:#d97706;">조직별 주요지표</div>
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr>
-          <th>본부</th>
-          <th>월평균 인정실적<br><span style="font-size:11px;font-weight:400;">(직전 6M)</span></th>
-          <th>가동률</th>
-          <th>비중</th>
-        </tr></thead>
-        <tbody id="branch-tbody"></tbody>
-      </table>
     </div>
   </div>
 
@@ -478,7 +461,6 @@ function renderAll() {
   renderKPICards(kpis);
   renderCurrentMonth(kpis);
   renderTrend(kpis);
-  renderBranchTable(kpis);
   renderTop10();
 }
 
@@ -515,6 +497,22 @@ function renderCurrentMonth(kpis) {
 
   const agg = getAgg();
 
+  // 본부별 당월 가동설계사
+  const aggAP = getAggAllPay();
+  const latActive = {};
+  aggAP.filter(r => r.month === latM).forEach(r => {
+    const b = r.branch || '미분류';
+    latActive[b] = (latActive[b] || 0) + r.activeAgents;
+  });
+
+  // 본부별 재직 설계사
+  const regEmps = (RAW.employees || []).filter(e => (e.type || '').replace(/\s/g, '') === '재직');
+  const branchReg = {};
+  regEmps.forEach(e => {
+    const b = (e.b2 || '').trim() || '미분류';
+    branchReg[b] = (branchReg[b] || 0) + 1;
+  });
+
   // MoM 기준: 직전 마감월 vs 전전 마감월 (안정된 완결 데이터끼리 비교)
   const sortedClosed = [...(closedMonths || [])].sort();
   const latClosed    = sortedClosed[sortedClosed.length - 1];
@@ -549,24 +547,35 @@ function renderCurrentMonth(kpis) {
   const rows = Object.entries(bMap)
     .filter(([k]) => k && k !== '미분류')
     .map(([name, v]) => {
-      const share  = v.credit / totalCredit * 100;
-      const latCr  = latCrMap[name]  || 0;
-      const prevCr = prevCrMap[name] || 0;
-      const diff   = prevCr > 0 ? (latCr / prevCr - 1) * 100 : null;
-      return { name, premium: v.premium, credit: v.credit, share, diff };
+      const share   = v.credit / totalCredit * 100;
+      const latCr   = latCrMap[name]  || 0;
+      const prevCr  = prevCrMap[name] || 0;
+      const diff    = prevCr > 0 ? (latCr / prevCr - 1) * 100 : null;
+      const act     = latActive[name] || 0;
+      const reg     = branchReg[name] || 0;
+      const actRate = reg > 0 ? act / reg * 100 : 0;
+      return { name, premium: v.premium, credit: v.credit, share, diff, actRate, reg };
     })
     .filter(b => b.premium > 0)
     .sort((a, b) => b.premium - a.premium);
 
-  document.getElementById('cur-branch-tbody').innerHTML = rows.map(b => `
+  document.getElementById('cur-branch-tbody').innerHTML = rows.map(b => {
+    const rc = b.actRate < 30 ? '#dc2626' : b.actRate < 50 ? '#d97706' : '#16a34a';
+    return `
     <tr>
       <td>${b.name}</td>
       <td style="text-align:left;padding-left:13px;">
         <div style="font-weight:800;color:#A40000;font-size:14px;">${fmtK(b.premium)}원</div>
         <div style="font-size:11px;color:#999;margin-top:2px;">인정 ${fmtK(b.credit)}원 &nbsp;·&nbsp; ${fmtP(b.share)}</div>
       </td>
+      <td style="text-align:center;">
+        ${b.reg > 0
+          ? `<span class="badge" style="background:${rc}22;color:${rc};font-weight:700;">${fmtP(b.actRate)}</span>`
+          : '<span style="color:#ccc;font-size:12px;">-</span>'}
+      </td>
       <td style="text-align:center;padding:7px 5px;">${trendBadge(b.diff)}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 // ── KPI 카드 ──
@@ -583,61 +592,65 @@ function renderKPICards(kpis) {
       vl: fmtK(latA) + '원',
       sb: mLabel(latM) + ' 확정',
       cm: cmp(latA, avgA, 'money'),
-      cl: '#f87171', ac: 'linear-gradient(90deg,#a40000,#9b1c1c)',
-      glow: 'rgba(164,0,0,.1)'
+      cl: '#A40000', trend: latA >= avgA
     },
     {
       ic: '📋', lb: '당월 계약건수',
       vl: Math.round(latC).toLocaleString() + '건',
       sb: '중복제거 완료',
       cm: cmp(latC, avgC, 'cnt'),
-      cl: '#fca5a5', ac: 'linear-gradient(90deg,#dc2626,#b91c1c)',
-      glow: 'rgba(220,38,38,.1)'
+      cl: '#A40000', trend: latC >= avgC
     },
     {
       ic: '📈', lb: '당월 생산성',
       vl: fmtK(latProd) + '원',
       sb: '활동설계사 1인당',
       cm: cmp(latProd, avgProd, 'money'),
-      cl: '#fbbf24', ac: 'linear-gradient(90deg,#d97706,#b45309)',
-      glow: 'rgba(217,119,6,.1)'
+      cl: '#A40000', trend: latProd >= avgProd
     },
     {
       ic: '🏃', lb: '당월 활동설계사',
       vl: latD + '명',
       sb: '납입방법 무관',
       cm: cmp(latD, avgD, 'person'),
-      cl: '#f59e0b', ac: 'linear-gradient(90deg,#f59e0b,#d97706)',
-      glow: 'rgba(245,158,11,.1)'
+      cl: '#A40000', trend: latD >= avgD
     },
     {
       ic: '👥', lb: '재직 설계사',
       vl: latE + '명',
       sb: '등록구분=재직',
       cm: '',
-      cl: '#fca5a5', ac: 'linear-gradient(90deg,#ef4444,#dc2626)',
-      glow: 'rgba(239,68,68,.08)'
+      cl: '#A40000', trend: null
     },
     {
       ic: '⚡', lb: '당월 가동률',
       vl: fmtP(latF),
       sb: latD + '명 / ' + latE + '명',
       cm: cmp(latF, avgF, 'pct'),
-      cl: rc, ac: `linear-gradient(90deg,${rc},${rc}99)`,
-      glow: `rgba(164,0,0,.08)`,
+      cl: '#A40000', trend: latF >= avgF,
       wide: true, rate: latF
     },
   ];
 
-  document.getElementById('kpi-grid').innerHTML = defs.map(k => `
-    <div class="kc${k.wide ? ' wide' : ''}" style="--ac:${k.ac};--cl:${k.cl};--glow:${k.glow};">
+  document.getElementById('kpi-grid').innerHTML = defs.map(k => {
+    const bg = k.trend === true  ? 'rgba(34,197,94,.1)'
+             : k.trend === false ? 'rgba(164,0,0,.07)'
+             : 'rgba(164,0,0,.05)';
+    const bd = k.trend === true  ? 'rgba(34,197,94,.35)'
+             : k.trend === false ? 'rgba(164,0,0,.2)'
+             : 'rgba(164,0,0,.12)';
+    const cl = k.trend === true  ? '#15803d'
+             : '#A40000';
+    return `
+    <div class="kc${k.wide ? ' wide' : ''}" style="--kc-bg:${bg};--kc-bd:${bd};--kc-cl:${cl};">
       <div class="kc-ic">${k.ic}</div>
       <div class="kc-lb">${k.lb}</div>
       <div class="kc-vl">${k.vl}</div>
       ${k.rate != null ? `<div class="rate-bg"><div class="rate-fg" style="width:${Math.min(k.rate, 100)}%"></div></div>` : ''}
       <div class="kc-sb">${k.sb}</div>
       ${k.cm}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // ── 월별 트렌드 ──
