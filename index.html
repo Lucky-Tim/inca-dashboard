@@ -190,18 +190,18 @@ input[type=file]{display:none;}
         <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
           <th style="padding:6px 8px;text-align:left;color:#64748b;">본부</th>
           <th style="padding:6px 8px;text-align:right;color:#64748b;">월보험료 (인정·비중)</th>
-          <th style="padding:6px 8px;text-align:center;color:#64748b;">MoM</th>
+          <th style="padding:6px 8px;text-align:center;color:#64748b;">전월대비</th>
         </tr></thead>
         <tbody id="cur-month-tbody"></tbody>
       </table>
     </div>
     <div class="glass" style="padding:16px;border-radius:16px;">
       <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:2px;">조직별 주요지표</div>
-      <div style="font-size:10px;color:#64748b;margin-bottom:10px;">월평균 인정실적(직전 6M)·가동률·비중</div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:10px;">월평균 인정실적(직전 6개월)·가동률·비중</div>
       <table style="width:100%;border-collapse:collapse;font-size:11px;">
         <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
           <th style="padding:6px 8px;text-align:left;color:#64748b;">본부</th>
-          <th style="padding:6px 8px;text-align:right;color:#64748b;">월평균 인정실적<br><span style="font-size:9px;font-weight:400;">(직전 6M)</span></th>
+          <th style="padding:6px 8px;text-align:right;color:#64748b;">월평균 인정실적<br><span style="font-size:9px;font-weight:400;">(직전 6개월)</span></th>
           <th style="padding:6px 8px;text-align:center;color:#64748b;">가동률</th>
           <th style="padding:6px 8px;text-align:center;color:#64748b;">비중</th>
         </tr></thead>
@@ -1314,6 +1314,11 @@ function renderDashboard(kpis, filtered) {
   const subC   = isCompare?`${latMLabel} 기준`:isMonthly?`${mc}개월 평균`:'중복제거 완료';
   const subD   = isCompare?`당월 가동률 ${fmtP(dispF)}`:isMonthly?`월평균 가동률 ${fmtP(dispF)}`:`가동률 ${fmtP(kpis.F)}`;
   const subE   = '등록구분=재직 기준';
+  // 정착률 = 재직인원 / 전체입사인원
+  const _totalEmps  = STATE.employees.length;
+  const _regEmps    = STATE.employees.filter(e => (e.type||'').trim() === '재직').length;
+  const _settleRate = _totalEmps > 0 ? (_regEmps / _totalEmps * 100).toFixed(1) : 0;
+  const cmpE = `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.07);font-size:10px;"><span style="color:#64748b;">정착률</span><span style="color:#4ade80;font-weight:800;">${_settleRate}%</span></div>`;
 
   // 전월대비 성장 년월 라벨
   const _allMonths = [...new Set(STATE.merged.map(r=>r.month).filter(Boolean))].sort();
@@ -1328,7 +1333,7 @@ function renderDashboard(kpis, filtered) {
     { label:labelB, val:fmtK(dispB),                   sub:subB, icon:'💵', color:'#6366f1', cmp:cmpHtml(latCred,avgB,'money') },
     { label:labelC, val:dispC.toLocaleString()+'건',    sub:subC, icon:'📋', color:'#8b5cf6', cmp:cmpHtml(dispC,kpis.C/mc,'cnt') },
     { label:labelD, val:dispD+'명',                     sub:subD, icon:'🏃', color:'#10b981', cmp:cmpHtml(latD_,kpis.avgActive,'person') },
-    { label:labelE, val:dispE+'명',                     sub:subE, icon:'👥', color:'#f59e0b', cmp:'' },
+    { label:labelE, val:dispE+'명',                     sub:subE, icon:'👥', color:'#f59e0b', cmp:cmpE },
     { label:'가동률(KPI-F)', val:fmtP(dispF), sub:`${dispD}명 / ${dispE}명`, icon:'⚡', color:dispF<50?'#ef4444':'#22c55e', cmp:cmpHtml(latF_R,kpis.F,'pct') },
     { label:labelG, val:fmtK(dispG),                   sub:'활동설계사 1인당', icon:'📈', color:'#14b8a6', cmp:cmpHtml(latPrem/(latD_||1),avgA/(kpis.D||1),'money') },
     { label:'전월대비 성장', val:(kpis.K>=0?'+':'')+fmtP(kpis.K), sub:`${_latLabel} vs ${_prevLabel}`, icon:'📊', color:kpis.K>=0?'#22c55e':'#ef4444', cmp:'' },
@@ -1458,7 +1463,7 @@ function renderDashboard(kpis, filtered) {
   const curMonthSub = document.getElementById('cur-month-sub');
   const curMonthTbody = document.getElementById('cur-month-tbody');
   if (curMonthTbody) {
-    const latMLabel2 = latM ? String(latM).slice(0,4)+'´년 '+String(latM).slice(4,6)+'월 진행중' : '';
+    const latMLabel2 = latM ? String(latM).slice(0,4)+'년 '+String(latM).slice(4,6)+'월 진행중' : '';
     if (curMonthSub) curMonthSub.textContent = latMLabel2;
     const sortedClosed = [...new Set(filtered.map(r=>r.month).filter(Boolean))].sort().filter(m=>m<latM);
     const latClosed  = sortedClosed[sortedClosed.length - 1];
@@ -1495,8 +1500,8 @@ function renderDashboard(kpis, filtered) {
         return `<tr style="border-bottom:1px solid #1e293b;">
           <td style="padding:6px 8px;font-weight:700;color:#e2e8f0;">${b.name}</td>
           <td style="padding:6px 8px;text-align:right;">
-            <div style="font-weight:800;color:#f87171;font-family:monospace;">${fmtK(b.premium)}원</div>
-            <div style="font-size:10px;color:#64748b;">인정 ${fmtK(b.credit)}원 · ${b.share.toFixed(1)}%</div>
+            <div style="font-weight:800;color:#f87171;font-family:monospace;">${fmtK(b.premium)}</div>
+            <div style="font-size:10px;color:#64748b;">인정 ${fmtK(b.credit)} · ${b.share.toFixed(1)}%</div>
           </td>
           <td style="padding:6px 8px;text-align:center;">${diffHtml}</td>
         </tr>`;
@@ -1538,7 +1543,7 @@ function renderDashboard(kpis, filtered) {
     branchKpiTbody.innerHTML = bkRows.map((b,i)=>`
       <tr style="border-bottom:1px solid #1e293b;">
         <td style="padding:6px 8px;font-weight:700;color:#e2e8f0;">${medals2[i]||''} ${b.name}</td>
-        <td style="padding:6px 8px;text-align:right;color:#f87171;font-family:monospace;">${fmtK(b.avgCr)}원</td>
+        <td style="padding:6px 8px;text-align:right;color:#f87171;font-family:monospace;">${fmtK(b.avgCr)}</td>
         <td style="padding:6px 8px;text-align:center;"><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;background:${b.actRate<50?'rgba(239,68,68,.2)':b.actRate<70?'rgba(245,158,11,.2)':'rgba(34,197,94,.2)'};color:${b.actRate<50?'#f87171':b.actRate<70?'#fbbf24':'#4ade80'};">${b.actRate.toFixed(1)}%</span></td>
         <td style="padding:6px 8px;text-align:center;color:#94a3b8;">${(b.avgCr/totalAvgCr*100).toFixed(1)}%</td>
       </tr>`).join('');
