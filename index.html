@@ -132,6 +132,14 @@ input[type=file]{display:none;}
         <div id="sl-branch2-list"></div>
       </div>
     </div>
+    <div class="sl-wrap" id="sw-branch3">
+      <div class="sl-label">조직3</div>
+      <button class="sl-btn" id="sl-branch3-btn" onclick="togglePanel(event,'branch3')">전체 <span class="arr">▾</span></button>
+      <div class="sl-panel hidden" id="sp-branch3">
+        <label class="sl-all-row"><input type="checkbox" id="sa-branch3" onchange="toggleAll('branch3')"> 전체 선택</label>
+        <div id="sl-branch3-list"></div>
+      </div>
+    </div>
     <div class="sl-wrap" id="sw-category">
       <div class="sl-label">보험종목</div>
       <button class="sl-btn" id="sl-category-btn" onclick="togglePanel(event,'category')">전체 <span class="arr">▾</span></button>
@@ -601,9 +609,9 @@ const PAY_METHODS = ['월납','연납','일시납','분기납'];
 // ─── STATE ───────────────────────────────────────────────
 const STATE = {
   employees: [], performance: [], merged: [],
-  filters: { year: new Set(), month: new Set(), branch2: new Set(), category: new Set(), company: new Set(), payMethod: new Set() },
-  filtersNone: { year:false, month:false, branch2:false, category:false, company:false, payMethod:false },
-  slicerVals: { year:[], month:[], branch2:[], category:[], company:[], payMethod:[] },
+  filters: { year: new Set(), month: new Set(), branch2: new Set(), branch3: new Set(), category: new Set(), company: new Set(), payMethod: new Set() },
+  filtersNone: { year:false, month:false, branch2:false, branch3:false, category:false, company:false, payMethod:false },
+  slicerVals: { year:[], month:[], branch2:[], branch3:[], category:[], company:[], payMethod:[] },
   ui: { tab:'dashboard', dvPage:1, dvSearch:'', mcKey:1, viewMode:'compare' },
   config: { targetKPI: 100000000, isRealData: false, payMethodInitialized: false },
   files: []
@@ -735,12 +743,14 @@ function getFiltered() {
     if (fn.year     ) return false;
     if (fn.month    ) return false;
     if (fn.branch2  ) return false;
+    if (fn.branch3  ) return false;
     if (fn.category ) return false;
     if (fn.company  ) return false;
     if (fn.payMethod) return false;
     if (f.year.size     > 0 && !f.year.has(r.month?.slice(0,4)))  return false;
     if (f.month.size    > 0 && !f.month.has(r.month?.slice(4,6))) return false;
     if (f.branch2.size  > 0 && !f.branch2.has(r.branch2))         return false;
+    if (f.branch3.size  > 0 && !f.branch3.has(r.branch3))         return false;
     if (f.category.size > 0 && !f.category.has(r.category))       return false;
     if (f.company.size  > 0 && !f.company.has(r.company))         return false;
     if (f.payMethod.size> 0 && !f.payMethod.has(r.payMethod))     return false;
@@ -751,21 +761,26 @@ function getFiltered() {
 // ─── KPI ENGINE ──────────────────────────────────────────
 function calcKPIs(data) {
   const rejistedEmps = STATE.employees.filter(e => e.type === '재직');
-  // Filter employees by branch if branch filter is set
-  // ⚠ branch2 는 Set 이므로 truthy 체크가 아니라 size/has 로 판정해야 함
-  const branchSel = STATE.filters.branch2;
-  const registeredInFilter = (branchSel && branchSel.size > 0)
-    ? rejistedEmps.filter(e => branchSel.has(e.b2))
+  // Filter employees by branch2/branch3 if filters are set
+  const branchSel  = STATE.filters.branch2;
+  const branch3Sel = STATE.filters.branch3;
+  const registeredInFilter = (branchSel.size > 0 || branch3Sel.size > 0)
+    ? rejistedEmps.filter(e => {
+        if (branchSel.size  > 0 && !branchSel.has(e.b2))  return false;
+        if (branch3Sel.size > 0 && !branch3Sel.has(e.b3))  return false;
+        return true;
+      })
     : rejistedEmps;
   
   const kpiA = data.reduce((s,r) => s + r.premium, 0); // 월보험료(주지표)
   // 인정실적: 납입방법 구분 없이 집계 (payMethod 필터 제외)
   const _f = STATE.filters; const _fn = STATE.filtersNone;
-  const dataAllPay = (_fn.year||_fn.month||_fn.branch2||_fn.category||_fn.company) ? [] :
+  const dataAllPay = (_fn.year||_fn.month||_fn.branch2||_fn.branch3||_fn.category||_fn.company) ? [] :
     STATE.merged.filter(r => {
       if (_f.year.size     > 0 && !_f.year.has(r.month?.slice(0,4)))  return false;
       if (_f.month.size    > 0 && !_f.month.has(r.month?.slice(4,6))) return false;
       if (_f.branch2.size  > 0 && !_f.branch2.has(r.branch2))         return false;
+      if (_f.branch3.size  > 0 && !_f.branch3.has(r.branch3))         return false;
       if (_f.category.size > 0 && !_f.category.has(r.category))       return false;
       if (_f.company.size  > 0 && !_f.company.has(r.company))         return false;
       return true; // payMethod 필터 적용 안 함
@@ -998,6 +1013,7 @@ function initSlicers() {
     STATE.filters.month.forEach(v => { if (!validMonths.has(v)) STATE.filters.month.delete(v); });
   }
   STATE.slicerVals.branch2  = [...new Set(data.map(r=>r.branch2).filter(Boolean))].sort();
+  STATE.slicerVals.branch3  = [...new Set(data.map(r=>r.branch3).filter(Boolean))].sort();
   STATE.slicerVals.category = [...new Set(data.map(r=>r.category).filter(Boolean))].sort();
   STATE.slicerVals.company  = [...new Set(data.map(r=>r.company).filter(Boolean))].sort();
   STATE.slicerVals.payMethod= [...new Set(data.map(r=>r.payMethod).filter(Boolean))].sort();
@@ -1012,6 +1028,7 @@ function initSlicers() {
     year:      v => v + '년',
     month:     v => v + '월',
     branch2:   v => v,
+    branch3:   v => v,
     category:  v => v,
     company:   v => v,
     payMethod: v => v,

@@ -228,6 +228,10 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
     <div class="f-lb">소속본부</div>
     <select class="f-sel" id="f-branch" onchange="applyFilters()"><option value="all">전체</option></select>
   </div>
+  <div class="f-wrap" style="min-width:100px;">
+    <div class="f-lb">조직3</div>
+    <select class="f-sel" id="f-branch3" onchange="applyFilters()"><option value="all">전체</option></select>
+  </div>
   <div class="f-wrap" style="min-width:84px;">
     <div class="f-lb">납입방법</div>
     <select class="f-sel" id="f-paymethod" onchange="applyFilters()"><option value="all">전체</option></select>
@@ -294,7 +298,7 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
 const AS_URL = 'https://script.google.com/macros/s/AKfycbyM-Yhnt6nqkV2Nwk-iDjHud_8In5KjyGlrXp3lpJzDhWiCnfme8VcQaoTKCqXwkF_5/exec';
 
 let RAW = { employees: [], aggregated: [], top10: [] };
-let FILTERS = { branch: 'all', payMethod: 'all' };
+let FILTERS = { branch: 'all', branch3: 'all', payMethod: 'all' };
 
 // ── 포맷 ──
 function fmtK(n) {
@@ -351,10 +355,27 @@ function initFilters() {
 
   fillSelect('f-branch',    branches);
   fillSelect('f-paymethod', pays);
+  updateBranch3Options();  // branch 전체 기준으로 초기화
 
   if (pays.includes('월납')) {
     document.getElementById('f-paymethod').value = '월납';
     FILTERS.payMethod = '월납';
+  }
+}
+
+// ── 조직3 옵션 동적 갱신 (소속본부 변경 시 cascade) ──
+function updateBranch3Options() {
+  const agg = RAW.aggregated;
+  const filtered = FILTERS.branch === 'all'
+    ? agg
+    : agg.filter(r => r.branch === FILTERS.branch);
+  const b3vals = [...new Set(filtered.map(r => r.branch3).filter(Boolean))].sort();
+  fillSelect('f-branch3', b3vals);
+  // 기존 선택값이 유효하면 유지, 아니면 전체로 초기화
+  if (FILTERS.branch3 !== 'all' && b3vals.includes(FILTERS.branch3)) {
+    document.getElementById('f-branch3').value = FILTERS.branch3;
+  } else {
+    FILTERS.branch3 = 'all';
   }
 }
 
@@ -368,8 +389,17 @@ function fillSelect(id, vals) {
 
 // ── 필터 적용 ──
 function applyFilters() {
+  const prevBranch  = FILTERS.branch;
   FILTERS.branch    = document.getElementById('f-branch').value;
   FILTERS.payMethod = document.getElementById('f-paymethod').value;
+
+  // 소속본부 변경 시 → 조직3 옵션 cascade 갱신 후 전체로 초기화
+  if (prevBranch !== FILTERS.branch) {
+    updateBranch3Options();
+  } else {
+    FILTERS.branch3 = document.getElementById('f-branch3').value;
+  }
+
   renderAll();
 }
 
@@ -377,6 +407,7 @@ function applyFilters() {
 function getAgg() {
   return RAW.aggregated.filter(r => {
     if (FILTERS.branch    !== 'all' && r.branch    !== FILTERS.branch)    return false;
+    if (FILTERS.branch3   !== 'all' && r.branch3   !== FILTERS.branch3)   return false;
     if (FILTERS.payMethod !== 'all' && r.payMethod !== FILTERS.payMethod) return false;
     return true;
   });
@@ -385,7 +416,8 @@ function getAgg() {
 // ── 납입방법 필터 제외 (활동설계사·가동률 전용) ──
 function getAggAllPay() {
   return RAW.aggregated.filter(r => {
-    if (FILTERS.branch !== 'all' && r.branch !== FILTERS.branch) return false;
+    if (FILTERS.branch  !== 'all' && r.branch  !== FILTERS.branch)  return false;
+    if (FILTERS.branch3 !== 'all' && r.branch3 !== FILTERS.branch3) return false;
     return true;
   });
 }
@@ -407,9 +439,11 @@ function calcKPIs() {
   const mc           = last6Closed.length || 1;
 
   const regEmps = (RAW.employees || []).filter(e => (e.type || '').replace(/\s/g, '') === '재직');
-  const filteredEmps = FILTERS.branch === 'all'
-    ? regEmps
-    : regEmps.filter(e => (e.b2 || '').trim() === FILTERS.branch);
+  const filteredEmps = regEmps.filter(e => {
+    if (FILTERS.branch  !== 'all' && (e.b2 || '').trim() !== FILTERS.branch)  return false;
+    if (FILTERS.branch3 !== 'all' && (e.b3 || '').trim() !== FILTERS.branch3) return false;
+    return true;
+  });
   const kpiE = filteredEmps.length || regEmps.length;
 
   const latAgg   = agg.filter(r => r.month === latM);
@@ -505,10 +539,11 @@ function renderCurrentMonth(kpis) {
     latActive[b] = (latActive[b] || 0) + r.activeAgents;
   });
 
-  // 본부별 재직 설계사
+  // 본부별 재직 설계사 (branch3 필터 반영)
   const regEmps = (RAW.employees || []).filter(e => (e.type || '').replace(/\s/g, '') === '재직');
   const branchReg = {};
   regEmps.forEach(e => {
+    if (FILTERS.branch3 !== 'all' && (e.b3 || '').trim() !== FILTERS.branch3) return;
     const b = (e.b2 || '').trim() || '미분류';
     branchReg[b] = (branchReg[b] || 0) + 1;
   });
@@ -667,8 +702,11 @@ function renderTrend(kpis) {
   });
 
   const allAggMap = {};
-  RAW.aggregated.filter(r => FILTERS.branch === 'all' || r.branch === FILTERS.branch)
-    .forEach(r => { allAggMap[r.month] = (allAggMap[r.month] || 0) + r.premium; });
+  RAW.aggregated.filter(r => {
+    if (FILTERS.branch  !== 'all' && r.branch  !== FILTERS.branch)  return false;
+    if (FILTERS.branch3 !== 'all' && r.branch3 !== FILTERS.branch3) return false;
+    return true;
+  }).forEach(r => { allAggMap[r.month] = (allAggMap[r.month] || 0) + r.premium; });
   const yoyData = allMonths.map(m => {
     const prevM = String(parseInt(m.slice(0, 4)) - 1) + m.slice(4, 6);
     return allAggMap[prevM] != null ? allAggMap[prevM] : null;
@@ -749,6 +787,7 @@ function renderBranchTable(kpis) {
   const regEmps = (RAW.employees || []).filter(e => (e.type || '').replace(/\s/g, '') === '재직');
   const branchReg = {};
   regEmps.forEach(e => {
+    if (FILTERS.branch3 !== 'all' && (e.b3 || '').trim() !== FILTERS.branch3) return;
     const b = (e.b2 || '').trim() || '미분류';
     branchReg[b] = (branchReg[b] || 0) + 1;
   });
@@ -800,7 +839,7 @@ function renderTop10() {
       <div class="top-rank">${medals[i] || (i + 1) + '위'}</div>
       <div class="top-info">
         <div class="top-name">${a.name || '알 수 없음'}</div>
-        <div class="top-branch">${a.branch || ''}</div>
+        <div class="top-branch">${a.branch || ''}${a.branch3 ? ' · ' + a.branch3 : ''}</div>
       </div>
       <div>
         <div class="top-val">${fmtK(a.avgPremium)}원</div>
