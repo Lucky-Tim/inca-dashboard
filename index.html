@@ -2137,10 +2137,11 @@ dz.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
 async function handleFiles(files) {
   if (!files?.length) return;
   log(`📁 ${files.length}개 파일 파이프라인 시작`, 'info');
-  // 직원관리: 신규 파일로 교체 (퇴사/재직 최신 상태 반영)
-  // 건별실적: 기존 AS 데이터 유지 + 신규 파일 병합 (SUNAB_PK 중복제거)
-  const hasEmpFile = Array.from(files).some(f => f.name.startsWith('직원관리'));
-  if (hasEmpFile) STATE.employees = [];
+  // 직원관리·건별실적 모두 신규 파일로 완전 교체 (누적 중복 방지)
+  const hasEmpFile  = Array.from(files).some(f => f.name.startsWith('직원관리'));
+  const hasPerfFile = Array.from(files).some(f => f.name.startsWith('건별실적'));
+  if (hasEmpFile)  STATE.employees   = [];
+  if (hasPerfFile) STATE.performance = STATE.performance.filter(p => p.status !== '실제데이터');
   for (const file of Array.from(files)) {
     const cat = file.name.startsWith('직원관리') ? '직원관리' : file.name.startsWith('건별실적') ? '건별실적' : '기타';
     if (cat==='기타') { log(`❌ [미인식] ${file.name}: 파일명이 직원관리_ 또는 건별실적_으로 시작해야 합니다`, 'error'); continue; }
