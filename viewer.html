@@ -57,6 +57,11 @@ body{
   transition:all .15s;white-space:nowrap;flex-shrink:0;
 }
 .ref-btn:active{background:#FFF0F0;}
+@media print {
+  .ref-btn { display:none !important; }
+  body { background:#fff !important; }
+  .sec, .chart-box { break-inside:avoid; }
+}
 .stamp{
   background:#FFF5F5;
   border:1px solid rgba(164,0,0,.15);
@@ -215,6 +220,7 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
       <div class="logo-sb" style="margin-top:2px;">총괄사업단 운영현황</div>
     </div>
     <button class="ref-btn" onclick="loadData()">갱신</button>
+    <button class="ref-btn" onclick="window.print()" style="margin-left:6px;">🖨 인쇄</button>
   </div>
   <div class="stamp">
     <span class="stamp-lb">📌 마감 기준</span>

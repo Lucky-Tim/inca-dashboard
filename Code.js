@@ -67,6 +67,10 @@ function writeCache(data) {
 // ─── GET: 캐시 우선 반환 → 없으면 Sheets에서 읽기 ────────
 function doGet(e) {
   try {
+    // 0) 강제 캐시 재생성(시트 기준) — 재배포 후 빠른 갱신용. 48k 재업로드 불필요.
+    if (e && e.parameter && e.parameter.rebuild === '1' && e.parameter.key === SYNC_KEY) {
+      return readSheetsAndCache();
+    }
     // 1) Drive 캐시 확인
     const cached = readCache();
     if (cached && cached.ok && cached.employees?.length) {

@@ -88,6 +88,7 @@ input[type=file]{display:none;}
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
       <button id="clear-filter-btn" class="hidden" onclick="clearAllFilters()" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#f87171;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">✕ 필터 전체해제</button>
+      <div id="unmatched-badge" class="hidden" title="실적은 있으나 직원관리에 없는 설계사 (조직=기타로 집계됨)" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.35);color:#f87171;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:800;cursor:help;"></div>
       <div style="background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);color:#facc15;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px;">
         <span id="data-mode-dot" style="width:7px;height:7px;border-radius:50%;background:#facc15;display:inline-block;animation:ping 1s infinite;"></span>
         <span id="data-mode-text">샘플 데이터</span>
@@ -514,6 +515,9 @@ input[type=file]{display:none;}
         <div id="as-sync-status" style="font-size:11px;color:#94a3b8;margin-bottom:8px;">병합 데이터 → AS 전송</div>
         <button onclick="pushToAS()" style="width:100%;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#34d399;padding:8px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;">
           ☁️ 클라우드에 저장
+        </button>
+        <button onclick="rebuildCache()" title="Code.js 재배포 후, 48k 재업로드 없이 시트 기준으로 캐시만 재생성" style="width:100%;margin-top:6px;background:rgba(16,185,129,.06);border:1px dashed rgba(16,185,129,.4);color:#6ee7b7;padding:6px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;">
+          ⚡ 캐시만 재생성 (빠름)
         </button>
       </div>
       <!-- 3b: 불러오기 -->
@@ -1405,9 +1409,21 @@ function setViewMode(mode) {
   renderAll();
 }
 
+// 미매칭 설계사(실적 있으나 직원관리에 없음) 배지 갱신
+function updateUnmatchedBadge() {
+  const el = document.getElementById('unmatched-badge');
+  if (!el) return;
+  const empSet = new Set((STATE.employees||[]).map(e => String(e.id)));
+  const un = new Set();
+  (STATE.merged||[]).forEach(r => { const id=String(r.agentId||''); if(id && !empSet.has(id)) un.add(id); });
+  if (un.size > 0) { el.textContent = '⚠ 미매칭 설계사 ' + un.size + '명'; el.classList.remove('hidden'); }
+  else { el.classList.add('hidden'); }
+}
+
 function renderAll() {
   initSlicers();
   saveUIState();
+  updateUnmatchedBadge();
   const filtered = getFiltered();
   const kpis = calcKPIs(filtered);
   
@@ -2367,6 +2383,19 @@ async function pullFromAS(silent=false) {
 }
 
 // 클라우드 업로드 → Apps Script POST (드래그앤드롭 후 Sheets 반영용)
+// ⚡ 캐시만 재생성(시트 기준) — 재배포 후 빠른 갱신, 48k 재업로드 불필요
+async function rebuildCache() {
+  const { url, key } = loadAsConfig();
+  if (!url) { setAsStatus('❌ 배포 URL을 먼저 입력하세요', '#f87171'); return; }
+  setAsStatus('⏳ 캐시 재생성 중... (시트 기준)', '#fde68a');
+  try {
+    const res = await fetch(`${url}?rebuild=1&key=${encodeURIComponent(key)}&t=${Date.now()}`);
+    const d = await res.json();
+    if (d.ok) { setAsStatus('✅ 캐시 재생성 완료 — 뷰어 새로고침 시 반영', '#34d399'); log('⚡ 캐시 재생성 완료', 'success'); }
+    else { setAsStatus('❌ ' + (d.error || '오류'), '#f87171'); }
+  } catch (e) { setAsStatus('❌ ' + e.message, '#f87171'); }
+}
+
 async function pushToAS(silent=false) {
   const { url, key } = loadAsConfig();
   if (!url) { if (!silent) setAsStatus('❌ 배포 URL을 먼저 입력하세요', '#f87171'); return; }
