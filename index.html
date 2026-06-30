@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="org_map.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -587,6 +588,25 @@ input[type=file]{display:none;}
 
 </main>
 
+<!-- 미매칭 사원 조직 지정 팝업 -->
+<div id="org-popup" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,.72);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#0f172a;border:1px solid #334155;border-radius:16px;width:min(780px,92vw);max-height:84vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.55);">
+    <div style="padding:16px 20px;border-bottom:1px solid #1e293b;">
+      <div style="font-size:15px;font-weight:800;color:#e2e8f0;">🏢 미매칭 사원 조직 지정 (<span id="org-popup-count">0</span>명)</div>
+      <div style="font-size:11px;color:#64748b;margin-top:4px;">매핑에 없는 신규 사원번호입니다. 사업단·본부를 지정해 저장하면 다음 업로드부터 자동 적용됩니다.</div>
+    </div>
+    <div style="overflow:auto;padding:6px 20px;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr style="color:#64748b;text-align:left;"><th style="padding:8px;">사번</th><th style="padding:8px;">성명</th><th style="padding:8px;width:34%;">사업단</th><th style="padding:8px;width:34%;">본부</th></tr></thead>
+      <tbody id="org-popup-body"></tbody>
+    </table></div>
+    <div style="padding:14px 20px;border-top:1px solid #1e293b;display:flex;justify-content:flex-end;gap:8px;">
+      <button onclick="closeOrgPopup()" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">나중에</button>
+      <button onclick="saveOrgPopup()" style="background:#3b82f6;border:none;color:#fff;padding:8px 18px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;">저장</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- STYLE: ping animation -->
 <style>
 @keyframes ping{0%,100%{opacity:1}50%{opacity:.4}}
@@ -594,6 +614,60 @@ input[type=file]{display:none;}
 
 <!-- ═══════════════════════ SCRIPTS ═══════════════════════ -->
 <script>
+// ─── 조직 매핑 (사원번호 → 사업단/본부) + 미매칭 팝업 ──────
+const ORG_OVR_KEY = 'inca_org_overrides';
+function loadOrgOverrides(){ try{return JSON.parse(localStorage.getItem(ORG_OVR_KEY)||'{}');}catch(e){return {};} }
+function saveOrgOverrides(o){ try{localStorage.setItem(ORG_OVR_KEY,JSON.stringify(o));}catch(e){} }
+function orgLookup(id){
+  id=String(id||'').trim();
+  const ovr=loadOrgOverrides();
+  if(ovr[id]) return ovr[id];
+  if(window.ORG_MAP && window.ORG_MAP[id]) return window.ORG_MAP[id];
+  return null;
+}
+function applyOrgMapToEmployees(){
+  const unmatched=[];
+  (STATE.employees||[]).forEach(e=>{
+    const m=orgLookup(e.id);
+    if(m){ e.b2=m[0]; e.b3=m[1]; }
+    else { unmatched.push({id:e.id,name:e.name}); if(!e.b2)e.b2='미배정'; if(!e.b3)e.b3='미배정'; }
+  });
+  return unmatched;
+}
+function onOrgSadanChange(sel){
+  const sd=sel.value; const tr=sel.closest('tr'); const bb=tr.querySelector('.org-bb');
+  const opts=(window.ORG_TREE&&window.ORG_TREE[sd])?window.ORG_TREE[sd]:(window.ORG_BONBU_ALL||[]);
+  bb.innerHTML='<option value="">본부 선택</option>'+opts.map(b=>`<option value="${b}">${b}</option>`).join('')+'<option value="__new__">+ 직접 입력</option>';
+}
+function openOrgPopup(list){
+  const m=document.getElementById('org-popup'); if(!m)return;
+  const sadanOpts=(window.ORG_SADAN||[]).map(s=>`<option value="${s}">${s}</option>`).join('');
+  document.getElementById('org-popup-body').innerHTML = list.map(p=>`
+    <tr data-id="${p.id}" style="border-bottom:1px solid rgba(51,65,85,.4);">
+      <td style="padding:8px;color:#94a3b8;font-family:monospace;">${p.id}</td>
+      <td style="padding:8px;color:#e2e8f0;font-weight:700;">${p.name||'-'}</td>
+      <td style="padding:6px;"><select class="org-sd" onchange="onOrgSadanChange(this)" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:6px;border-radius:6px;font-size:12px;width:100%;"><option value="">사업단 선택</option>${sadanOpts}</select></td>
+      <td style="padding:6px;"><select class="org-bb" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:6px;border-radius:6px;font-size:12px;width:100%;"><option value="">본부 선택</option></select></td>
+    </tr>`).join('');
+  document.getElementById('org-popup-count').textContent=list.length;
+  m.style.display='flex';
+}
+function closeOrgPopup(){ const m=document.getElementById('org-popup'); if(m)m.style.display='none'; }
+function saveOrgPopup(){
+  const ovr=loadOrgOverrides(); let n=0, miss=0;
+  document.querySelectorAll('#org-popup-body tr').forEach(tr=>{
+    const id=tr.getAttribute('data-id');
+    let sd=tr.querySelector('.org-sd').value, bb=tr.querySelector('.org-bb').value;
+    if(bb==='__new__'){ bb=(prompt('본부명 직접 입력','')||'').trim(); }
+    if(sd&&bb){ ovr[id]=[sd,bb]; n++; } else { miss++; }
+  });
+  saveOrgOverrides(ovr);
+  STATE._unmatchedOrg=applyOrgMapToEmployees();
+  mergeData(); renderAll();
+  closeOrgPopup();
+  log(`✅ 조직 매핑 저장: ${n}명 지정${miss?` (미입력 ${miss}명은 다음 업로드 시 재표시)`:''}`,'success');
+}
+
 // ─── CONSTANTS ───────────────────────────────────────────
 const COLORS10 = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#6366f1','#14b8a6','#f43f5e','#84cc16','#f97316'];
 // 납입월도 YYYYMM → 'YYYY년 MM월' 동적 변환 (하드코딩 제거)
@@ -2274,6 +2348,7 @@ async function handleFiles(files) {
   // 모든 파일 처리 완료 후 한 번만 mergeData + checkRealData + renderAll
   mergeData(); checkRealData(); renderAll();
   log(`✅ 파일 처리 100% 완료 — 직원 ${STATE.employees.filter(e=>e.type==='재직').length}명 재직 · 실적 ${STATE.performance.filter(p=>p.status==='실제데이터').length}건`, 'success');
+  if (STATE._unmatchedOrg && STATE._unmatchedOrg.length) openOrgPopup(STATE._unmatchedOrg);
 }
 
 function detectHeaderRow(rows, keys) {
@@ -2303,6 +2378,7 @@ function parseEmployeeSheet(rows, fname) {
     _seen.add(e.id);
     return true;
   });
+  STATE._unmatchedOrg = applyOrgMapToEmployees();
   log(`✅ 직원관리 ${parsed.length}명 로드 완료 → 중복제거 후 재직계: ${STATE.employees.filter(e=>e.type==='재직').length}명`, 'success');
   // renderAll은 handleFiles 완료 후 한 번만 호출
 }
