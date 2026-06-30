@@ -245,7 +245,7 @@ input[type=file]{display:none;}
 
   <!-- BOTTOM ROW: 설계사 TOP5 -->
   <div class="glass" style="padding:16px;border-radius:16px;">
-    <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">설계사 실적 TOP 5 (현재 필터 기준)</div>
+    <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">설계사 실적 TOP 5 <span style="font-size:10px;color:#64748b;font-weight:600;">(당월 실적순 · 세부 월평균 인정)</span></div>
     <div id="agent-top5"></div>
   </div>
 </div>
@@ -1671,19 +1671,18 @@ function renderDashboard(kpis, filtered) {
     plugins:{ legend:{ position:'bottom', labels:{ color:'#94a3b8', font:{ size:10 } } } }
   });
   
-  // Top 5 agents
+  // Top 5 agents — 당월(latM) 실적순 정렬 + 세부=월평균 인정실적(마감월 평균)
+  const _t5closed = [...new Set(filtered.map(r=>r.month).filter(m=>m && !(STATE.monthStatus && STATE.monthStatus[m]==='가마감')))];
+  const _t5n = _t5closed.length || 1;
   const agentMap = {};
-  filtered.forEach(r=>{ if(!agentMap[r.agentId]) agentMap[r.agentId]={name:r.agentName,b2:r.branch2,type:r.agentType,premium:0}; agentMap[r.agentId].premium+=r.premium; });
-  const latAgMap = {};
-  if(isCompare) latF_.forEach(r=>{ latAgMap[r.agentId]=(latAgMap[r.agentId]||0)+(r.premium||0); });
-  let top5;
-  if(isCompare){
-    top5=Object.entries(latAgMap).sort((a,b)=>b[1]-a[1]).slice(0,5)
-      .map(([id,lp])=>({...(agentMap[id]||{}),dispPrem:lp,sub:`월평균 ${fmtK((agentMap[id]?.premium||0)/mc)}원`}));
-  } else {
-    top5=Object.values(agentMap).sort((a,b)=>b.premium-a.premium).slice(0,5)
-      .map(a=>({...a,dispPrem:isMonthly?a.premium/mc:a.premium,sub:''}));
-  }
+  filtered.forEach(r=>{
+    if(!agentMap[r.agentId]) agentMap[r.agentId]={name:r.agentName,b2:r.branch2,type:r.agentType,latPrem:0,closedCredit:0};
+    if(r.month===latM) agentMap[r.agentId].latPrem += (r.premium||0);
+    if(!(STATE.monthStatus && STATE.monthStatus[r.month]==='가마감')) agentMap[r.agentId].closedCredit += (r.credit||0);
+  });
+  const top5 = Object.values(agentMap)
+    .sort((a,b)=>b.latPrem-a.latPrem).slice(0,5)
+    .map(a=>({...a, dispPrem:a.latPrem, sub:`월평균 인정 ${fmtK(a.closedCredit/_t5n)}`}));
   const t5 = document.getElementById('agent-top5');
   if (t5) t5.innerHTML = top5.map((a,i) => `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1e293b;">
@@ -1715,11 +1714,14 @@ function renderDashboard(kpis, filtered) {
       curRows[b].premium += r.premium || 0;
       curRows[b].credit  += r.credit  || 0;
     });
+    // 가마감월(인정실적 0)은 비중을 월보험료(영수금) 기준으로 계산
+    const _curProv = !!(STATE.monthStatus && STATE.monthStatus[latM] === '가마감');
     const totalCurCredit = Object.values(curRows).reduce((s,v)=>s+v.credit,0) || 1;
+    const totalCurPrem   = Object.values(curRows).reduce((s,v)=>s+v.premium,0) || 1;
     const curSorted = Object.entries(curRows)
       .filter(([k,v])=>k&&k!=='미분류'&&v.premium>0)
       .map(([name,v])=>{
-        const share = v.credit/totalCurCredit*100;
+        const share = _curProv ? (v.premium/totalCurPrem*100) : (v.credit/totalCurCredit*100);
         const lCr = latCrMap[name]||0, pCr = prevCrMap[name]||0;
         const diff = pCr>0?(lCr/pCr-1)*100:null;
         return {name,premium:v.premium,credit:v.credit,share,diff};
@@ -1735,7 +1737,7 @@ function renderDashboard(kpis, filtered) {
           <td style="padding:6px 8px;font-weight:700;color:#e2e8f0;">${b.name}</td>
           <td style="padding:6px 8px;text-align:right;">
             <div style="font-weight:800;color:#f87171;font-family:monospace;">${fmtK(b.premium)}</div>
-            <div style="font-size:10px;color:#64748b;">인정 ${fmtK(b.credit)} · ${b.share.toFixed(1)}%</div>
+            <div style="font-size:10px;color:#64748b;">${_curProv ? `비중 ${b.share.toFixed(1)}%` : `인정 ${fmtK(b.credit)} · ${b.share.toFixed(1)}%`}</div>
           </td>
           <td style="padding:6px 8px;text-align:center;">${diffHtml}</td>
         </tr>`;
