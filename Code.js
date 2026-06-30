@@ -107,6 +107,9 @@ function readSheetsAndCache() {
   result.topByBranch  = topResult.topByBranch;
   result.topByBranch3 = topResult.topByBranch3;
 
+  // 월별 마감/가마감 상태
+  result.monthStatus = buildMonthStatus(result.performance);
+
   // 캐시 저장 (다음 GET부터 빠르게 응답)
   writeCache(result);
   return json(result);
@@ -120,6 +123,7 @@ function doPost(e) {
     if (payload.key !== SYNC_KEY) return json({ ok: false, error: '인증 실패' });
 
     const ss = getSpreadsheet();
+    const _postSrc = (payload.source||'').toString().trim();  // '마감' | '가마감'
 
     // ── 직원관리 저장 (전체 교체, 월 개념 없음) ──────────────
     if (payload.employees?.length) {
@@ -148,16 +152,17 @@ function doPost(e) {
       allPerf = [...kept, ...payload.performance];
 
       // 전체 다시 쓰기 (500행 청크)
-      const headers = [['SUNAB_PK','증권번호','month','agentId','premium','credit','category','company','payMethod']];
+      const headers = [['SUNAB_PK','증권번호','month','agentId','premium','credit','category','company','payMethod','source']];
       sheet.clearContents();
-      sheet.getRange(1, 1, 1, 9).setValues(headers);
+      sheet.getRange(1, 1, 1, 10).setValues(headers);
       const CHUNK = 500;
       for (let i = 0; i < allPerf.length; i += CHUNK) {
         const chunk = allPerf.slice(i, i + CHUNK).map(r => [
           r.SUNAB_PK||'', r.증권번호||'', r.month||'', r.agentId||'',
-          r.premium||0, r.credit||0, r.category||'', r.company||'', r.payMethod||''
+          r.premium||0, r.credit||0, r.category||'', r.company||'', r.payMethod||'',
+          (r.source||_postSrc||'마감')
         ]);
-        sheet.getRange(i + 2, 1, chunk.length, 9).setValues(chunk);
+        sheet.getRange(i + 2, 1, chunk.length, 10).setValues(chunk);
       }
     } else {
       // performance 미전송 시 기존 Sheets 데이터 그대로 사용
@@ -186,6 +191,7 @@ function doPost(e) {
       top10:         topResult.top10,
       topByBranch:   topResult.topByBranch,
       topByBranch3:  topResult.topByBranch3,
+      monthStatus:   buildMonthStatus(perfForAgg),
     });
 
     return json({
@@ -266,6 +272,7 @@ function buildTop10(performance, employees) {
     if (m && !monthSet[m]) { monthSet[m] = true; allMonths.push(m); }
   });
   allMonths.sort();
+  const latM = allMonths.length ? allMonths[allMonths.length - 1] : '';
 
   const closedMonths  = allMonths.filter(m => m < currM);
   const targetMonths  = new Set(closedMonths.slice(-6));
@@ -283,33 +290,37 @@ function buildTop10(performance, employees) {
     };
   });
 
-  // agentId별 해당 기간 총 premium 집계 (납입방법 무관, 전 본부)
+  // agentId별: 마감6개월 총 premium/credit + 당월(latM) premium
   const agentData = {};
   (performance || []).forEach(r => {
     const m = String(r.month || '').trim();
-    if (!targetMonths.has(m)) return;
     const id  = String(r.agentId || '');
+    if (!id) return;
     const pre = Number(r.premium) || 0;
-    if (!id || pre <= 0) return;
-    if (!agentData[id]) agentData[id] = 0;
-    agentData[id] += pre;
+    const cre = Number(r.credit)  || 0;
+    if (!agentData[id]) agentData[id] = { totalPrem: 0, latPrem: 0, credit: 0 };
+    if (targetMonths.has(m)) { agentData[id].totalPrem += pre; agentData[id].credit += cre; }
+    if (m === latM)          { agentData[id].latPrem  += pre; }
   });
 
-  // 개인별 avgPremium (6개월 총합 / n)
-  const list = Object.entries(agentData).map(([id, total]) => {
-    const emp = empMap[id] || { name: id, branch: '' };
+  // 개인별: avgPremium(6개월 월평균 보험료) + latPremium(당월 보험료) + avgCredit(월평균 인정)
+  const list = Object.entries(agentData).map(([id, d]) => {
+    const emp = empMap[id] || { name: id, branch: '', branch3: '' };
     return {
       agentId:      id,
       name:         emp.name,
       branch:       emp.branch,
       branch3:      emp.branch3,
-      totalPremium: total,
-      avgPremium:   Math.round(total / n),
+      totalPremium: d.totalPrem,
+      avgPremium:   Math.round(d.totalPrem / n),
+      latPremium:   d.latPrem,
+      avgCredit:    Math.round(d.credit / n),
       months:       n,
     };
   });
 
-  list.sort((a, b) => b.avgPremium - a.avgPremium);
+  // 당월 실적순 정렬
+  list.sort((a, b) => b.latPremium - a.latPremium);
 
   // 전체 TOP10
   const top10 = list.slice(0, 10).map((v, i) => ({ rank: i + 1, ...v }));
@@ -351,6 +362,7 @@ function parsePerfRows(rows) {
     ...r,
     premium: Number(r.premium) || 0,
     credit:  Number(r.credit)  || 0,
+    source:  (r.source||'').toString().trim() || '마감',  // 마감=건별실적 / 가마감=자동실적
     status:  '실제데이터',
   }));
 }
@@ -400,6 +412,19 @@ function json(obj) {
 function refreshCache() {
   const result = readSheetsAndCache();
   Logger.log('캐시 갱신 완료: ' + result.getContent().slice(0, 100));
+}
+
+// ─── 월별 마감/가마감 상태 (가마감=자동실적 1건이라도 있으면 가마감) ──
+function buildMonthStatus(performance) {
+  const st = {};
+  (performance || []).forEach(r => {
+    const m = String(r.month||'').trim();
+    if (!m) return;
+    const src = (r.source||'마감').toString().trim();
+    if (src === '가마감') st[m] = '가마감';
+    else if (!st[m])      st[m] = '마감';
+  });
+  return st;
 }
 
 // ─── WARMUP (콜드 스타트 방지) ───────────────────────────
