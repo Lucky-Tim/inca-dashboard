@@ -70,6 +70,12 @@ function doGet(e) {
     // 1) Drive 캐시 확인
     const cached = readCache();
     if (cached && cached.ok && cached.employees?.length) {
+      // slim=1: performance 원본 제외 (뷰어 전용 — 로딩 최적화)
+      if (e && e.parameter && e.parameter.slim === '1') {
+        const slim = JSON.parse(JSON.stringify(cached));
+        delete slim.performance;
+        return json(slim);
+      }
       return json(cached);
     }
 
@@ -96,7 +102,9 @@ function readSheetsAndCache() {
 
   // 사전집계 생성
   result.aggregated = buildAggregated(result.performance, result.employees);
-  result.top10      = buildTop10(result.performance, result.employees);
+  const topResult   = buildTop10(result.performance, result.employees);
+  result.top10      = topResult.top10;
+  result.topByBranch = topResult.topByBranch;
 
   // 캐시 저장 (다음 GET부터 빠르게 응답)
   writeCache(result);
@@ -165,16 +173,17 @@ function doPost(e) {
     const employees  = payload.employees || [];
     const perfForAgg = allPerf.map(r => ({...r, status:'실제데이터'}));
     const aggData    = buildAggregated(perfForAgg, employees);
-    const top10Data  = buildTop10(perfForAgg, employees);
+    const topResult  = buildTop10(perfForAgg, employees);
 
     // 캐시 즉시 갱신
     writeCache({
-      ok:          true,
-      lastUpdated: now,
+      ok:           true,
+      lastUpdated:  now,
       employees,
-      performance: perfForAgg,
-      aggregated:  aggData,
-      top10:       top10Data,
+      performance:  perfForAgg,
+      aggregated:   aggData,
+      top10:        topResult.top10,
+      topByBranch:  topResult.topByBranch,
     });
 
     return json({
@@ -300,7 +309,22 @@ function buildTop10(performance, employees) {
 
   list.sort((a, b) => b.avgPremium - a.avgPremium);
 
-  return list.slice(0, 10).map((v, i) => ({ rank: i + 1, ...v }));
+  // 전체 TOP10
+  const top10 = list.slice(0, 10).map((v, i) => ({ rank: i + 1, ...v }));
+
+  // 소속사업단(branch)별 TOP10 — 이미 전체 정렬된 list에서 분기
+  const byBranch = {};
+  list.forEach(agent => {
+    const b = agent.branch || '미분류';
+    if (!byBranch[b]) byBranch[b] = [];
+    byBranch[b].push(agent);
+  });
+  const topByBranch = {};
+  Object.keys(byBranch).forEach(b => {
+    topByBranch[b] = byBranch[b].slice(0, 10).map((v, i) => ({ rank: i + 1, ...v }));
+  });
+
+  return { top10, topByBranch };
 }
 
 // ─── 파서 함수 ───────────────────────────────────────────

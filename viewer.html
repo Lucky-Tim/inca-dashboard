@@ -297,7 +297,7 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
 <script>
 const AS_URL = 'https://script.google.com/macros/s/AKfycbyM-Yhnt6nqkV2Nwk-iDjHud_8In5KjyGlrXp3lpJzDhWiCnfme8VcQaoTKCqXwkF_5/exec';
 
-let RAW = { employees: [], aggregated: [], top10: [] };
+let RAW = { employees: [], aggregated: [], top10: [], topByBranch: {} };
 let FILTERS = { branch: 'all', branch3: 'all', payMethod: 'all' };
 
 // ── 포맷 ──
@@ -321,14 +321,15 @@ async function loadData() {
   document.getElementById('error').style.display   = 'none';
   document.getElementById('filter-bar').style.display = 'none';
   try {
-    const res  = await fetch(AS_URL + '?t=' + Date.now());
+    const res  = await fetch(AS_URL + '?slim=1&t=' + Date.now());
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || '마감 데이터 없음 — 관리자에게 문의하세요');
     if (!data.aggregated?.length) throw new Error('사전집계 데이터 없음 — 대시보드에서 클라우드 저장을 다시 실행해 주세요');
 
-    RAW.employees  = data.employees  || [];
-    RAW.aggregated = data.aggregated || [];
-    RAW.top10      = data.top10      || [];
+    RAW.employees    = data.employees    || [];
+    RAW.aggregated   = data.aggregated   || [];
+    RAW.top10        = data.top10        || [];
+    RAW.topByBranch  = data.topByBranch  || {};
 
     const ts = data.lastUpdated
       ? new Date(data.lastUpdated).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -823,9 +824,25 @@ function renderBranchTable(kpis) {
 
 // ── TOP 10 ──
 function renderTop10() {
-  const top10 = RAW.top10 || [];
-  const n     = top10[0]?.months || 6;
-  document.getElementById('top10-period').textContent = `(직전 ${n}개월 월평균 · 필터 무관)`;
+  // 필터에 따라 사용할 top10 결정
+  let top10;
+  let scopeLabel;
+  if (FILTERS.branch !== 'all') {
+    // 소속사업단 선택 → 해당 사업단 TOP10
+    const byBranch = RAW.topByBranch[FILTERS.branch] || [];
+    // 소속본부 추가 선택 시 → 그 안에서 branch3 필터
+    top10 = FILTERS.branch3 !== 'all'
+      ? byBranch.filter(a => a.branch3 === FILTERS.branch3).map((a, i) => ({ ...a, rank: i + 1 }))
+      : byBranch;
+    scopeLabel = FILTERS.branch + (FILTERS.branch3 !== 'all' ? ' · ' + FILTERS.branch3 : '');
+  } else {
+    top10 = RAW.top10 || [];
+    scopeLabel = '전체';
+  }
+
+  const n = (RAW.top10[0]?.months) || 6;
+  document.getElementById('top10-period').textContent =
+    `(${scopeLabel} · 직전 ${n}개월 월평균)`;
 
   if (!top10.length) {
     document.getElementById('top10').innerHTML =
