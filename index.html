@@ -480,12 +480,12 @@ input[type=file]{display:none;}
   <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:16px;">
     <div class="glass" style="padding:20px;border-radius:16px;border:1px solid rgba(59,130,246,.3);">
       <div style="font-size:13px;font-weight:800;color:#60a5fa;margin-bottom:4px;">① 신규파일 업로드</div>
-      <div style="font-size:10px;color:#475569;margin-bottom:12px;">직원관리 · 건별실적 xlsx 드래그 또는 클릭</div>
+      <div style="font-size:10px;color:#475569;margin-bottom:12px;">직원관리 · 건별실적 · 자동실적(autosiljuk) xlsx 드래그 또는 클릭</div>
       <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
         <input type="file" id="file-input" multiple accept=".xlsx,.xls,.csv" onchange="handleFiles(this.files)">
         <div style="font-size:32px;margin-bottom:8px;">📁</div>
         <div style="font-size:12px;font-weight:700;color:#e2e8f0;">드래그 또는 클릭하여 업로드</div>
-        <div style="font-size:10px;color:#64748b;margin-top:4px;">직원관리_*.xlsx · 건별실적_*.xlsx</div>
+        <div style="font-size:10px;color:#64748b;margin-top:4px;">직원관리_*.xlsx · 건별실적_*.xlsx · autosiljuk_*.xlsx</div>
       </div>
       <button onclick="resetToCloud()" style="width:100%;margin-top:10px;background:#1e293b;border:1px solid #334155;color:#94a3b8;padding:8px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">🔄 업로드 전 데이터로 초기화</button>
     </div>
@@ -608,7 +608,7 @@ const PAY_METHODS = ['월납','연납','일시납','분기납'];
 
 // ─── STATE ───────────────────────────────────────────────
 const STATE = {
-  employees: [], performance: [], merged: [],
+  employees: [], performance: [], merged: [], monthStatus: {},
   filters: { year: new Set(), month: new Set(), branch2: new Set(), branch3: new Set(), category: new Set(), company: new Set(), payMethod: new Set() },
   filtersNone: { year:false, month:false, branch2:false, branch3:false, category:false, company:false, payMethod:false },
   slicerVals: { year:[], month:[], branch2:[], branch3:[], category:[], company:[], payMethod:[] },
@@ -1366,7 +1366,7 @@ function renderDashboard(kpis, filtered) {
   const labelC = isCompare?'당월 계약건수':isMonthly?'월평균 계약건수':'총 계약건수';
   const labelD = isCompare?'당월 활동설계사':isMonthly?'월평균 활동설계사':'활동 설계사';
   const labelE = '재직 설계사';
-  const subA   = isCompare?`${latMLabel} 확정`:isMonthly?`${mc}개월 평균 | 달성률 ${fmtP(kpis.M)}`:`목표달성률 ${fmtP(kpis.M)}`;
+  const subA   = isCompare?`${latMLabel} 기준`:isMonthly?`${mc}개월 평균 | 달성률 ${fmtP(kpis.M)}`:`목표달성률 ${fmtP(kpis.M)}`;
   const subB   = isCompare?`당월 계약 ${dispC}건`:isMonthly?`월평균 계약 ${Math.round(kpis.C/mc)}건`:`인정실적 ${fmtK(kpis.B)}`;
   const subC   = isCompare?`${latMLabel} 기준`:isMonthly?`${mc}개월 평균`:'중복제거 완료';
   const subD   = isCompare?`당월 가동률 ${fmtP(dispF)}`:isMonthly?`월평균 가동률 ${fmtP(dispF)}`:`가동률 ${fmtP(kpis.F)}`;
@@ -1384,23 +1384,32 @@ function renderDashboard(kpis, filtered) {
   const _latLabel  = _latM  ? String(_latM).slice(0,4)+'년 '+String(_latM).slice(4,6)+'월' : '최신월';
   const _prevLabel = _prevM ? String(_prevM).slice(0,4)+'년 '+String(_prevM).slice(4,6)+'월' : '전월';
 
+  // ── 당월 마감/가마감 상태 배지 (마감=건별실적 / 가마감=자동실적) ──
+  const _latStatus = (STATE.monthStatus && STATE.monthStatus[_latM])
+        || (STATE.merged.some(r => r.month===_latM && r.source==='가마감') ? '가마감' : '마감');
+  const _isProv = _latStatus === '가마감';
+  const _statusBadge = `<span style="display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:800;padding:2px 8px;border-radius:999px;background:${_isProv?'rgba(245,158,11,.15)':'rgba(34,197,94,.15)'};color:${_isProv?'#f59e0b':'#22c55e'};border:1px solid ${_isProv?'rgba(245,158,11,.45)':'rgba(34,197,94,.45)'};white-space:nowrap;">${_isProv?'🟡 가마감(자동실적)':'🟢 마감(건별실적)'}</span>`;
+
   // KPI Cards
   const combined = document.getElementById('kpi-combined');
   if (combined) combined.innerHTML = `
     <div class="kpi-card" style="border-radius:14px;padding:16px 20px;border-left:3px solid #3b82f6;">
-      <div style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;">당월 실적</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <span style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">당월 실적 · ${_latLabel}</span>
+        ${_statusBadge}
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
         <div style="padding-right:20px;">
-          <div style="font-size:9px;color:#64748b;margin-bottom:4px;">💰 ${labelA}</div>
+          <div style="font-size:9px;color:#64748b;margin-bottom:4px;">💰 ${labelA}${_isProv?' · 영수금(가마감)':''}</div>
           <div style="font-size:24px;font-weight:900;color:#3b82f6;font-variant-numeric:tabular-nums;">${fmtK(dispA)}</div>
           <div style="font-size:10px;color:#64748b;margin-top:4px;">${subA}</div>
           ${cmpHtml(latPrem,avgA,'money')}
         </div>
         <div style="padding-left:20px;border-left:1px solid rgba(255,255,255,.1);">
           <div style="font-size:9px;color:#64748b;margin-bottom:4px;">💵 ${labelB}</div>
-          <div style="font-size:24px;font-weight:900;color:#6366f1;font-variant-numeric:tabular-nums;">${fmtK(dispB)}</div>
-          <div style="font-size:10px;color:#64748b;margin-top:4px;">${subB}</div>
-          ${cmpHtml(latCred,avgB,'money')}
+          <div style="font-size:24px;font-weight:900;color:#6366f1;font-variant-numeric:tabular-nums;">${_isProv?'—':fmtK(dispB)}</div>
+          <div style="font-size:10px;color:#64748b;margin-top:4px;">${_isProv?'가마감 미확정':subB}</div>
+          ${_isProv?'':cmpHtml(latCred,avgB,'money')}
         </div>
       </div>
     </div>`;
@@ -2189,7 +2198,8 @@ async function pullFromAS(silent=false) {
     const data = await res.json();
     if (!data.employees?.length) throw new Error('데이터 없음 — Sheets 직원관리 탭 확인 또는 재배포 필요');
     STATE.employees   = data.employees;
-    STATE.performance = (data.performance || []).map(r => ({...r, month: String(r.month||'').trim(), status: '실제데이터'}));
+    STATE.monthStatus = data.monthStatus || {};
+    STATE.performance = (data.performance || []).map(r => ({...r, month: String(r.month||'').trim(), source: (r.source||'마감'), status: '실제데이터'}));
     STATE.config.isRealData = true;
     mergeData(); checkRealData(); renderAll();
     const msg = `✅ 로드 완료 — 직원 ${data.employees.length}명 · 실적 ${data.performance?.length||0}건`;
@@ -2246,14 +2256,16 @@ async function handleFiles(files) {
   const hasEmpFile  = Array.from(files).some(f => f.name.startsWith('직원관리'));
   if (hasEmpFile) STATE.employees = [];
   for (const file of Array.from(files)) {
-    const cat = file.name.startsWith('직원관리') ? '직원관리' : file.name.startsWith('건별실적') ? '건별실적' : '기타';
-    if (cat==='기타') { log(`❌ [미인식] ${file.name}: 파일명이 직원관리_ 또는 건별실적_으로 시작해야 합니다`, 'error'); continue; }
+    const _fn = file.name.toLowerCase();
+    const cat = file.name.startsWith('직원관리') ? '직원관리' : file.name.startsWith('건별실적') ? '건별실적' : _fn.startsWith('autosiljuk') ? '자동실적' : '기타';
+    if (cat==='기타') { log(`❌ [미인식] ${file.name}: 직원관리_ · 건별실적_ · autosiljuk_(자동실적) 중 하나여야 합니다`, 'error'); continue; }
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
       const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
       log(`📊 ${file.name}: ${rawRows.length}행 로드`, 'info');
       if (cat==='직원관리') parseEmployeeSheet(rawRows, file.name);
+      else if (cat==='자동실적') parseAutoSheet(rawRows, file.name);
       else                   parsePerfSheet(rawRows, file.name);
     } catch(err) { log(`❌ ${file.name}: ${err.message}`, 'error'); }
   }
@@ -2331,6 +2343,50 @@ function parsePerfSheet(rows, fname) {
   log(`✅ 건별실적 ${parsed.length}건 로드 완료 (${skipCount}행 스킵, 교체월: ${[...newMonths].join('·')})`, 'success');
   // renderAll은 handleFiles 완료 후 한 번만 호출
 }
+
+function parseAutoSheet(rows, fname) {
+  // 자동실적(가마감) — 영수금 기준. 인정실적 컬럼 없음 → credit=0 (A안: 가마감 미확정)
+  const hi = detectHeaderRow(rows, ['설계사CD','보험사','영수일자','영수금']);
+  if (hi < 0) { log(`❌ ${fname}: 자동실적 헤더(설계사CD·영수일자·영수금) 미발견`, 'error'); return; }
+  const headers = rows[hi].map(h=>String(h).trim());
+  const ix = k=>headers.indexOf(k);
+  const cat = ix('1차년환산월초') >= 0 ? '생명보험' : '손해보험';
+  const ymOf = (v) => {
+    if (v == null || v === '') return '';
+    if (v instanceof Date) return String(v.getFullYear()) + String(v.getMonth()+1).padStart(2,'0');
+    const s = String(v).trim();
+    const m = s.match(/(\d{4})[\/\-.](\d{1,2})/);
+    if (m) return m[1] + String(m[2]).padStart(2,'0');
+    const n = Number(s);
+    if (!isNaN(n) && n > 30000) { const d = new Date(Math.round((n-25569)*86400*1000)); return String(d.getFullYear())+String(d.getMonth()+1).padStart(2,'0'); }
+    return '';
+  };
+  const parsed = [];
+  for (let i=hi+1;i<rows.length;i++) {
+    const r = rows[i];
+    const agent = String(r[ix('설계사CD')]||'').trim();
+    const ym = ymOf(r[ix('영수일자')]);
+    if (!agent || !ym) continue;
+    parsed.push({
+      SUNAB_PK: 'AUTO_'+String(r[ix('보험사')]||'').trim()+'_'+String(r[ix('증권번호')]||'').trim()+'_'+i,
+      month:    ym,
+      agentId:  agent,
+      premium:  cn(r[ix('영수금')]),
+      credit:   0,
+      category: cat,
+      company:  String(r[ix('보험사')]||'').trim(),
+      payMethod:String(r[ix('납입방법')]||'월납').trim(),
+      source:   '가마감',
+      status:   '실제데이터'
+    });
+  }
+  if (!parsed.length) { log(`⚠️ ${fname}: 유효 행 0건`, 'warn'); return; }
+  const newMonths = new Set(parsed.map(p=>p.month));
+  STATE.performance = STATE.performance.filter(p => !(p.status==='실제데이터' && newMonths.has(p.month)));
+  STATE.performance = [...STATE.performance, ...parsed];
+  log(`✅ 자동실적(가마감) ${parsed.length}건 로드 — ${cat} · 교체월 ${[...newMonths].join('·')}`, 'success');
+}
+
 
 function checkRealData() {
   const hasReal = STATE.employees.some(e=>e.id) && STATE.performance.some(p=>p.status==='실제데이터');
