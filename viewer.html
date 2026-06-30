@@ -79,6 +79,7 @@ body{
   padding:11px 16px;
   display:flex;gap:14px;
   overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  position:sticky;top:88px;z-index:90;
 }
 .filter-bar::-webkit-scrollbar{display:none;}
 .f-wrap{display:flex;flex-direction:column;gap:4px;min-width:90px;}
@@ -366,6 +367,7 @@ async function loadData() {
     document.getElementById('loading').style.display     = 'none';
     document.getElementById('main').style.display        = 'block';
     document.getElementById('filter-bar').style.display  = 'flex';
+    syncFilterTop();
     renderAll();
   } catch (e) {
     document.getElementById('loading').style.display = 'none';
@@ -948,6 +950,11 @@ function renderTop10() {
       </div>
     </div>`).join('');
 }
+
+// 필터바 sticky top을 헤더 실제 높이에 맞춤 (스크롤 시 필터 가려짐 방지)
+function syncFilterTop(){ try{ const h=document.querySelector('.hdr'); const f=document.getElementById('filter-bar'); if(h&&f) f.style.top=h.offsetHeight+'px'; }catch(e){} }
+window.addEventListener('resize', syncFilterTop);
+window.addEventListener('load', ()=>{ syncFilterTop(); setTimeout(syncFilterTop,400); });
 
 loadData();
 

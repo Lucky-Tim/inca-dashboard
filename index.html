@@ -99,6 +99,7 @@ input[type=file]{display:none;}
   <!-- TAB NAV -->
   <div style="display:flex;gap:4px;margin-top:12px;overflow-x:auto;padding-bottom:2px;" id="tab-nav">
     <button class="tab-btn active" onclick="switchTab('dashboard')" id="tb-dashboard">📊 종합 대시보드</button>
+    <button class="tab-btn" onclick="switchTab('upload')" id="tb-upload">☁️ 데이터 연동</button>
     <button class="tab-btn" onclick="switchTab('action')" id="tb-action">🚨 관제센터</button>
     <button class="tab-btn" onclick="switchTab('branch')" id="tb-branch">🏢 조직분석</button>
     <button class="tab-btn" onclick="switchTab('top20')" id="tb-top20">🏆 설계사 TOP20</button>
@@ -108,13 +109,12 @@ input[type=file]{display:none;}
     <button class="tab-btn" onclick="switchTab('forecast')" id="tb-forecast">🔮 예측분석</button>
     <button class="tab-btn" onclick="switchTab('dna')" id="tb-dna">🧬 Success DNA</button>
     <button class="tab-btn" onclick="switchTab('dataview')" id="tb-dataview">🗂 마스터 데이터</button>
-    <button class="tab-btn" onclick="switchTab('upload')" id="tb-upload">☁️ 데이터 연동</button>
     <button class="tab-btn" onclick="switchTab('mcode')" id="tb-mcode">⚙️ Power Query</button>
   </div>
 </header>
 
 <!-- ── SLICERS ────────────────────────────────────── -->
-<div class="glass" style="padding:12px 20px;border-bottom:1px solid rgba(51,65,85,.4);position:sticky;top:57px;z-index:45;overflow:visible;">
+<div id="slicer-bar" class="glass" style="padding:12px 20px;border-bottom:1px solid rgba(51,65,85,.4);position:sticky;top:57px;z-index:45;overflow:visible;">
   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
     <div class="sl-wrap" id="sw-year">
       <div class="sl-label">납입연도</div>
@@ -1446,10 +1446,16 @@ function updateUnmatchedBadge() {
   else { el.classList.add('hidden'); }
 }
 
+// 슬라이서 sticky top을 헤더 실제 높이에 맞춤 (스크롤 시 필터 가려짐 방지)
+function syncStickyTops(){ try{ const h=document.querySelector('header'); const sb=document.getElementById('slicer-bar'); if(h&&sb) sb.style.top=h.offsetHeight+'px'; }catch(e){} }
+window.addEventListener('load', ()=>{ syncStickyTops(); setTimeout(syncStickyTops,400); });
+window.addEventListener('resize', syncStickyTops);
+
 function renderAll() {
   initSlicers();
   saveUIState();
   updateUnmatchedBadge();
+  syncStickyTops();
   const filtered = getFiltered();
   const kpis = calcKPIs(filtered);
   
