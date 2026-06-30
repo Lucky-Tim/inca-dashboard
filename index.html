@@ -612,6 +612,7 @@ const STATE = {
   filters: { year: new Set(), month: new Set(), branch2: new Set(), branch3: new Set(), category: new Set(), company: new Set(), payMethod: new Set() },
   filtersNone: { year:false, month:false, branch2:false, branch3:false, category:false, company:false, payMethod:false },
   slicerVals: { year:[], month:[], branch2:[], branch3:[], category:[], company:[], payMethod:[] },
+  b2ToB3: {},
   ui: { tab:'dashboard', dvPage:1, dvSearch:'', mcKey:1, viewMode:'compare' },
   config: { targetKPI: 100000000, isRealData: false, payMethodInitialized: false },
   files: []
@@ -1014,6 +1015,15 @@ function initSlicers() {
   }
   STATE.slicerVals.branch2  = [...new Set(data.map(r=>r.branch2).filter(Boolean))].sort();
   STATE.slicerVals.branch3  = [...new Set(data.map(r=>r.branch3).filter(Boolean))].sort();
+  // B2→B3 cascade 매핑 빌드
+  STATE.b2ToB3 = {};
+  data.forEach(r => {
+    const b2 = (r.branch2 || '').trim();
+    const b3 = (r.branch3 || '').trim();
+    if (!b2 || !b3) return;
+    if (!STATE.b2ToB3[b2]) STATE.b2ToB3[b2] = new Set();
+    STATE.b2ToB3[b2].add(b3);
+  });
   STATE.slicerVals.category = [...new Set(data.map(r=>r.category).filter(Boolean))].sort();
   STATE.slicerVals.company  = [...new Set(data.map(r=>r.company).filter(Boolean))].sort();
   STATE.slicerVals.payMethod= [...new Set(data.map(r=>r.payMethod).filter(Boolean))].sort();
@@ -1044,6 +1054,36 @@ function initSlicers() {
     syncCheckboxes(key);
     updateBtn(key);
   });
+}
+
+// ── 소속본부(branch3) cascade 갱신 (소속사업단 변경 시) ──────
+function updateBranch3Slicer() {
+  const sel = STATE.filters.branch2;
+  const allB3 = [...new Set(STATE.merged.map(r=>r.branch3).filter(Boolean))].sort();
+  let b3vals;
+  if (sel.size === 0) {
+    b3vals = allB3;
+  } else {
+    const b3Set = new Set();
+    sel.forEach(b2 => { (STATE.b2ToB3[b2] || new Set()).forEach(b3 => b3Set.add(b3)); });
+    b3vals = [...b3Set].sort();
+  }
+  STATE.slicerVals.branch3 = b3vals;
+  // 더이상 옵션에 없는 branch3 필터 제거
+  if (STATE.filters.branch3.size > 0) {
+    const valid = new Set(b3vals);
+    STATE.filters.branch3.forEach(v => { if (!valid.has(v)) STATE.filters.branch3.delete(v); });
+  }
+  // 리스트 재렌더링
+  const listEl = document.getElementById('sl-branch3-list');
+  if (!listEl) return;
+  listEl.innerHTML = b3vals.map(v => `
+    <label class="sl-item-row">
+      <input type="checkbox" value="${v}" onchange="toggleItem('branch3','${v}',this.checked)">
+      ${v}
+    </label>`).join('');
+  syncCheckboxes('branch3');
+  updateBtn('branch3');
 }
 
 // ── 슬라이서 핵심 함수들 ──────────────────────────────────
@@ -1095,6 +1135,7 @@ function toggleItem(key, val, checked) {
   updateBtn(key);
   updateClearBtn();
   renderAll();
+  if (key === 'branch2') updateBranch3Slicer();
 }
 
 // 전체선택 토글
@@ -1114,6 +1155,7 @@ function toggleAll(key) {
   updateBtn(key);
   updateClearBtn();
   renderAll();
+  if (key === 'branch2') updateBranch3Slicer();
 }
 
 // 차트 클릭: 특정 값만 선택
@@ -1124,6 +1166,7 @@ function selectOnly(key, val) {
   updateBtn(key);
   updateClearBtn();
   renderAll();
+  if (key === 'branch2') updateBranch3Slicer();
 }
 
 // 체크박스 상태를 Set과 동기화
