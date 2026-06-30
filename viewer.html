@@ -17,6 +17,7 @@
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="collret_data.js"></script>
 <style>
 /* ── 리셋 ── */
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
@@ -278,6 +279,23 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
     </div>
   </div>
 
+  <!-- 납입 지속성 (수금율·유지율) -->
+  <div class="sec" style="margin-top:14px;">
+    <div class="sec-ttl" style="--ac:#0ea5e9;">🩺 납입 지속성 <span id="cr-asof-v" style="font-size:11px;color:#5a3a3a;font-weight:400;margin-left:5px;"></span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;" id="cr-v-cards"></div>
+    <div id="cr-v-insight" style="font-size:12px;color:#A40000;font-weight:700;background:#fff5f5;border:1px solid #ffd9d9;border-radius:10px;padding:10px 12px;margin-bottom:12px;line-height:1.5;"></div>
+    <div class="chart-box" style="margin-bottom:10px;">
+      <div class="chart-ttl">유지율 — 회차별 (장기 급락)</div>
+      <div class="chart-sub">회차가 올라갈수록 유지율 하락 (7회 → 61회)</div>
+      <div class="chart-canvas-wrap"><canvas id="cr-ret-chart-v"></canvas></div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-ttl">응당월 수금율 — 회차별 (2~13회)</div>
+      <div class="chart-sub">그 달 응당분의 정시 납입 비율</div>
+      <div class="chart-canvas-wrap"><canvas id="cr-coll-chart-v"></canvas></div>
+    </div>
+  </div>
+
   <!-- 설계사 TOP 10 -->
   <div class="sec" style="margin-top:14px;">
     <div class="sec-ttl" style="--ac:#f59e0b;">설계사 TOP 10 <span style="font-size:11px;color:#5a3a3a;font-weight:400;margin-left:5px;" id="top10-period"></span></div>
@@ -505,6 +523,7 @@ function renderAll() {
   renderCurrentMonth(kpis);
   renderTrend(kpis);
   renderTop10();
+  renderCollRetV();
 }
 
 // ── 추세 배지 (5단계: 급성장/성장/유지/부진/위험) ──
@@ -865,6 +884,30 @@ function renderBranchTable(kpis) {
 }
 
 // ── TOP 10 ──
+function pctOptsV(label) {
+  return { responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:ctx=>label+' '+ctx.parsed.y+'%' } } },
+    scales:{ x:{ grid:{ color:'rgba(0,0,0,.06)' }, ticks:{ color:'#999', font:{ size:10 } } },
+      y:{ grid:{ color:'rgba(0,0,0,.06)' }, ticks:{ color:'#999', font:{ size:9 }, callback:v=>v+'%' } } } };
+}
+
+function renderCollRetV() {
+  const C = window.COLLECTION, R = window.RETENTION;
+  if (!C || !R) return;
+  const a = document.getElementById('cr-asof-v'); if (a) a.textContent = '(' + (C.asof||'') + ' 스냅샷)';
+  const card = (label, val, sub, color) => `<div style="background:#faf7f7;border:1px solid #eee;border-radius:12px;padding:12px 14px;text-align:center;"><div style="font-size:11px;color:#888;font-weight:700;">${label}</div><div style="font-size:26px;font-weight:900;color:${color};margin:3px 0;">${val}</div><div style="font-size:10px;color:#999;">${sub}</div></div>`;
+  document.getElementById('cr-v-cards').innerHTML =
+      card('응당월 수금율', fmtP(C.total.rate), '정시 납입 · 2~13회', C.total.rate<50?'#dc2626':'#16a34a')
+    + card('통산 유지율', fmtP(R.total.rate), '계약 유지 · 2~13회', R.total.rate>=80?'#16a34a':'#d97706');
+  document.getElementById('cr-v-insight').innerHTML = '💬 계약은 유지(' + fmtP(R.total.rate) + ')되나 정시 납입이 무너집니다(수금율 ' + fmtP(C.total.rate) + ') → 실효·환수의 <b>선행경보</b>. 장기 회차로 갈수록 유지율이 급락합니다.';
+  if (_chartReg['crRet']) _chartReg['crRet'].destroy();
+  _chartReg['crRet'] = new Chart(document.getElementById('cr-ret-chart-v'), { type:'line',
+    data:{ labels:R.hoecha.map(x=>x.h+'회'), datasets:[{ label:'유지율', data:R.hoecha.map(x=>x.rate), borderColor:'#dc2626', backgroundColor:'rgba(220,38,38,.1)', fill:true, tension:.3, pointRadius:3, pointBackgroundColor:'#dc2626' }] }, options:pctOptsV('유지율') });
+  if (_chartReg['crColl']) _chartReg['crColl'].destroy();
+  _chartReg['crColl'] = new Chart(document.getElementById('cr-coll-chart-v'), { type:'line',
+    data:{ labels:C.hoecha.map(x=>x.h+'회'), datasets:[{ label:'수금율', data:C.hoecha.map(x=>x.rate), borderColor:'#0ea5e9', backgroundColor:'rgba(14,165,233,.1)', fill:true, tension:.3, pointRadius:3, pointBackgroundColor:'#0ea5e9' }] }, options:pctOptsV('수금율') });
+}
+
 function renderTop10() {
   // 필터에 따라 사용할 top10 결정
   let top10;
