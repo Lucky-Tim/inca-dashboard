@@ -1,4 +1,4 @@
-const CACHE = 'haebing-v2';
+const CACHE = 'haebing-v3';
 const STATIC = [
   '/inca-dashboard/icon-192.png',
   '/inca-dashboard/icon-512.png',
@@ -23,9 +23,15 @@ self.addEventListener('activate', e => {
   );
 });
 
-// fetch: GAS API는 네트워크 우선, 나머지는 캐시 우선
+// fetch: GAS API는 네트워크 우선, HTML은 항상 네트워크, 나머지는 캐시 우선
 self.addEventListener('fetch', e => {
   const url = e.request.url;
+
+  // HTML 파일 → 항상 네트워크 직접 (최신 버전 보장)
+  if (url.endsWith('.html') || url.endsWith('/inca-dashboard/') || url.endsWith('/inca-dashboard')) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
 
   // Google Apps Script (데이터 API) → 네트워크 우선, 실패 시 캐시
   if (url.includes('script.google.com')) {
