@@ -327,6 +327,7 @@ async function loadData() {
     if (!data.aggregated?.length) throw new Error('사전집계 데이터 없음 — 대시보드에서 클라우드 저장을 다시 실행해 주세요');
 
     RAW.employees     = data.employees     || [];
+    RAW.monthStatus   = data.monthStatus   || {};
     RAW.aggregated    = data.aggregated    || [];
     RAW.top10         = data.top10         || [];
     RAW.topByBranch   = data.topByBranch   || {};
@@ -528,8 +529,10 @@ function renderCurrentMonth(kpis) {
   const { latM, closedMonths } = kpis;
   const yr = latM ? latM.slice(0, 4) : '';
   const mo = latM ? latM.slice(4)    : '';
-  document.getElementById('cur-month-ttl').textContent =
-    latM ? `(${yr}.${mo} 진행중)` : '';
+  const _vSt = (RAW.monthStatus && RAW.monthStatus[latM]) || '마감';
+  const _vProv = _vSt === '가마감';
+  document.getElementById('cur-month-ttl').innerHTML =
+    latM ? `(${yr}.${mo}) <span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;background:${_vProv?'rgba(245,158,11,.15)':'rgba(34,197,94,.13)'};color:${_vProv?'#b45309':'#15803d'};border:1px solid ${_vProv?'rgba(245,158,11,.5)':'rgba(34,197,94,.5)'};">${_vProv?'🟡 가마감(자동실적)':'🟢 마감(건별실적)'}</span>` : '';
 
   const agg = getAgg();
 
