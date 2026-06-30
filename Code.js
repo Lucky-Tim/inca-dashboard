@@ -103,8 +103,9 @@ function readSheetsAndCache() {
   // 사전집계 생성
   result.aggregated = buildAggregated(result.performance, result.employees);
   const topResult   = buildTop10(result.performance, result.employees);
-  result.top10      = topResult.top10;
-  result.topByBranch = topResult.topByBranch;
+  result.top10        = topResult.top10;
+  result.topByBranch  = topResult.topByBranch;
+  result.topByBranch3 = topResult.topByBranch3;
 
   // 캐시 저장 (다음 GET부터 빠르게 응답)
   writeCache(result);
@@ -182,8 +183,9 @@ function doPost(e) {
       employees,
       performance:  perfForAgg,
       aggregated:   aggData,
-      top10:        topResult.top10,
-      topByBranch:  topResult.topByBranch,
+      top10:         topResult.top10,
+      topByBranch:   topResult.topByBranch,
+      topByBranch3:  topResult.topByBranch3,
     });
 
     return json({
@@ -312,7 +314,7 @@ function buildTop10(performance, employees) {
   // 전체 TOP10
   const top10 = list.slice(0, 10).map((v, i) => ({ rank: i + 1, ...v }));
 
-  // 소속사업단(branch)별 TOP10 — 이미 전체 정렬된 list에서 분기
+  // 소속사업단(branch/b2)별 TOP10
   const byBranch = {};
   list.forEach(agent => {
     const b = agent.branch || '미분류';
@@ -324,7 +326,19 @@ function buildTop10(performance, employees) {
     topByBranch[b] = byBranch[b].slice(0, 10).map((v, i) => ({ rank: i + 1, ...v }));
   });
 
-  return { top10, topByBranch };
+  // 소속본부(branch3/b3)별 TOP10
+  const byBranch3 = {};
+  list.forEach(agent => {
+    const b3 = agent.branch3 || '직할';
+    if (!byBranch3[b3]) byBranch3[b3] = [];
+    byBranch3[b3].push(agent);
+  });
+  const topByBranch3 = {};
+  Object.keys(byBranch3).forEach(b3 => {
+    topByBranch3[b3] = byBranch3[b3].slice(0, 10).map((v, i) => ({ rank: i + 1, ...v }));
+  });
+
+  return { top10, topByBranch, topByBranch3 };
 }
 
 // ─── 파서 함수 ───────────────────────────────────────────
