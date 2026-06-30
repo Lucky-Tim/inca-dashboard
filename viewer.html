@@ -253,7 +253,7 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th>소속사업단</th>
+          <th id="cur-branch-th">소속사업단</th>
           <th style="text-align:left;padding-left:13px;">월납(인정/비중) 현황</th>
           <th style="text-align:center;">가동률</th>
           <th style="text-align:center;">추세</th>
@@ -529,10 +529,15 @@ function renderCurrentMonth(kpis) {
   const { latM, closedMonths } = kpis;
   const yr = latM ? latM.slice(0, 4) : '';
   const mo = latM ? latM.slice(4)    : '';
+  const _dl = (FILTERS.branch === 'all') ? 'branch' : 'branch3';
+  const _dlTh = _dl === 'branch' ? '소속사업단' : '소속본부';
+  const _dlShort = _dl === 'branch' ? '사업단' : '본부';
   const _vSt = (RAW.monthStatus && RAW.monthStatus[latM]) || '마감';
   const _vProv = _vSt === '가마감';
   document.getElementById('cur-month-ttl').innerHTML =
     latM ? `(${yr}.${mo}) <span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;background:${_vProv?'rgba(245,158,11,.15)':'rgba(34,197,94,.13)'};color:${_vProv?'#b45309':'#15803d'};border:1px solid ${_vProv?'rgba(245,158,11,.5)':'rgba(34,197,94,.5)'};">${_vProv?'🟡 가마감(자동실적)':'🟢 마감(건별실적)'}</span>` : '';
+  const _cbth = document.getElementById('cur-branch-th'); if (_cbth) _cbth.textContent = _dlTh;
+  if (latM) document.getElementById('cur-month-ttl').innerHTML += ` <span style="color:#94a3b8;font-size:10px;font-weight:600;">· ${_dlShort}별</span>`;
 
   const agg = getAgg();
 
@@ -540,7 +545,7 @@ function renderCurrentMonth(kpis) {
   const aggAP = getAggAllPay();
   const latActive = {};
   aggAP.filter(r => r.month === latM).forEach(r => {
-    const b = r.branch || '미분류';
+    const b = r[_dl] || '미분류';
     latActive[b] = (latActive[b] || 0) + r.activeAgents;
   });
 
@@ -548,9 +553,15 @@ function renderCurrentMonth(kpis) {
   const regEmps = (RAW.employees || []).filter(e => (e.type || '').replace(/\s/g, '') === '재직');
   const branchReg = {};
   regEmps.forEach(e => {
-    if (FILTERS.branch3 !== 'all' && (e.b3 || '').trim() !== FILTERS.branch3) return;
-    const b = (e.b2 || '').trim() || '미분류';
-    branchReg[b] = (branchReg[b] || 0) + 1;
+    if (_dl === 'branch3') {
+      if (FILTERS.branch !== 'all' && (e.b2 || '').trim() !== FILTERS.branch) return;
+      const b = (e.b3 || '').trim() || '미분류';
+      branchReg[b] = (branchReg[b] || 0) + 1;
+    } else {
+      if (FILTERS.branch3 !== 'all' && (e.b3 || '').trim() !== FILTERS.branch3) return;
+      const b = (e.b2 || '').trim() || '미분류';
+      branchReg[b] = (branchReg[b] || 0) + 1;
+    }
   });
 
   // MoM 기준: 직전 마감월 vs 전전 마감월 (안정된 완결 데이터끼리 비교)
@@ -561,7 +572,7 @@ function renderCurrentMonth(kpis) {
   const latCrMap  = {};
   const prevCrMap = {};
   agg.forEach(r => {
-    const b = r.branch || '미분류';
+    const b = r[_dl] || '미분류';
     if (r.month === latClosed)  latCrMap[b]  = (latCrMap[b]  || 0) + r.credit;
     if (r.month === prevClosed) prevCrMap[b] = (prevCrMap[b] || 0) + r.credit;
   });
@@ -576,7 +587,7 @@ function renderCurrentMonth(kpis) {
 
   const bMap = {};
   curAgg.forEach(r => {
-    const b = r.branch || '미분류';
+    const b = r[_dl] || '미분류';
     if (!bMap[b]) bMap[b] = { premium: 0, credit: 0 };
     bMap[b].premium += r.premium;
     bMap[b].credit  += r.credit;
@@ -601,10 +612,10 @@ function renderCurrentMonth(kpis) {
 
   document.getElementById('cur-branch-tbody').innerHTML = rows.map(b => {
     const rc = b.actRate < 30 ? '#dc2626' : b.actRate < 50 ? '#d97706' : '#16a34a';
-    const isSel = FILTERS.branch === b.name;
+    const _selFn = _dl === 'branch' ? 'selectBranch' : 'selectBranch3';
+    const isSel = (_dl === 'branch' ? FILTERS.branch : FILTERS.branch3) === b.name;
     return `
-    <tr onclick="selectBranch('${b.name.replace(/'/g,"\\'")}')
-" style="cursor:pointer;${isSel ? 'background:#fff0f0;' : ''}transition:background .15s;">
+    <tr onclick="${_selFn}('${b.name.replace(/'/g,"\\'")}')" style="cursor:pointer;${isSel ? 'background:#fff0f0;' : ''}transition:background .15s;">
       <td style="${isSel ? 'font-weight:800;color:#A40000;' : ''}">${isSel ? '● ' : ''}${b.name}</td>
       <td style="text-align:left;padding-left:13px;">
         <div style="font-weight:800;color:#A40000;font-size:14px;">${fmtK(b.premium)}원</div>
@@ -626,6 +637,14 @@ function selectBranch(name) {
   FILTERS.branch = newVal;
   document.getElementById('f-branch').value = newVal;
   updateBranch3Options();
+  renderAll();
+}
+
+// ── 본부(branch3) 행 클릭 → 소속본부 필터 토글 ──
+function selectBranch3(name) {
+  const newVal = FILTERS.branch3 === name ? 'all' : name;
+  FILTERS.branch3 = newVal;
+  const sel = document.getElementById('f-branch3'); if (sel) sel.value = newVal;
   renderAll();
 }
 
