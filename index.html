@@ -1054,6 +1054,8 @@ function initSlicers() {
     syncCheckboxes(key);
     updateBtn(key);
   });
+  // branch2 선택 상태면 즉시 cascade 적용 (renderAll 후 초기화 방지)
+  if (STATE.filters.branch2.size > 0) updateBranch3Slicer();
 }
 
 // ── 소속본부(branch3) cascade 갱신 (소속사업단 변경 시) ──────
