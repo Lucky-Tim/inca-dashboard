@@ -1,4 +1,4 @@
-const CACHE = 'haebing-v3';
+const CACHE = 'haebing-v4';
 const STATIC = [
   '/inca-dashboard/icon-192.png',
   '/inca-dashboard/icon-512.png',
@@ -28,8 +28,8 @@ self.addEventListener('fetch', e => {
   const url = e.request.url;
 
   // HTML 파일 → 항상 네트워크 직접 (최신 버전 보장)
-  if (url.endsWith('.html') || url.endsWith('/inca-dashboard/') || url.endsWith('/inca-dashboard')) {
-    e.respondWith(fetch(e.request));
+  if (url.endsWith('.html') || url.includes('/inca-dashboard/?') || url.endsWith('/inca-dashboard/') || url.endsWith('/inca-dashboard')) {
+    e.respondWith(fetch(e.request, { cache: 'no-store' }));
     return;
   }
 
