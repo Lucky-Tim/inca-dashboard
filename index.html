@@ -9,6 +9,7 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="org_map.js"></script>
+<script src="collret_data.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -102,6 +103,7 @@ input[type=file]{display:none;}
     <button class="tab-btn" onclick="switchTab('branch')" id="tb-branch">🏢 조직분석</button>
     <button class="tab-btn" onclick="switchTab('top20')" id="tb-top20">🏆 설계사 TOP20</button>
     <button class="tab-btn" onclick="switchTab('risk')" id="tb-risk">⚠️ 위험군 관리</button>
+    <button class="tab-btn" onclick="switchTab('collret')" id="tb-collret">💧 수금·유지율</button>
     <button class="tab-btn" onclick="switchTab('insurance')" id="tb-insurance">📋 보험종목</button>
     <button class="tab-btn" onclick="switchTab('forecast')" id="tb-forecast">🔮 예측분석</button>
     <button class="tab-btn" onclick="switchTab('dna')" id="tb-dna">🧬 Success DNA</button>
@@ -253,6 +255,30 @@ input[type=file]{display:none;}
     </div>
   </div>
 
+</div>
+
+<!-- ==================== TAB: 수금·유지율 ==================== -->
+<div id="tab-collret" class="hidden">
+  <div style="margin-bottom:14px;">
+    <div style="font-size:18px;font-weight:900;color:#fff;">💧 수금율 · 유지율 — 납입 지속성</div>
+    <div style="font-size:11px;color:#64748b;margin-top:2px;">응당월 수금율 + 통산 유지율 스냅샷 (<span id="cr-asof"></span> 기준) · 월 1회 수기 갱신 · 정시 납입과 계약 유지의 선행경보</div>
+  </div>
+  <div class="glass" style="padding:16px;border-radius:16px;margin-bottom:16px;">
+    <div style="font-size:13px;font-weight:800;color:#e2e8f0;margin-bottom:10px;">📥 응당월 수금율 <span style="font-size:10px;color:#64748b;font-weight:600;">(2~13회 합산 · 그 달 응당분의 정시 납입 비율)</span></div>
+    <div id="cr-coll-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div><div style="font-size:11px;color:#94a3b8;margin-bottom:6px;">회차별 수금율 (2~13회)</div><div style="height:230px;position:relative;"><canvas id="cr-coll-chart"></canvas></div></div>
+      <div><div style="font-size:11px;color:#94a3b8;margin-bottom:6px;">조직별 수금율 (낮은 순 = 위험)</div><div style="max-height:230px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr style="background:#0f172a;"><th style="padding:5px 8px;text-align:left;color:#64748b;">조직</th><th style="padding:5px 8px;text-align:right;color:#64748b;">대상보험료</th><th style="padding:5px 8px;text-align:center;color:#64748b;">수금율</th></tr></thead><tbody id="cr-coll-tbody"></tbody></table></div></div>
+    </div>
+  </div>
+  <div class="glass" style="padding:16px;border-radius:16px;margin-bottom:16px;">
+    <div style="font-size:13px;font-weight:800;color:#e2e8f0;margin-bottom:10px;">🛡 통산 유지율 <span style="font-size:10px;color:#64748b;font-weight:600;">(2~13회 · 계약이 해지되지 않고 유지된 비율)</span></div>
+    <div id="cr-ret-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div><div style="font-size:11px;color:#94a3b8;margin-bottom:6px;">회차별 유지율 (7→61회 · 장기 급락)</div><div style="height:230px;position:relative;"><canvas id="cr-ret-chart"></canvas></div></div>
+      <div><div style="font-size:11px;color:#94a3b8;margin-bottom:6px;">설계사별 유지율 하위 (위험 · 대상 10건+)</div><div style="max-height:230px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr style="background:#0f172a;"><th style="padding:5px 8px;text-align:left;color:#64748b;">설계사</th><th style="padding:5px 8px;text-align:right;color:#64748b;">대상</th><th style="padding:5px 8px;text-align:center;color:#64748b;">유지율</th></tr></thead><tbody id="cr-ret-tbody"></tbody></table></div></div>
+    </div>
+  </div>
 </div>
 
 <!-- ==================== TAB: ACTION CENTER ==================== -->
@@ -1348,7 +1374,7 @@ function clearAllFilters() {
 }
 
 // ─── TAB SWITCHER ────────────────────────────────────────
-const TABS = ['dashboard','action','branch','top20','risk','insurance','forecast','dna','dataview','upload','mcode'];
+const TABS = ['dashboard','action','branch','top20','risk','collret','insurance','forecast','dna','dataview','upload','mcode'];
 function switchTab(name) {
   TABS.forEach(t => {
     document.getElementById('tab-'+t)?.classList.toggle('hidden', t!==name);
@@ -1432,6 +1458,7 @@ function renderAll() {
   if (STATE.ui.tab === 'branch')      { renderBranch(filtered, kpis); }
   if (STATE.ui.tab === 'top20')       { renderTop20(filtered, kpis); }
   if (STATE.ui.tab === 'risk')        { renderRisk(); }
+  if (STATE.ui.tab === 'collret')     { renderCollRet(); }
   if (STATE.ui.tab === 'insurance')   { renderInsurance(filtered); }
   if (STATE.ui.tab === 'forecast')    { renderForecast(); }
   if (STATE.ui.tab === 'dna')         { renderDNA(); }
@@ -2295,6 +2322,37 @@ function renderDataView(filtered) {
 function dvSearch() { STATE.ui.dvSearch = document.getElementById('dv-search').value; STATE.ui.dvPage=1; renderDataView(getFiltered()); }
 
 // ─── CHART UTILITY ───────────────────────────────────────
+// ─── RENDER 수금·유지율 ───────────────────────────────────
+function renderCollRet() {
+  const C = window.COLLECTION, R = window.RETENTION;
+  if (!C || !R) return;
+  const asof = document.getElementById('cr-asof'); if (asof) asof.textContent = C.asof || '';
+  const kpi = (label, val, sub, color) => `<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:12px 14px;"><div style="font-size:9px;color:#64748b;font-weight:800;letter-spacing:.04em;">${label}</div><div style="font-size:23px;font-weight:900;color:${color};font-variant-numeric:tabular-nums;margin-top:3px;">${val}</div><div style="font-size:10px;color:#64748b;margin-top:3px;">${sub}</div></div>`;
+  const pctAxis = { scales:{ y:{ ticks:{ color:'#64748b', callback:v=>v+'%' }, grid:{ color:'rgba(255,255,255,.05)' } }, x:{ ticks:{ color:'#64748b' }, grid:{ display:false } } }, plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:ctx=>(ctx.parsed.y)+'%' } } } };
+  // 수금율 KPI
+  document.getElementById('cr-coll-kpis').innerHTML =
+      kpi('응당월 수금율', fmtP(C.total.rate), '2~13회 합산 · 금액 기준', C.total.rate<50?'#ef4444':'#22c55e')
+    + kpi('대상 보험료', fmtK(C.total.amtTgt), C.total.nTgt.toLocaleString()+'건 응당', '#60a5fa')
+    + kpi('수금 보험료', fmtK(C.total.amtCol), C.total.nCol.toLocaleString()+'건 수금', '#34d399')
+    + kpi('미수금', fmtK(C.total.amtTgt-C.total.amtCol), (C.total.nTgt-C.total.nCol).toLocaleString()+'건 미납', '#f87171');
+  makeChart('cr-coll-chart','line',{ labels:C.hoecha.map(x=>x.h+'회'), datasets:[{ label:'수금율', data:C.hoecha.map(x=>x.rate), borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.15)', fill:true, tension:.3, pointRadius:3 }] }, pctAxis);
+  document.getElementById('cr-coll-tbody').innerHTML = [...C.orgs].sort((a,b)=>a.rate-b.rate).map(o=>{
+    const rc = o.rate<25?'#f87171':o.rate<35?'#fbbf24':'#4ade80';
+    return `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:5px 8px;color:#e2e8f0;font-weight:600;">${o.org}</td><td style="padding:5px 8px;text-align:right;color:#94a3b8;font-family:monospace;">${fmtK(o.tgt)}</td><td style="padding:5px 8px;text-align:center;"><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;background:${rc}22;color:${rc};">${fmtP(o.rate)}</span></td></tr>`;
+  }).join('');
+  // 유지율 KPI
+  document.getElementById('cr-ret-kpis').innerHTML =
+      kpi('통산 유지율', fmtP(R.total.rate), '2~13회 · 금액 기준', R.total.rate>=80?'#22c55e':'#fbbf24')
+    + kpi('대상 보험료', fmtK(R.total.amtTgt), R.total.nTgt.toLocaleString()+'건', '#60a5fa')
+    + kpi('유지 보험료', fmtK(R.total.amtKeep), R.total.nKeep.toLocaleString()+'건 유지', '#34d399')
+    + kpi('실효·해지', fmtK(R.total.amtTgt-R.total.amtKeep), (R.total.nTgt-R.total.nKeep).toLocaleString()+'건 이탈', '#f87171');
+  makeChart('cr-ret-chart','line',{ labels:R.hoecha.map(x=>x.h+'회'), datasets:[{ label:'유지율', data:R.hoecha.map(x=>x.rate), borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,.12)', fill:true, tension:.3, pointRadius:3 }] }, pctAxis);
+  document.getElementById('cr-ret-tbody').innerHTML = R.agents.filter(a=>a.n>=10).sort((a,b)=>a.rate-b.rate).slice(0,15).map(a=>{
+    const rc = a.rate<60?'#f87171':a.rate<80?'#fbbf24':'#4ade80';
+    return `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:5px 8px;color:#e2e8f0;font-weight:600;">${a.name}</td><td style="padding:5px 8px;text-align:right;color:#94a3b8;">${a.n}건</td><td style="padding:5px 8px;text-align:center;"><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;background:${rc}22;color:${rc};">${fmtP(a.rate)}</span></td></tr>`;
+  }).join('');
+}
+
 function makeChart(id, type, data, options={}) {
   const canvas = document.getElementById(id);
   if (!canvas) return;
