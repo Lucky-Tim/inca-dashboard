@@ -196,10 +196,11 @@ input[type=file]{display:none;}
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;" id="kpi-grid"></div>
 
   <!-- 당월 조직별 실적현황 + 조직별 주요지표 -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;">
     <div class="glass" style="padding:16px;border-radius:16px;">
       <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:2px;">당월 조직별 실적현황</div>
       <div id="cur-month-sub" style="font-size:10px;color:#64748b;margin-bottom:10px;"></div>
+      <div style="max-height:300px;overflow-y:auto;">
       <table style="width:100%;border-collapse:collapse;font-size:11px;">
         <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
           <th id="cur-org-th" style="padding:6px 8px;text-align:left;color:#64748b;">본부</th>
@@ -208,10 +209,12 @@ input[type=file]{display:none;}
         </tr></thead>
         <tbody id="cur-month-tbody"></tbody>
       </table>
+      </div>
     </div>
     <div class="glass" style="padding:16px;border-radius:16px;">
       <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:2px;">조직별 주요지표</div>
       <div style="font-size:10px;color:#64748b;margin-bottom:10px;">월평균 인정실적(직전 6개월)·가동률·비중</div>
+      <div style="max-height:300px;overflow-y:auto;">
       <table style="width:100%;border-collapse:collapse;font-size:11px;">
         <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
           <th id="kpi-org-th" style="padding:6px 8px;text-align:left;color:#64748b;">본부</th>
@@ -221,6 +224,12 @@ input[type=file]{display:none;}
         </tr></thead>
         <tbody id="branch-kpi-tbody"></tbody>
       </table>
+      </div>
+    </div>
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:2px;">설계사 TOP 10 <span style="font-size:10px;color:#64748b;font-weight:600;">(당월순)</span></div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:10px;">당월 실적순 · 세부 월평균 인정실적</div>
+      <div style="max-height:300px;overflow-y:auto;" id="agent-top10"></div>
     </div>
   </div>
 
@@ -243,11 +252,6 @@ input[type=file]{display:none;}
     </div>
   </div>
 
-  <!-- BOTTOM ROW: 설계사 TOP5 -->
-  <div class="glass" style="padding:16px;border-radius:16px;">
-    <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:12px;">설계사 실적 TOP 5 <span style="font-size:10px;color:#64748b;font-weight:600;">(당월 실적순 · 세부 월평균 인정)</span></div>
-    <div id="agent-top5"></div>
-  </div>
 </div>
 
 <!-- ==================== TAB: ACTION CENTER ==================== -->
@@ -1676,19 +1680,25 @@ function renderDashboard(kpis, filtered) {
   const _t5n = _t5closed.length || 1;
   const agentMap = {};
   filtered.forEach(r=>{
-    if(!agentMap[r.agentId]) agentMap[r.agentId]={name:r.agentName,b2:r.branch2,type:r.agentType,latPrem:0,closedCredit:0};
+    if(!agentMap[r.agentId]) agentMap[r.agentId]={name:r.agentName,b2:r.branch2,b3:r.branch3,type:r.agentType,latPrem:0,closedCredit:0};
     if(r.month===latM) agentMap[r.agentId].latPrem += (r.premium||0);
     if(!(STATE.monthStatus && STATE.monthStatus[r.month]==='가마감')) agentMap[r.agentId].closedCredit += (r.credit||0);
   });
   const top5 = Object.values(agentMap)
-    .sort((a,b)=>b.latPrem-a.latPrem).slice(0,5)
+    .sort((a,b)=>b.latPrem-a.latPrem).slice(0,10)
     .map(a=>({...a, dispPrem:a.latPrem, sub:`월평균 인정 ${fmtK(a.closedCredit/_t5n)}`}));
-  const t5 = document.getElementById('agent-top5');
+  const t5 = document.getElementById('agent-top10');
   if (t5) t5.innerHTML = top5.map((a,i) => `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1e293b;">
-      <div style="font-size:18px;min-width:28px;text-align:center;">${i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}위`}</div>
-      <div style="flex:1;"><div style="font-size:12px;font-weight:700;color:#e2e8f0;">${a.name||''}</div><div style="font-size:10px;color:#64748b;">${a.b2||''}${a.sub?` · ${a.sub}`:''}</div></div>
-      <div style="font-size:12px;font-weight:800;color:#60a5fa;font-family:monospace;">${fmtK(a.dispPrem||0)}</div>
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #1e293b;">
+      <div style="font-size:14px;min-width:22px;text-align:center;">${i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:700;color:#e2e8f0;">${a.name||''}</div>
+        <div style="font-size:9px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.b2||''}${a.b3?' · '+a.b3:''}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:12px;font-weight:800;color:#60a5fa;font-family:monospace;">${fmtK(a.dispPrem||0)}</div>
+        <div style="font-size:9px;color:#64748b;">${a.sub||''}</div>
+      </div>
     </div>`).join('');
   const _drill = orgDrill();
   const _curTh = document.getElementById('cur-org-th'); if (_curTh) _curTh.textContent = _drill.label;
