@@ -593,12 +593,14 @@ function renderCurrentMonth(kpis) {
     bMap[b].credit  += r.credit;
   });
 
-  const totalCredit = Object.values(bMap).reduce((s, v) => s + v.credit, 0) || 1;
+  const totalCredit  = Object.values(bMap).reduce((s, v) => s + v.credit, 0) || 1;
+  const totalPremium = Object.values(bMap).reduce((s, v) => s + v.premium, 0) || 1;
 
   const rows = Object.entries(bMap)
     .filter(([k]) => k && k !== '미분류')
     .map(([name, v]) => {
-      const share   = v.credit / totalCredit * 100;
+      // 가마감월은 인정실적 0 → 비중을 월보험료(영수금) 기준
+      const share   = _vProv ? (v.premium / totalPremium * 100) : (v.credit / totalCredit * 100);
       const latCr   = latCrMap[name]  || 0;
       const prevCr  = prevCrMap[name] || 0;
       const diff    = prevCr > 0 ? (latCr / prevCr - 1) * 100 : null;
@@ -619,7 +621,7 @@ function renderCurrentMonth(kpis) {
       <td style="${isSel ? 'font-weight:800;color:#A40000;' : ''}">${isSel ? '● ' : ''}${b.name}</td>
       <td style="text-align:left;padding-left:13px;">
         <div style="font-weight:800;color:#A40000;font-size:14px;">${fmtK(b.premium)}원</div>
-        <div style="font-size:11px;color:#999;margin-top:2px;">인정 ${fmtK(b.credit)}원 &nbsp;·&nbsp; ${fmtP(b.share)}</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">${_vProv ? `비중 ${fmtP(b.share)}` : `인정 ${fmtK(b.credit)}원 &nbsp;·&nbsp; ${fmtP(b.share)}`}</div>
       </td>
       <td style="text-align:center;">
         ${b.reg > 0
