@@ -227,8 +227,8 @@ input[type=file]{display:none;}
       <div style="height:220px;position:relative;"><canvas id="ch-trend"></canvas></div>
     </div>
     <div class="glass" style="padding:16px;border-radius:16px;">
-      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">본부별 인정실적 비중</div>
-      <div style="font-size:10px;color:#64748b;margin-bottom:12px;">클릭 시 해당 본부 필터 적용</div>
+      <div id="branch-donut-title" style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">소속사업단별 인정실적 비중</div>
+      <div id="branch-donut-sub" style="font-size:10px;color:#64748b;margin-bottom:12px;">클릭 시 해당 사업단 필터 적용</div>
       <div style="height:220px;position:relative;"><canvas id="ch-branch-donut"></canvas></div>
     </div>
     <div class="glass" style="padding:16px;border-radius:16px;">
@@ -1461,13 +1461,48 @@ function renderDashboard(kpis, filtered) {
     }
   });
   
-  // Branch donut
-  const bStats = getBranchStats(filtered).filter(b=>b.premium>0).slice(0,8);
+  // Branch donut — 필터 레벨에 따라 드릴다운
+  const b2Sel = STATE.filters.branch2.size > 0;
+  const b3Sel = STATE.filters.branch3.size > 0;
+  let drillStats, drillTitle, drillSub, drillClickKey;
+  if (b3Sel) {
+    // 소속본부 선택 → 설계사별 breakdown
+    const agMap = {};
+    filtered.forEach(r => {
+      const k = r.agentName || r.agentId || '알수없음';
+      if (!agMap[k]) agMap[k] = { name: k, credit: 0 };
+      agMap[k].credit += r.credit;
+    });
+    drillStats    = Object.values(agMap).filter(a=>a.credit>0).sort((a,b)=>b.credit-a.credit).slice(0,10);
+    drillTitle    = '설계사별 인정실적 비중';
+    drillSub      = [...STATE.filters.branch3].join(', ') + ' 내';
+    drillClickKey = null;
+  } else if (b2Sel) {
+    // 소속사업단 선택 → 소속본부(b3) breakdown
+    const b3Map = {};
+    filtered.forEach(r => {
+      const k = r.branch3 || '직할';
+      if (!b3Map[k]) b3Map[k] = { name: k, credit: 0 };
+      b3Map[k].credit += r.credit;
+    });
+    drillStats    = Object.values(b3Map).filter(b=>b.credit>0).sort((a,b)=>b.credit-a.credit).slice(0,8);
+    drillTitle    = '소속본부별 인정실적 비중';
+    drillSub      = [...STATE.filters.branch2].join(', ') + ' 내 · 클릭 시 본부 필터 적용';
+    drillClickKey = 'branch3';
+  } else {
+    // 전체 → 소속사업단(b2) breakdown
+    drillStats    = getBranchStats(filtered).filter(b=>b.credit>0).slice(0,8);
+    drillTitle    = '소속사업단별 인정실적 비중';
+    drillSub      = '클릭 시 해당 사업단 필터 적용';
+    drillClickKey = 'branch2';
+  }
+  document.getElementById('branch-donut-title').textContent = drillTitle;
+  document.getElementById('branch-donut-sub').textContent   = drillSub;
   makeChart('ch-branch-donut','doughnut',{
-    labels: bStats.map(b=>b.name),
-    datasets:[{ data:bStats.map(b=>b.credit), backgroundColor:COLORS10, borderColor:'#070c16', borderWidth:3 }]
+    labels: drillStats.map(b=>b.name),
+    datasets:[{ data:drillStats.map(b=>b.credit), backgroundColor:COLORS10, borderColor:'#070c16', borderWidth:3 }]
   },{
-    onClick:(e,els)=>{ if(els.length>0){ const lbl=bStats[els[0].index].name; selectOnly('branch2',lbl); } },
+    onClick:(e,els)=>{ if(els.length>0 && drillClickKey){ const lbl=drillStats[els[0].index].name; selectOnly(drillClickKey,lbl); } },
     plugins:{ legend:{ position:'right', labels:{ color:'#94a3b8', font:{ size:9 }, boxWidth:10 } } }
   });
   
