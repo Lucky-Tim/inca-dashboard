@@ -2255,6 +2255,7 @@ async function handleFiles(files) {
   // 건별실적: 신규 파일의 월(month)과 겹치는 기존 데이터만 제거 후 교체 → 다른 달 기록은 유지
   const hasEmpFile  = Array.from(files).some(f => f.name.startsWith('직원관리'));
   if (hasEmpFile) STATE.employees = [];
+  STATE._uploadBatch = new Set();  // 같은 업로드 배치 내 이미 교체한 월 추적(손보+생보 같은 달 합치기)
   for (const file of Array.from(files)) {
     const _fn = file.name.toLowerCase();
     const cat = file.name.startsWith('직원관리') ? '직원관리' : file.name.startsWith('건별실적') ? '건별실적' : _fn.startsWith('autosiljuk') ? '자동실적' : '기타';
@@ -2336,9 +2337,15 @@ function parsePerfSheet(rows, fname) {
       status:   '실제데이터'
     });
   }
-  // 새 파일에 포함된 월(month) 집합 추출 → 해당 월의 기존 실제데이터만 제거
+  // 새 파일에 포함된 월 집합 → 배치 내 첫 등장 월만 기존 데이터 제거(같은 달 다중 파일 누적)
   const newMonths = new Set(parsed.map(p => p.month));
-  STATE.performance = STATE.performance.filter(p => !(p.status === '실제데이터' && newMonths.has(p.month)));
+  if (!STATE._uploadBatch) STATE._uploadBatch = new Set();
+  newMonths.forEach(m => {
+    if (!STATE._uploadBatch.has(m)) {
+      STATE.performance = STATE.performance.filter(p => !(p.status === '실제데이터' && p.month === m));
+      STATE._uploadBatch.add(m);
+    }
+  });
   STATE.performance = [...STATE.performance, ...parsed];
   log(`✅ 건별실적 ${parsed.length}건 로드 완료 (${skipCount}행 스킵, 교체월: ${[...newMonths].join('·')})`, 'success');
   // renderAll은 handleFiles 완료 후 한 번만 호출
@@ -2381,8 +2388,14 @@ function parseAutoSheet(rows, fname) {
     });
   }
   if (!parsed.length) { log(`⚠️ ${fname}: 유효 행 0건`, 'warn'); return; }
-  const newMonths = new Set(parsed.map(p=>p.month));
-  STATE.performance = STATE.performance.filter(p => !(p.status==='실제데이터' && newMonths.has(p.month)));
+  const newMonths = new Set(parsed.map(p => p.month));
+  if (!STATE._uploadBatch) STATE._uploadBatch = new Set();
+  newMonths.forEach(m => {
+    if (!STATE._uploadBatch.has(m)) {
+      STATE.performance = STATE.performance.filter(p => !(p.status === '실제데이터' && p.month === m));
+      STATE._uploadBatch.add(m);
+    }
+  });
   STATE.performance = [...STATE.performance, ...parsed];
   log(`✅ 자동실적(가마감) ${parsed.length}건 로드 — ${cat} · 교체월 ${[...newMonths].join('·')}`, 'success');
 }
