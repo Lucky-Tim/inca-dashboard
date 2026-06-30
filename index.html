@@ -222,7 +222,7 @@ input[type=file]{display:none;}
   <!-- CHARTS ROW -->
   <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:16px;margin-bottom:20px;">
     <div class="glass" style="padding:16px;border-radius:16px;">
-      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">월별 실적 추이 (보라=월보험료 / 초록=인정실적)</div>
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">월별 실적 추이 (현재 필터기준)</div>
       <div style="font-size:10px;color:#64748b;margin-bottom:12px;">전월대비·YoY 보조선 포함</div>
       <div style="height:220px;position:relative;"><canvas id="ch-trend"></canvas></div>
     </div>
@@ -1436,9 +1436,16 @@ function renderDashboard(kpis, filtered) {
   const tLabels = trendMonths.map(m=>monthLabel(m));
   const tCredits = trendMonths.map(m=>trendMap[m]?.credit||0);
   const tPremiums = trendMonths.map(m=>trendMap[m]?.premium||0);
-  // YoY 실데이터: STATE.merged 전체에서 전년 동월 합계
+  // YoY 실데이터: 현재 필터(branch/category/company/payMethod) 적용, 연도제한 없음
+  const _f = STATE.filters; const _fn = STATE.filtersNone;
   const allMergedMap = {};
   STATE.merged.forEach(r => {
+    if (_fn.branch2 || _fn.branch3 || _fn.category || _fn.company || _fn.payMethod) return;
+    if (_f.branch2.size  > 0 && !_f.branch2.has(r.branch2))   return;
+    if (_f.branch3.size  > 0 && !_f.branch3.has(r.branch3))   return;
+    if (_f.category.size > 0 && !_f.category.has(r.category)) return;
+    if (_f.company.size  > 0 && !_f.company.has(r.company))   return;
+    if (_f.payMethod.size> 0 && !_f.payMethod.has(r.payMethod))return;
     if (!allMergedMap[r.month]) allMergedMap[r.month] = 0;
     allMergedMap[r.month] += r.premium;
   });
