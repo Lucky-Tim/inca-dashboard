@@ -885,6 +885,13 @@ function getFiltered() {
   });
 }
 
+// ─── 규정 가동 헬퍼: 그 달 인정실적(마감)/영수금(가마감) 10만원 이상 ───
+const ACTIVE_TH = 100000;
+function _amAgg(rows){ const g={}; rows.forEach(r=>{ const id=String(r.agentId||''),m=r.month; if(!id||!m)return; const k=id+'|'+m; (g[k]=g[k]||{id,m,c:0,p:0}); g[k].c+=(+r.credit||0); g[k].p+=(+r.premium||0); }); return g; }
+function _amActive(a){ const prov=(STATE.monthStatus&&STATE.monthStatus[a.m]==='가마감'); return (prov?a.p:a.c)>=ACTIVE_TH; }
+function activeMonthMap(rows){ const g=_amAgg(rows),byMonth={},anySet=new Set(); for(const k in g){ const a=g[k]; if(_amActive(a)){ (byMonth[a.m]=byMonth[a.m]||new Set()).add(a.id); anySet.add(a.id);} } return {byMonth,anySet}; }
+function activeAgentsSingleMonth(rows){ const g=_amAgg(rows),s=new Set(); for(const k in g){ const a=g[k]; if(_amActive(a)) s.add(a.id);} return s; }
+
 // ─── KPI ENGINE ──────────────────────────────────────────
 function calcKPIs(data) {
   const rejistedEmps = STATE.employees.filter(e => e.type === '재직');
@@ -916,7 +923,8 @@ function calcKPIs(data) {
   const kpiC = data.length;
   // 가동률·활동설계사: 납입방법 필터 제외 (dataAllPay 기준) — 월납 필터가 활동 집계를 왜곡하지 않도록
   const regIdSet = new Set(registeredInFilter.map(e => String(e.id)));
-  const activeSet = new Set(dataAllPay.filter(r => r.premium > 0 && regIdSet.has(String(r.agentId))).map(r => r.agentId));
+  const _amm = activeMonthMap(dataAllPay);
+  const activeSet = new Set([..._amm.anySet].filter(id => regIdSet.has(String(id))));
   const kpiD = activeSet.size;
   const kpiE = registeredInFilter.length;
   const kpiF = kpiE > 0 ? (kpiD / kpiE * 100) : 0;
@@ -935,14 +943,7 @@ function calcKPIs(data) {
 
   const monthCount = new Set(dataAllPay.map(r=>r.month).filter(Boolean)).size || 1;
   // 월별 활동 설계사 수 → 월평균 계산용 (납입방법 필터 제외)
-  const monthActiveMap = {};
-  dataAllPay.forEach(r => {
-    if (r.premium > 0 && regIdSet.has(String(r.agentId))) {
-      if (!monthActiveMap[r.month]) monthActiveMap[r.month] = new Set();
-      monthActiveMap[r.month].add(r.agentId);
-    }
-  });
-  const monthActiveCounts = Object.values(monthActiveMap).map(s => s.size);
+  const monthActiveCounts = Object.values(_amm.byMonth).map(s => [...s].filter(id => regIdSet.has(String(id))).length);
   const avgActive = monthActiveCounts.length > 0
     ? Math.round(monthActiveCounts.reduce((a,b) => a+b, 0) / monthActiveCounts.length)
     : kpiD;
@@ -962,10 +963,14 @@ function getBranchStats(data) {
     map[k].credit  += r.credit;
     map[k].premium += r.premium;
     map[k].count++;
-    if (r.premium > 0) map[k].agentSet.add(r.agentId);
     if (r.month === latestM) map[k].latestPremium += r.premium;
     if (r.month === prevM)   map[k].prevPremium   += r.premium;
   });
+  // 규정 가동: 브랜치별 월별 인정실적(마감)/영수금(가마감) 10만↑ 활동설계사
+  { const _bam={};
+    data.forEach(r=>{ const k=r.branch2||'기타', id=String(r.agentId||''), m=r.month; if(!id||!m)return; const kk=k+'|'+id+'|'+m; (_bam[kk]=_bam[kk]||{k,id,m,c:0,p:0}); _bam[kk].c+=(+r.credit||0); _bam[kk].p+=(+r.premium||0); });
+    for(const kk in _bam){ const a=_bam[kk]; const prov=(STATE.monthStatus&&STATE.monthStatus[a.m]==='가마감'); if((prov?a.p:a.c)>=ACTIVE_TH && map[a.k]) map[a.k].agentSet.add(a.id); }
+  }
   // Attach registered count from employees
   STATE.employees.filter(e=>e.type==='재직').forEach(e => {
     const k = e.b2;
@@ -1521,7 +1526,7 @@ function renderDashboard(kpis, filtered) {
   const latF_  = filtered.filter(r => r.month === latM);
   const latPrem= latF_.reduce((s,r)=>s+(r.premium||0),0);
   const latCred= latF_.reduce((s,r)=>s+(r.credit||0),0);
-  const latActS= new Set(latF_.filter(r=>(r.premium||0)>0).map(r=>r.agentId));
+  const latActS= activeAgentsSingleMonth(latF_);
   const latD_  = latActS.size;
   const latF_R = kpis.E>0?latD_/kpis.E*100:0;
   const avgA   = mc>0?kpis.A/mc:0;
@@ -1815,10 +1820,11 @@ function renderDashboard(kpis, filtered) {
       if (last6M.has(r.month)) bkMap[b].creditClosed += r.credit || 0;
     });
     const latActByBranch = {};
-    latF_.forEach(r => {
-      const b = orgNameOf(r, _drill.level);
-      if ((r.premium||0)>0) { if(!latActByBranch[b]) latActByBranch[b]=new Set(); latActByBranch[b].add(r.agentId); }
-    });
+    { const _agg={};
+      latF_.forEach(r=>{ const id=String(r.agentId||''), b=orgNameOf(r,_drill.level); if(!id)return; const k=b+'|'+id; (_agg[k]=_agg[k]||{b,id,c:0,p:0}); _agg[k].c+=(+r.credit||0); _agg[k].p+=(+r.premium||0); });
+      const prov=(STATE.monthStatus&&STATE.monthStatus[latM]==='가마감');
+      for(const k in _agg){ const a=_agg[k]; if((prov?a.p:a.c)>=ACTIVE_TH){ (latActByBranch[a.b]=latActByBranch[a.b]||new Set()).add(a.id); } }
+    }
     const regByBranch = orgRegMap(_drill.level);
     const n6 = last6M.size || 1;
     const bkRows = Object.entries(bkMap)
