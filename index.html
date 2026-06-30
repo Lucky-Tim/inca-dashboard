@@ -202,7 +202,7 @@ input[type=file]{display:none;}
       <div id="cur-month-sub" style="font-size:10px;color:#64748b;margin-bottom:10px;"></div>
       <table style="width:100%;border-collapse:collapse;font-size:11px;">
         <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
-          <th style="padding:6px 8px;text-align:left;color:#64748b;">본부</th>
+          <th id="cur-org-th" style="padding:6px 8px;text-align:left;color:#64748b;">본부</th>
           <th style="padding:6px 8px;text-align:right;color:#64748b;">월보험료 (인정·비중)</th>
           <th style="padding:6px 8px;text-align:center;color:#64748b;">전월대비</th>
         </tr></thead>
@@ -214,7 +214,7 @@ input[type=file]{display:none;}
       <div style="font-size:10px;color:#64748b;margin-bottom:10px;">월평균 인정실적(직전 6개월)·가동률·비중</div>
       <table style="width:100%;border-collapse:collapse;font-size:11px;">
         <thead><tr style="background:#0f172a;border-bottom:1px solid #1e293b;">
-          <th style="padding:6px 8px;text-align:left;color:#64748b;">본부</th>
+          <th id="kpi-org-th" style="padding:6px 8px;text-align:left;color:#64748b;">본부</th>
           <th style="padding:6px 8px;text-align:right;color:#64748b;">월평균 인정실적<br><span style="font-size:9px;font-weight:400;">(직전 6개월)</span></th>
           <th style="padding:6px 8px;text-align:center;color:#64748b;">가동률</th>
           <th style="padding:6px 8px;text-align:center;color:#64748b;">비중</th>
@@ -635,6 +635,7 @@ function applyOrgMapToEmployees(){
     const m=orgLookup(e.id);
     if(m){ e.b2=m[0]; e.b3=m[1]; }
     else { unmatched.push({id:e.id,name:e.name}); if(!e.b2)e.b2='미배정'; if(!e.b3)e.b3='미배정'; }
+    e.b4 = (window.ORG_LV4 && window.ORG_LV4[String(e.id).trim()]) || '';
   });
   return unmatched;
 }
@@ -808,9 +809,9 @@ function mergeData() {
   // Left Outer Join (Map 조회 → O(n+m))
   STATE.merged = deduped.map(p => {
     const emp = empMap.get(String(p.agentId)) || {
-      id: p.agentId, name:'미매칭', type:'미정', b2:'기타', b3:'기타', joinDate:'20000101'
+      id: p.agentId, name:'미매칭', type:'미정', b2:'기타', b3:'기타', b4:'', joinDate:'20000101'
     };
-    return { ...p, agentName: emp.name, agentType: emp.type, branch2: emp.b2, branch3: emp.b3, joinDate: emp.joinDate };
+    return { ...p, agentName: emp.name, agentType: emp.type, branch2: emp.b2, branch3: emp.b3, branch4: emp.b4, joinDate: emp.joinDate };
   });
   // 월별 마감/가마감 상태를 실데이터에서 직접 재도출
   STATE.monthStatus = deriveMonthStatus(STATE.merged, STATE.monthStatus);
@@ -1418,6 +1419,33 @@ function renderAll() {
   if (STATE.ui.tab === 'mcode')       { renderMCode(); }
 }
 
+// ── 필터 기준 하위 조직 레벨 (전체→사업단 / 사업단선택→본부 / 본부선택→소속4) ──
+function orgDrill(){
+  const b2=STATE.filters.branch2, b3=STATE.filters.branch3;
+  if (b3 && b3.size>0) return { level:'branch4', label:'소속4' };
+  if (b2 && b2.size>0) return { level:'branch3', label:'본부' };
+  return { level:'branch2', label:'사업단' };
+}
+function orgNameOf(r, level){
+  if (level==='branch4') return (r.branch4||'').trim() || '(직할)';
+  if (level==='branch3') return (r.branch3||'').trim() || '직할';
+  return (r.branch2||r.branch1||r.branch||'').trim() || '미분류';
+}
+// 레벨별 재직 인원(가동률 분모) — 현재 사업단/본부 필터 범위 내에서 집계
+function orgRegMap(level){
+  const m={}; const b2sel=STATE.filters.branch2, b3sel=STATE.filters.branch3;
+  STATE.employees.filter(e=>e.type==='재직').forEach(e=>{
+    if (b2sel&&b2sel.size>0&&!b2sel.has((e.b2||'').trim())) return;
+    if (b3sel&&b3sel.size>0&&!b3sel.has((e.b3||'').trim())) return;
+    let k;
+    if (level==='branch4') k=(e.b4||'').trim()||'(직할)';
+    else if (level==='branch3') k=(e.b3||'').trim()||'직할';
+    else k=(e.b2||'').trim()||'미분류';
+    m[k]=(m[k]||0)+1;
+  });
+  return m;
+}
+
 // ─── RENDER DASHBOARD ────────────────────────────────────
 function renderDashboard(kpis, filtered) {
   const isMonthly = STATE.ui.viewMode === 'monthly';
@@ -1663,23 +1691,26 @@ function renderDashboard(kpis, filtered) {
       <div style="flex:1;"><div style="font-size:12px;font-weight:700;color:#e2e8f0;">${a.name||''}</div><div style="font-size:10px;color:#64748b;">${a.b2||''}${a.sub?` · ${a.sub}`:''}</div></div>
       <div style="font-size:12px;font-weight:800;color:#60a5fa;font-family:monospace;">${fmtK(a.dispPrem||0)}</div>
     </div>`).join('');
+  const _drill = orgDrill();
+  const _curTh = document.getElementById('cur-org-th'); if (_curTh) _curTh.textContent = _drill.label;
+  const _kpiTh = document.getElementById('kpi-org-th'); if (_kpiTh) _kpiTh.textContent = _drill.label;
   const curMonthSub = document.getElementById('cur-month-sub');
   const curMonthTbody = document.getElementById('cur-month-tbody');
   if (curMonthTbody) {
-    const latMLabel2 = latM ? String(latM).slice(0,4)+'년 '+String(latM).slice(4,6)+'월 진행중' : '';
+    const latMLabel2 = (latM ? String(latM).slice(0,4)+'년 '+String(latM).slice(4,6)+'월 진행중' : '') + ` · ${_drill.label}별`;
     if (curMonthSub) curMonthSub.textContent = latMLabel2;
     const sortedClosed = [...new Set(filtered.map(r=>r.month).filter(Boolean))].sort().filter(m=>m<latM);
     const latClosed  = sortedClosed[sortedClosed.length - 1];
     const prevClosed = sortedClosed[sortedClosed.length - 2];
     const latCrMap = {}, prevCrMap = {};
     filtered.forEach(r => {
-      const b = r.branch2 || r.branch1 || r.branch || '';
+      const b = orgNameOf(r, _drill.level);
       if (r.month === latClosed)  latCrMap[b]  = (latCrMap[b]  || 0) + (r.credit || 0);
       if (r.month === prevClosed) prevCrMap[b] = (prevCrMap[b] || 0) + (r.credit || 0);
     });
     const curRows = {};
     latF_.forEach(r => {
-      const b = r.branch2 || r.branch1 || r.branch || '미분류';
+      const b = orgNameOf(r, _drill.level);
       if (!curRows[b]) curRows[b] = { premium: 0, credit: 0 };
       curRows[b].premium += r.premium || 0;
       curRows[b].credit  += r.credit  || 0;
@@ -1717,19 +1748,17 @@ function renderDashboard(kpis, filtered) {
     const last6M    = new Set(allMonths.filter(m=>m<(latM||'')).slice(-6));
     const bkMap = {};
     filtered.forEach(r => {
-      const b = r.branch2 || r.branch1 || r.branch || '미분류';
+      const b = orgNameOf(r, _drill.level);
       if (!bkMap[b]) bkMap[b] = { premium:0, creditClosed:0 };
       bkMap[b].premium += r.premium || 0;
       if (last6M.has(r.month)) bkMap[b].creditClosed += r.credit || 0;
     });
     const latActByBranch = {};
     latF_.forEach(r => {
-      const b = r.branch2 || r.branch1 || r.branch || '미분류';
+      const b = orgNameOf(r, _drill.level);
       if ((r.premium||0)>0) { if(!latActByBranch[b]) latActByBranch[b]=new Set(); latActByBranch[b].add(r.agentId); }
     });
-    const regByBranch = {};
-    STATE.employees.filter(e=>e.type==='재직')
-      .forEach(e => { const b=(e.b2||'').trim()||'미분류'; regByBranch[b]=(regByBranch[b]||0)+1; });
+    const regByBranch = orgRegMap(_drill.level);
     const n6 = last6M.size || 1;
     const bkRows = Object.entries(bkMap)
       .filter(([k,v])=>k&&k!=='미분류'&&v.premium>0)
