@@ -280,7 +280,7 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
 
   <div class="footer">
     ⊕ 인카금융서비스 해빙총괄사업단<br>
-    본 자료는 마감 시점 기준 확정 데이터입니다
+    본 자료는 마감(확정)·가마감(잠정) 혼합 데이터입니다 — 당월이 가마감이면 잠정치
   </div>
 </div>
 
@@ -336,7 +336,7 @@ async function loadData() {
     const ts = data.lastUpdated
       ? new Date(data.lastUpdated).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
       : '알 수 없음';
-    document.getElementById('stamp-time').textContent = ts + ' 확정';
+    document.getElementById('stamp-time').textContent = ts + ' 갱신';
 
     initFilters();
     document.getElementById('loading').style.display     = 'none';
@@ -641,7 +641,7 @@ function renderKPICards(kpis) {
     {
       ic: '💰', lb: '당월 월보험료',
       vl: fmtK(latA) + '원',
-      sb: mLabel(latM) + ' 확정',
+      sb: mLabel(latM) + ((RAW.monthStatus && RAW.monthStatus[latM] === '가마감') ? ' · 가마감(잠정)' : ' 확정'),
       cm: cmp(latA, avgA, 'money'),
       cl: '#A40000', trend: latA >= avgA
     },
