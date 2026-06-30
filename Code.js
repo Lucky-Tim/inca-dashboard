@@ -222,6 +222,15 @@ function buildAggregated(performance, employees) {
     };
   });
 
+  // ── 규정 가동: 설계사별 월 인정실적(마감)/영수금(가마감) 10만원 이상 ──
+  const _provMonth = {}, _agm = {}, _ACT_TH = 100000;
+  (performance || []).forEach(r => {
+    const m = String(r.month || '').trim(); const id = String(r.agentId || ''); if (!m) return;
+    if ((r.source || '').toString().trim() === '가마감') _provMonth[m] = true;
+    if (id) { const k = id + '|' + m; if (!_agm[k]) _agm[k] = { c:0, p:0 }; _agm[k].c += (Number(r.credit)||0); _agm[k].p += (Number(r.premium)||0); }
+  });
+  function _gActive(id, m){ const a = _agm[id + '|' + m]; if (!a) return false; return (_provMonth[m] ? a.p : a.c) >= _ACT_TH; }
+
   const map = {};
   (performance || []).forEach(r => {
     const month   = String(r.month  || '').trim();
@@ -244,7 +253,7 @@ function buildAggregated(performance, employees) {
     v.premium += pre;
     v.credit  += cre;
     v.count   += 1;
-    if (pre > 0 && r.agentId) {
+    if (r.agentId && _gActive(String(r.agentId), month)) {
       v.activeSet[String(r.agentId)] = true;
     }
   });
