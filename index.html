@@ -61,6 +61,10 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:#070c16;color:
 .sl-all-row:hover{background:rgba(30,41,59,.6);}
 .sl-item-row{display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:11px;color:#94a3b8;cursor:pointer;border-radius:6px;transition:background .1s;}
 .sl-item-row:hover{background:#1e293b;color:#e2e8f0;}
+.sl-tree-head{display:flex;align-items:center;gap:6px;padding:6px 10px 4px;font-size:10.5px;font-weight:800;color:#7dd3fc;cursor:pointer;border-top:1px solid #1e293b;margin-top:2px;letter-spacing:-.2px;}
+.sl-tree-head:first-child{border-top:none;margin-top:0;}
+.sl-tree-head:hover{color:#bae6fd;}
+.sl-tree-item{padding-left:22px;}
 .sl-all-row input,.sl-item-row input{accent-color:#3b82f6;width:13px;height:13px;cursor:pointer;flex-shrink:0;}
 input[type=file]{display:none;}
 .hidden{display:none!important;}
@@ -808,6 +812,19 @@ function mergeData() {
     };
     return { ...p, agentName: emp.name, agentType: emp.type, branch2: emp.b2, branch3: emp.b3, joinDate: emp.joinDate };
   });
+  // 월별 마감/가마감 상태를 실데이터에서 직접 재도출
+  STATE.monthStatus = deriveMonthStatus(STATE.merged, STATE.monthStatus);
+}
+
+// ── 월별 마감/가마감 상태: 데이터에서 직접 도출 ──
+// 가마감 = 그 달에 자동실적(source='가마감') 행만 있고 건별실적(마감) 행이 없는 경우만.
+// 건별실적이 1건이라도 있으면 마감으로 확정 → 이전월(건별 보유)은 항상 마감.
+function deriveMonthStatus(rows, base){
+  const prov={}, fin={};
+  (rows||[]).forEach(r=>{ const m=r.month; if(!m) return; if(r.source==='가마감') prov[m]=true; else fin[m]=true; });
+  const st = Object.assign({}, base||{});
+  new Set([...Object.keys(prov), ...Object.keys(fin)]).forEach(m=>{ st[m] = (prov[m] && !fin[m]) ? '가마감' : '마감'; });
+  return st;
 }
 
 // ─── FILTER ──────────────────────────────────────────────
@@ -1132,34 +1149,55 @@ function initSlicers() {
   if (STATE.filters.branch2.size > 0) updateBranch3Slicer();
 }
 
-// ── 소속본부(branch3) cascade 갱신 (소속사업단 변경 시) ──────
+// ── 소속본부(branch3) cascade + 트리 렌더 (소속사업단 변경 시) ──────
+// 소속사업단 선택 시 해당 사업단의 본부를 '사업단 헤더 + 들여쓰기 본부' 트리로 노출
 function updateBranch3Slicer() {
   const sel = STATE.filters.branch2;
-  const allB3 = [...new Set(STATE.merged.map(r=>r.branch3).filter(Boolean))].sort();
-  let b3vals;
-  if (sel.size === 0) {
-    b3vals = allB3;
-  } else {
-    const b3Set = new Set();
-    sel.forEach(b2 => { (STATE.b2ToB3[b2] || new Set()).forEach(b3 => b3Set.add(b3)); });
-    b3vals = [...b3Set].sort();
-  }
+  // 표시 대상 사업단: 선택된 사업단(있으면) / 없으면 전체
+  let sadanList = (sel.size > 0) ? [...sel] : Object.keys(STATE.b2ToB3 || {});
+  sadanList = sadanList.filter(b2 => STATE.b2ToB3[b2] && STATE.b2ToB3[b2].size).sort();
+  // 평면 본부 목록 (유효성 정리용)
+  const b3Set = new Set();
+  sadanList.forEach(b2 => (STATE.b2ToB3[b2] || new Set()).forEach(b3 => b3Set.add(b3)));
+  const b3vals = [...b3Set].sort();
   STATE.slicerVals.branch3 = b3vals;
-  // 더이상 옵션에 없는 branch3 필터 제거
   if (STATE.filters.branch3.size > 0) {
     const valid = new Set(b3vals);
     STATE.filters.branch3.forEach(v => { if (!valid.has(v)) STATE.filters.branch3.delete(v); });
   }
-  // 리스트 재렌더링
   const listEl = document.getElementById('sl-branch3-list');
   if (!listEl) return;
-  listEl.innerHTML = b3vals.map(v => `
-    <label class="sl-item-row">
-      <input type="checkbox" value="${v}" onchange="toggleItem('branch3','${v}',this.checked)">
-      ${v}
-    </label>`).join('');
+  // 사업단 헤더 + 본부(들여쓰기) 트리
+  listEl.innerHTML = sadanList.map(b2 => {
+    const b3s = [...(STATE.b2ToB3[b2] || new Set())].sort();
+    if (!b3s.length) return '';
+    const safe = b2.replace(/'/g, "\\'");
+    const head = `<div class="sl-tree-head" onclick="toggleSadanGroup('${safe}')">▸ ${b2} <span style="opacity:.55;font-weight:600;">(${b3s.length})</span></div>`;
+    const items = b3s.map(v => `<label class="sl-item-row sl-tree-item"><input type="checkbox" value="${v}" onchange="toggleItem('branch3','${v.replace(/'/g,"\\'")}',this.checked)"> ${v}</label>`).join('');
+    return head + items;
+  }).join('');
   syncCheckboxes('branch3');
   updateBtn('branch3');
+}
+
+// 사업단 그룹 헤더 클릭 → 그 사업단의 본부 전체 토글
+function toggleSadanGroup(b2) {
+  const b3s = [...(STATE.b2ToB3[b2] || new Set())];
+  if (!b3s.length) return;
+  const key = 'branch3', f = STATE.filters[key], allVals = STATE.slicerVals[key] || [];
+  let sel;
+  if (STATE.filtersNone[key]) sel = new Set();
+  else if (f.size === 0)      sel = new Set(allVals);
+  else                        sel = new Set(f);
+  const allIn = b3s.every(v => sel.has(v));
+  if (allIn) b3s.forEach(v => sel.delete(v)); else b3s.forEach(v => sel.add(v));
+  if (sel.size === 0) { STATE.filtersNone[key] = true;  f.clear(); }
+  else if (sel.size >= allVals.length) { STATE.filtersNone[key] = false; f.clear(); }
+  else { STATE.filtersNone[key] = false; f.clear(); sel.forEach(v => f.add(v)); }
+  syncCheckboxes(key);
+  updateBtn(key);
+  updateClearBtn();
+  renderAll();
 }
 
 // ── 슬라이서 핵심 함수들 ──────────────────────────────────
@@ -1183,30 +1221,21 @@ function closeAllPanels() {
   document.querySelectorAll('.sl-btn').forEach(b => b.classList.remove('open'));
 }
 
-// 개별 항목 체크박스 토글
+// 개별 항목 체크박스 토글 (명시적 none-state — 마지막 항목 해제 시 '선택 없음')
 function toggleItem(key, val, checked) {
   const f = STATE.filters[key];
-  const allVals = STATE.slicerVals[key];
-  // 개별 항목 클릭 시 filtersNone 리셋
-  if (STATE.filtersNone[key]) {
-    STATE.filtersNone[key] = false;
-    f.clear();
-    // 클릭한 항목 하나만 선택
-    f.add(val);
-    syncCheckboxes(key); updateBtn(key); updateClearBtn(); renderAll();
-    return;
-  }
-  if (checked) {
-    f.add(val);
-    if (f.size >= allVals.length) f.clear(); // 전체 선택 = 필터 없음
-  } else {
-    if (f.size === 0) {
-      // 전체 상태에서 하나 제외
-      allVals.filter(v => v !== val).forEach(v => f.add(v));
-    } else {
-      f.delete(val);
-    }
-  }
+  const allVals = STATE.slicerVals[key] || [];
+  // 현재 '선택된 값' 집합을 명시적으로 구성 (빈 Set=전체 → 모두 선택으로 펼침)
+  let sel;
+  if (STATE.filtersNone[key]) sel = new Set();
+  else if (f.size === 0)      sel = new Set(allVals);
+  else                        sel = new Set(f);
+  // 토글
+  if (checked) sel.add(val); else sel.delete(val);
+  // 결과를 상태로 환원
+  if (sel.size === 0) { STATE.filtersNone[key] = true;  f.clear(); }
+  else if (sel.size >= allVals.length) { STATE.filtersNone[key] = false; f.clear(); }
+  else { STATE.filtersNone[key] = false; f.clear(); sel.forEach(v => f.add(v)); }
   syncCheckboxes(key);
   updateBtn(key);
   updateClearBtn();
@@ -1270,6 +1299,11 @@ function updateBtn(key) {
   const btn = document.getElementById('sl-' + key + '-btn');
   if (!btn) return;
   const arr = '<span class="arr">▾</span>';
+  if (STATE.filtersNone && STATE.filtersNone[key]) {
+    btn.innerHTML = '선택 없음 ' + arr;
+    btn.classList.add('active');
+    return;
+  }
   if (f.size === 0) {
     btn.innerHTML = '전체 ' + arr;
     btn.classList.remove('active');
@@ -1296,7 +1330,7 @@ function applyFilter(key, val) {
 function clearAllFilters() {
   Object.keys(STATE.filters).forEach(k => STATE.filters[k].clear());
   Object.keys(STATE.filtersNone).forEach(k => STATE.filtersNone[k] = false);
-  ['year','month','branch2','category','company','payMethod'].forEach(key => {
+  ['year','month','branch2','branch3','category','company','payMethod'].forEach(key => {
     syncCheckboxes(key);
     updateBtn(key);
   });
@@ -1355,7 +1389,7 @@ function loadUIState() {
     // 기본값 자동 적용 플래그 비활성화 (저장된 상태 우선)
     // year가 비어있으면(전체) 2026 자동선택 허용
     STATE.config.yearInitialized      = (s.filters?.year?.length > 0);
-    STATE.config.payMethodInitialized = true;
+    STATE.config.payMethodInitialized = ((s.filters?.payMethod?.length || 0) > 0) || !!(s.filtersNone && s.filtersNone.payMethod);
     return true;
   } catch(e) { return false; }
 }
@@ -2411,6 +2445,7 @@ function parsePerfSheet(rows, fname) {
       category: String(r[ix('보험종목')]||'').trim(),
       company:  String(r[ix('보험회사')]||'').trim(),
       payMethod:String(r[ix('납입방법')]||'월납').trim(),
+      source:   '마감',
       status:   '실제데이터'
     });
   }
