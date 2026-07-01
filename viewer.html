@@ -60,6 +60,7 @@ body{
 .ref-btn:active{background:#FFF0F0;}
 @media print {
   .ref-btn { display:none !important; }
+  .filter-bar { display:none !important; }
   body { background:#fff !important; }
   .sec, .chart-box { break-inside:avoid; }
 }
@@ -85,15 +86,18 @@ body{
 .stamp-tm{font-size:12px;color:#888;}
 
 /* ── 필터바 ── */
+.filter-topbar{background:#F7F4F4;border-bottom:1px solid #E8E0E0;padding:8px 16px;position:sticky;z-index:90;}
+.filter-toggle{display:flex;align-items:center;gap:8px;width:100%;background:#fff;border:1px solid #E0D0D0;border-radius:9px;padding:9px 13px;font-family:inherit;cursor:pointer;}
+.filter-toggle .ft-ic{color:#A40000;font-weight:800;font-size:13px;white-space:nowrap;}
+.filter-toggle .ft-sum{flex:1;text-align:left;color:#666;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.filter-toggle .ft-caret{color:#A40000;font-size:12px;transition:transform .2s;}
+.filter-toggle.open .ft-caret{transform:rotate(180deg);}
 .filter-bar{
-  background:#F7F4F4;
+  background:#FCFAFA;
   border-bottom:1px solid #E8E0E0;
-  padding:11px 16px;
-  display:flex;gap:14px;
-  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
-  position:sticky;top:88px;z-index:90;
+  padding:12px 16px;
+  display:flex;gap:12px 14px;flex-wrap:wrap;
 }
-.filter-bar::-webkit-scrollbar{display:none;}
 .f-wrap{display:flex;flex-direction:column;gap:4px;min-width:90px;}
 .f-lb{font-size:11px;color:#A40000;font-weight:700;white-space:nowrap;letter-spacing:.03em;}
 .f-sel{
@@ -105,6 +109,8 @@ body{
   cursor:pointer;-webkit-appearance:none;appearance:none;width:100%;
 }
 .f-sel:focus{outline:none;border-color:#A40000;}
+.tipq{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:rgba(164,0,0,.12);color:#A40000;font-size:9px;font-weight:800;cursor:pointer;vertical-align:middle;margin-left:3px;line-height:1;}
+.tipq:active{background:rgba(164,0,0,.25);}
 
 /* ── 섹션 ── */
 .sec{padding:14px 16px 0;}
@@ -234,6 +240,7 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
       <div class="logo-sb" style="margin-top:2px;">총괄사업단 운영현황</div>
     </div>
     <button class="ref-btn" onclick="loadData()">갱신</button>
+    <button class="ref-btn" onclick="shareView()" style="margin-left:6px;">🔗 공유</button>
     <button class="ref-btn" onclick="window.print()" style="margin-left:6px;">🖨 인쇄</button>
   </div>
   <div class="stamp">
@@ -243,6 +250,13 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
 </div>
 
 <!-- ── 필터바 ── -->
+<div class="filter-topbar" id="filter-topbar" style="display:none;">
+  <button class="filter-toggle" id="filter-toggle" onclick="toggleFilters()">
+    <span class="ft-ic">🔎 필터</span>
+    <span class="ft-sum" id="filter-summary"></span>
+    <span class="ft-caret">▾</span>
+  </button>
+</div>
 <div class="filter-bar" id="filter-bar" style="display:none;">
   <div class="f-wrap" style="min-width:76px;">
     <div class="f-lb">납입연도</div>
@@ -344,6 +358,19 @@ const AS_URL = 'https://script.google.com/macros/s/AKfycbyM-Yhnt6nqkV2Nwk-iDjHud
 
 let RAW = { employees: [], aggregated: [], top10: [], topByBranch: {}, topByBranch3: {} };
 let FILTERS = { branch: 'all', branch3: 'all', payMethod: 'all', year: 'all', month: 'all' };
+const TIPDEFS={prem:'당월 신계약 월납환산 보험료입니다. 마감(건별 확정) + 잠정(가마감 예상)을 합산한 값이에요.',cnt:'당월 신계약 건수. 증권번호 기준으로 중복을 제거했습니다.',prod:'생산성 = 당월 월보험료 ÷ 활동설계사 수. 활동설계사 1인당 실적입니다.',act:'당월 실적이 1건이라도 있는 설계사 수입니다 (납입방법 무관).',gadong:'규정 가동 기준 — 그 달 인정실적 10만원 이상 거수한 설계사 비율입니다.',ret:'통산 유지율(2~13회). 계약이 실효·해지되지 않고 유지된 비율. 소속을 선택하면 인별(계약수 가중)로 계산됩니다.'};
+function _tipK(e){ e.stopPropagation(); const k=e.currentTarget.dataset.tip; const txt=TIPDEFS[k]; if(!txt) return;
+  let t=document.getElementById('_tipbox');
+  if(!t){ t=document.createElement('div'); t.id='_tipbox'; t.style.cssText='position:fixed;z-index:99999;max-width:250px;background:#2a1a1a;color:#fff;font-size:11.5px;line-height:1.55;padding:10px 12px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.35);'; document.body.appendChild(t); }
+  t.textContent=txt;
+  const r=e.currentTarget.getBoundingClientRect();
+  t.style.left=Math.max(8,Math.min(r.left, window.innerWidth-262))+'px';
+  t.style.top=(r.bottom+8)+'px'; t.style.display='block';
+}
+document.addEventListener('click',function(ev){ const t=document.getElementById('_tipbox'); if(t && !(ev.target.classList&&ev.target.classList.contains('tipq'))) t.style.display='none'; });
+window.addEventListener('scroll',function(){ const t=document.getElementById('_tipbox'); if(t) t.style.display='none'; }, true);
+async function shareView(){ const url=location.href; try{ if(navigator.share){ await navigator.share({title:'해빙 경영현황', url:url}); } else { await navigator.clipboard.writeText(url); alert('링크가 복사되었습니다'); } }catch(e){} }
+
 
 // ── 포맷 ──
 function fmtK(n) {
@@ -386,7 +413,9 @@ async function loadData() {
     initFilters();
     document.getElementById('loading').style.display     = 'none';
     document.getElementById('main').style.display        = 'block';
-    document.getElementById('filter-bar').style.display  = 'flex';
+    document.getElementById('filter-topbar').style.display = 'block';
+    document.getElementById('filter-bar').style.display  = 'none';
+    updateFilterSummary();
     syncFilterTop();
     renderAll();
   } catch (e) {
@@ -482,6 +511,7 @@ function applyFilters() {
     FILTERS.branch3 = document.getElementById('f-branch3').value;
   }
 
+  updateFilterSummary();
   renderAll();
 }
 
@@ -749,7 +779,7 @@ function renderKPICards(kpis) {
   const rc   = latF < 50 ? '#d97706' : latF < 70 ? '#f59e0b' : '#f87171';
   const defs = [
     {
-      ic: '💰', lb: '당월 월보험료',
+      ic: '💰', lb: '당월 월보험료', tip:'prem',
       vl: fmtK(latA) + '원',
       sb: (latProvPrem > 0
              ? `마감 ${fmtK(latA - latProvPrem)} + 잠정 ${fmtK(latProvPrem)}`
@@ -758,21 +788,21 @@ function renderKPICards(kpis) {
       cl: '#A40000', trend: latA >= avgA
     },
     {
-      ic: '📋', lb: '당월 계약건수',
+      ic: '📋', lb: '당월 계약건수', tip:'cnt',
       vl: Math.round(latC).toLocaleString() + '건',
       sb: '중복제거 완료',
       cm: cmp(latC, avgC, 'cnt'),
       cl: '#A40000', trend: latC >= avgC
     },
     {
-      ic: '📈', lb: '당월 생산성',
+      ic: '📈', lb: '당월 생산성', tip:'prod',
       vl: fmtK(latProd) + '원',
       sb: '활동설계사 1인당',
       cm: cmp(latProd, avgProd, 'money'),
       cl: '#A40000', trend: latProd >= avgProd
     },
     {
-      ic: '🏃', lb: '당월 활동설계사',
+      ic: '🏃', lb: '당월 활동설계사', tip:'act',
       vl: latD + '명',
       sb: '납입방법 무관',
       cm: cmp(latD, avgD, 'person'),
@@ -786,7 +816,7 @@ function renderKPICards(kpis) {
       cl: '#A40000', trend: null
     },
     {
-      ic: '⚡', lb: '당월 가동률',
+      ic: '⚡', lb: '당월 가동률', tip:'gadong',
       vl: fmtP(latF),
       sb: latD + '명 / ' + latE + '명',
       cm: cmp(latF, avgF, 'pct'),
@@ -807,7 +837,7 @@ function renderKPICards(kpis) {
     return `
     <div class="kc${k.wide ? ' wide' : ''}" style="--kc-bg:${bg};--kc-bd:${bd};--kc-cl:${cl};">
       <div class="kc-ic">${k.ic}</div>
-      <div class="kc-lb">${k.lb}</div>
+      <div class="kc-lb">${k.lb}${k.tip?` <span class="tipq" data-tip="${k.tip}" onclick="_tipK(event)">?</span>`:''}</div>
       <div class="kc-vl">${k.vl}</div>
       ${k.rate != null ? `<div class="rate-bg"><div class="rate-fg" style="width:${Math.min(k.rate, 100)}%"></div></div>` : ''}
       <div class="kc-sb">${k.sb}</div>
@@ -985,7 +1015,7 @@ function renderCollRetV() {
   const _rRate = _vret.rate;
   const _rSub = _vret.scoped ? '계약 유지 · 소속 인별 가중' : '계약 유지 · 2~13회';
   document.getElementById('cr-v-cards').innerHTML =
-      card('통산 유지율', _rRate==null?'—':fmtP(_rRate), _rSub, (_rRate>=80)?'#16a34a':'#d97706');
+      card('통산 유지율 <span class="tipq" data-tip="ret" onclick="_tipK(event)">?</span>', _rRate==null?'—':fmtP(_rRate), _rSub, (_rRate>=80)?'#16a34a':'#d97706');
   document.getElementById('cr-v-insight').innerHTML = '💬 통산 유지율 ' + (_rRate==null?'—':fmtP(_rRate)) + ' — 회차가 올라갈수록 유지율이 급락합니다 (장기 이탈 <b>선행경보</b>).';
   if (_chartReg['crRet']) _chartReg['crRet'].destroy();
   _chartReg['crRet'] = new Chart(document.getElementById('cr-ret-chart-v'), { type:'line',
@@ -1037,7 +1067,24 @@ function renderTop10() {
 }
 
 // 필터바 sticky top을 헤더 실제 높이에 맞춤 (스크롤 시 필터 가려짐 방지)
-function syncFilterTop(){ try{ const h=document.querySelector('.hdr'); const f=document.getElementById('filter-bar'); if(h&&f) f.style.top=h.offsetHeight+'px'; }catch(e){} }
+function toggleFilters(force){
+  const p=document.getElementById('filter-bar'), t=document.getElementById('filter-toggle');
+  const isOpen = p.style.display!=='none' && p.style.display!=='';
+  const open = (force!==undefined) ? force : !isOpen;
+  p.style.display = open ? 'flex' : 'none';
+  if(t) t.classList.toggle('open', open);
+}
+function updateFilterSummary(){
+  const el=document.getElementById('filter-summary'); if(!el) return;
+  const parts=[];
+  parts.push(FILTERS.year==='all'?'전체 연도':FILTERS.year+'년');
+  if(FILTERS.month && FILTERS.month!=='all') parts.push(parseInt(FILTERS.month,10)+'월');
+  if(FILTERS.branch && FILTERS.branch!=='all') parts.push(FILTERS.branch);
+  if(FILTERS.branch3 && FILTERS.branch3!=='all') parts.push(FILTERS.branch3);
+  parts.push(FILTERS.payMethod==='all'?'전체 납입':FILTERS.payMethod);
+  el.textContent=parts.join(' · ');
+}
+function syncFilterTop(){ try{ const h=document.querySelector('.hdr'); const f=document.getElementById('filter-topbar'); if(h&&f) f.style.top=h.offsetHeight+'px'; }catch(e){} }
 window.addEventListener('resize', syncFilterTop);
 window.addEventListener('load', ()=>{ syncFilterTop(); setTimeout(syncFilterTop,400); });
 
