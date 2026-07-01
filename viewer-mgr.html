@@ -323,14 +323,14 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
   <!-- 납입 지속성 (수금율·유지율) -->
   <div class="sec" style="margin-top:14px;">
     <div class="sec-ttl" style="--ac:#0ea5e9;">🩺 납입 지속성 <span id="cr-asof-v" style="font-size:11px;color:#5a3a3a;font-weight:400;margin-left:5px;"></span></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;" id="cr-v-cards"></div>
+    <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px;" id="cr-v-cards"></div>
     <div id="cr-v-insight" style="font-size:12px;color:#A40000;font-weight:700;background:#fff5f5;border:1px solid #ffd9d9;border-radius:10px;padding:10px 12px;margin-bottom:12px;line-height:1.5;"></div>
     <div class="chart-box" style="margin-bottom:10px;">
       <div class="chart-ttl">유지율 — 회차별 (장기 급락)</div>
       <div class="chart-sub">회차가 올라갈수록 유지율 하락 (7회 → 61회)</div>
       <div class="chart-canvas-wrap"><canvas id="cr-ret-chart-v"></canvas></div>
     </div>
-    <div class="chart-box">
+    <div class="chart-box" style="display:none;">
       <div class="chart-ttl">응당월 수금율 — 회차별 (2~13회)</div>
       <div class="chart-sub">그 달 응당분의 정시 납입 비율</div>
       <div class="chart-canvas-wrap"><canvas id="cr-coll-chart-v"></canvas></div>
@@ -1006,9 +1006,8 @@ function renderCollRetV() {
   const _rRate = _vret.rate;
   const _rSub = _vret.scoped ? '계약 유지 · 소속 인별 가중' : '계약 유지 · 2~13회';
   document.getElementById('cr-v-cards').innerHTML =
-      card('응당월 수금율', fmtP(C.total.rate), '정시 납입 · 2~13회' + (_vret.scoped?' · 전사기준':''), C.total.rate<50?'#dc2626':'#16a34a')
-    + card('통산 유지율', _rRate==null?'—':fmtP(_rRate), _rSub, (_rRate>=80)?'#16a34a':'#d97706');
-  document.getElementById('cr-v-insight').innerHTML = '💬 계약은 유지(' + (_rRate==null?'—':fmtP(_rRate)) + ')되나 정시 납입이 무너집니다(수금율 ' + fmtP(C.total.rate) + ' · 전사) → 실효·환수의 <b>선행경보</b>. 장기 회차로 갈수록 유지율이 급락합니다.';
+      card('통산 유지율', _rRate==null?'—':fmtP(_rRate), _rSub, (_rRate>=80)?'#16a34a':'#d97706');
+  document.getElementById('cr-v-insight').innerHTML = '💬 통산 유지율 ' + (_rRate==null?'—':fmtP(_rRate)) + ' — 회차가 올라갈수록 유지율이 급락합니다 (장기 이탈 <b>선행경보</b>).';
   if (_chartReg['crRet']) _chartReg['crRet'].destroy();
   _chartReg['crRet'] = new Chart(document.getElementById('cr-ret-chart-v'), { type:'line',
     data:{ labels:R.hoecha.map(x=>x.h+'회'), datasets:[{ label:'유지율', data:R.hoecha.map(x=>x.rate), borderColor:'#dc2626', backgroundColor:'rgba(220,38,38,.1)', fill:true, tension:.3, pointRadius:3, pointBackgroundColor:'#dc2626' }] }, options:pctOptsV('유지율') });
