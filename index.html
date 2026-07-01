@@ -1641,23 +1641,23 @@ function renderDashboard(kpis, filtered) {
   // KPI Cards
   const combined = document.getElementById('kpi-combined');
   if (combined) combined.innerHTML = `
-    <div class="kpi-card" style="border-radius:14px;padding:16px 20px;border-left:3px solid #3b82f6;">
+    <div class="kpi-card" style="border-radius:16px;padding:22px 28px;border-left:4px solid #3b82f6;">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-        <span style="font-size:9px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">당월 실적 · ${_latLabel}</span>
+        <span style="font-size:12px;font-weight:800;color:#cbd5e1;letter-spacing:.03em;">당월 실적 · ${_latLabel}</span>
         ${_statusBadge}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
-        <div style="padding-right:20px;">
-          <div style="font-size:9px;color:#64748b;margin-bottom:4px;">💰 ${labelA}</div>
-          <div style="font-size:24px;font-weight:900;color:#3b82f6;font-variant-numeric:tabular-nums;">${fmtK(dispA)}</div>
-          <div style="font-size:10px;color:#64748b;margin-top:4px;">${(isCompare&&_hasEst)?`마감 ${fmtK(_confPrem)} <span style="color:#f59e0b;">+ 잠정 ${fmtK(_estPrem)}</span>`:subA}</div>
-          ${cmpHtml(latPrem,avgA,'money')}
+        <div style="padding-right:28px;">
+          <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px;">💰 ${labelA}</div>
+          <div style="font-size:38px;font-weight:900;color:#60a5fa;font-variant-numeric:tabular-nums;line-height:1.05;">${fmtK(dispA)}</div>
+          <div style="font-size:12px;color:#94a3b8;margin-top:7px;">${(isCompare&&_hasEst)?`마감 ${fmtK(_confPrem)} <span style="color:#fbbf24;font-weight:700;">+ 잠정 ${fmtK(_estPrem)}</span>`:subA}</div>
+          <div style="margin-top:6px;">${cmpHtml(latPrem,avgA,'money')}</div>
         </div>
-        <div style="padding-left:20px;border-left:1px solid rgba(255,255,255,.1);">
-          <div style="font-size:9px;color:#64748b;margin-bottom:4px;">💵 ${labelB}${_estTag}</div>
-          <div style="font-size:24px;font-weight:900;color:#6366f1;font-variant-numeric:tabular-nums;">${fmtK(dispB)}</div>
-          <div style="font-size:10px;color:#64748b;margin-top:4px;">${(isCompare&&_hasEst)?`확정 ${fmtK(_confCred)} <span style="color:#f59e0b;">+ 예상 ${fmtK(_estCred)}</span>`:subB}</div>
-          ${cmpHtml(latCred,avgB,'money')}
+        <div style="padding-left:28px;border-left:1px solid rgba(255,255,255,.12);">
+          <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px;">💵 ${labelB}${_estTag}</div>
+          <div style="font-size:38px;font-weight:900;color:#818cf8;font-variant-numeric:tabular-nums;line-height:1.05;">${fmtK(dispB)}</div>
+          <div style="font-size:12px;color:#94a3b8;margin-top:7px;">${(isCompare&&_hasEst)?`확정 ${fmtK(_confCred)} <span style="color:#fbbf24;font-weight:700;">+ 예상 ${fmtK(_estCred)}</span>`:subB}</div>
+          <div style="margin-top:6px;">${cmpHtml(latCred,avgB,'money')}</div>
         </div>
       </div>
     </div>`;
@@ -1817,11 +1817,11 @@ function renderDashboard(kpis, filtered) {
     if (curMonthSub) curMonthSub.textContent = latMLabel2;
     const sortedClosed = [...new Set(filtered.map(r=>r.month).filter(Boolean))].sort().filter(m=>m<latM);
     const _prevM2 = sortedClosed[sortedClosed.length - 1];  // 전월
-    const latCrMap = {}, prevCrMap = {};
+    const latCrMap = {}, prevCrMap = {}, prevPremMap = {};
     filtered.forEach(r => {
       const b = orgNameOf(r, _drill.level);
       if (r.month === latM)     latCrMap[b]  = (latCrMap[b]  || 0) + (r.credit || 0);   // 당월 인정
-      if (r.month === _prevM2)  prevCrMap[b] = (prevCrMap[b] || 0) + (r.credit || 0);   // 전월 인정
+      if (r.month === _prevM2)  { prevCrMap[b] = (prevCrMap[b] || 0) + (r.credit || 0); prevPremMap[b] = (prevPremMap[b] || 0) + (r.premium || 0); }
     });
     const curRows = {};
     latF_.forEach(r => {
@@ -1840,7 +1840,7 @@ function renderDashboard(kpis, filtered) {
         const share = _curProv ? (v.premium/totalCurPrem*100) : (v.credit/totalCurCredit*100);
         const lCr = latCrMap[name]||0, pCr = prevCrMap[name]||0;
         const diff = pCr>0?(lCr/pCr-1)*100:null;
-        return {name,premium:v.premium,credit:v.credit,share,diff};
+        return {name,premium:v.premium,credit:v.credit,share,diff,prevPrem:prevPremMap[name]||0,prevCred:pCr};
       })
       .sort((a,b)=>b.premium-a.premium);
     if (!curSorted.length) {
@@ -1855,7 +1855,7 @@ function renderDashboard(kpis, filtered) {
             <div style="font-weight:800;color:#f87171;font-family:monospace;">${fmtK(b.premium)}</div>
             <div style="font-size:10px;color:#64748b;">${_curProv ? `비중 ${b.share.toFixed(1)}%` : `인정 ${fmtK(b.credit)} · ${b.share.toFixed(1)}%`}</div>
           </td>
-          <td style="padding:6px 8px;text-align:center;">${diffHtml}</td>
+          <td style="padding:6px 8px;text-align:center;white-space:nowrap;">${diffHtml}<div style="font-size:9px;color:#64748b;margin-top:2px;">전월 ${fmtK(b.prevPrem)}·인정 ${fmtK(b.prevCred)}</div></td>
         </tr>`;
       }).join('');
     }
