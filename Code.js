@@ -124,6 +124,8 @@ function readSheetsAndCache() {
 function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents);
+    // ── 관리자 로그인 (사번+비번 → 소속 데이터만 반환) ──
+    if (payload.action === 'login') return handleManagerLogin(payload);
     if (payload.key !== SYNC_KEY) return json({ ok: false, error: '인증 실패' });
 
     const ss = getSpreadsheet();
@@ -244,6 +246,7 @@ function buildAggregated(performance, employees) {
       map[key] = {
         month, branch, branch3, payMethod: pay,
         premium: 0, credit: 0, count: 0,
+        provPrem: 0, provCred: 0,   // 가마감(잠정) 부분 — 마감/잠정 분해용
         activeSet: {}   // agentId → true (Set 대신 객체로 직렬화 회피)
       };
     }
@@ -253,6 +256,7 @@ function buildAggregated(performance, employees) {
     v.premium += pre;
     v.credit  += cre;
     v.count   += 1;
+    if ((r.source||'').toString().trim() === '가마감') { v.provPrem += pre; v.provCred += cre; }
     if (r.agentId && _gActive(String(r.agentId), month)) {
       v.activeSet[String(r.agentId)] = true;
     }
@@ -266,6 +270,8 @@ function buildAggregated(performance, employees) {
     premium:      v.premium,
     credit:       v.credit,
     count:        v.count,
+    provPrem:     v.provPrem,
+    provCred:     v.provCred,
     activeAgents: Object.keys(v.activeSet).length,
   }));
 }
@@ -437,6 +443,73 @@ function buildMonthStatus(performance) {
   const st = {};
   new Set([...Object.keys(prov), ...Object.keys(fin)]).forEach(m => { st[m] = (prov[m] && !fin[m]) ? '가마감' : '마감'; });
   return st;
+}
+
+// ─── 관리자 로그인: 사번+비번 검증 후 소속 데이터만 반환 ───
+// '관리자' 시트 헤더: 사번 | 비번 | 레벨(사업단|본부) | 사업단 | 본부 | 성명
+function handleManagerLogin(payload) {
+  const emp = String(payload.emp || '').trim();
+  const pw  = String(payload.pw  || '').trim();
+  if (!emp || !pw) return json({ ok: false, error: '사원번호와 비밀번호를 입력하세요' });
+
+  const ss    = getSpreadsheet();
+  const sheet = ss.getSheetByName('관리자');
+  if (!sheet) return json({ ok: false, error: '관리자 명단이 설정되지 않았습니다 — 운영자에게 문의하세요' });
+
+  const rows = sheetToObjects(sheet);
+  const me   = rows.find(r =>
+    String(r['사번'] || '').trim() === emp &&
+    String(r['비번'] || '').trim() === pw);
+  if (!me) return json({ ok: false, error: '사원번호 또는 비밀번호가 올바르지 않습니다' });
+
+  const level = String(me['레벨']  || '').trim();   // '사업단' | '본부'
+  const sadan = String(me['사업단'] || '').trim();
+  const bonbu = String(me['본부']  || '').trim();
+  const name  = String(me['성명']  || '').trim() || emp;
+
+  // 전체 캐시 확보 (없으면 재생성)
+  let cached = readCache();
+  if (!(cached && cached.ok && cached.employees)) { readSheetsAndCache(); cached = readCache(); }
+  if (!cached) return json({ ok: false, error: '데이터 캐시 없음 — 운영자에게 문의하세요' });
+
+  // 소속 범위 판정: 사업단 레벨=사업단 전체 / 본부 레벨=해당 본부만
+  const inScope = (b2, b3) => (level === '사업단')
+    ? ((b2 || '').trim() === sadan)
+    : ((b3 || '').trim() === bonbu);
+
+  const employees  = (cached.employees  || []).filter(e => inScope(e.b2, e.b3));
+  const aggregated = (cached.aggregated || []).filter(r => inScope(r.branch, r.branch3));
+  const top10      = (level === '사업단')
+    ? ((cached.topByBranch  || {})[sadan] || [])
+    : ((cached.topByBranch3 || {})[bonbu] || []);
+
+  return json({
+    ok:          true,
+    scope:       { level, 사업단: sadan, 본부: bonbu, name },
+    lastUpdated: cached.lastUpdated,
+    employees,
+    aggregated,
+    monthStatus: cached.monthStatus || {},
+    top10,
+    topByBranch:  {},
+    topByBranch3: {},
+  });
+}
+
+// ─── (1회 실행용) '관리자' 시트 생성 + 헤더/예시행 ───────────
+// Apps Script 편집기에서 이 함수를 직접 실행하면 탭이 만들어집니다.
+function setupManagerSheet() {
+  const ss = getSpreadsheet();
+  let sheet = ss.getSheetByName('관리자');
+  if (!sheet) sheet = ss.insertSheet('관리자');
+  sheet.clearContents();
+  const rows = [
+    ['사번', '비번', '레벨', '사업단', '본부', '성명'],
+    ['999001', 'inca1234', '사업단', '해빙총괄사업단', '', '(예시)사업단장'],
+    ['999002', 'inca1234', '본부',   '해빙총괄사업단', '미라클본부', '(예시)본부장'],
+  ];
+  sheet.getRange(1, 1, rows.length, 6).setValues(rows);
+  Logger.log('관리자 시트 생성 완료 — 예시행을 실제 관리자로 교체하세요');
 }
 
 // ─── WARMUP (콜드 스타트 방지) ───────────────────────────

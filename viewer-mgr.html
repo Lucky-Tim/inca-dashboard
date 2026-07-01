@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>해빙 Having | 관리자</title>
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#A40000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="해빙 현황">
+<link rel="apple-touch-icon" href="icon-192.png">
+<!-- 폰트·차트 -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="collret_data.js"></script>
+<style>
+/* ── 리셋 ── */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{
+  background:#fff;
+  color:#1a1a1a;
+  font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+  font-size:14px;
+  line-height:1.5;
+  min-height:100vh;
+  padding-bottom:64px;
+}
+
+/* ── 헤더 ── */
+.hdr{
+  background:#fff;
+  padding:16px 16px 12px;
+  border-bottom:2px solid #A40000;
+  position:sticky;top:0;z-index:100;
+}
+.hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.logo{display:flex;align-items:center;gap:10px;}
+.logo-ic{
+  width:36px;height:36px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.logo-tx{font-size:15px;font-weight:800;color:#1a1a1a;line-height:1.2;letter-spacing:-.3px;}
+.logo-sb{font-size:12px;color:#A40000;font-weight:600;letter-spacing:.02em;margin-top:2px;}
+.ref-btn{
+  background:transparent;
+  border:1.5px solid #A40000;
+  color:#A40000;
+  border-radius:8px;padding:7px 14px;
+  font-size:13px;font-weight:700;
+  cursor:pointer;display:flex;align-items:center;gap:4px;
+  font-family:inherit;letter-spacing:.02em;
+  transition:all .15s;white-space:nowrap;flex-shrink:0;
+}
+.ref-btn:active{background:#FFF0F0;}
+@media print {
+  .ref-btn { display:none !important; }
+  body { background:#fff !important; }
+  .sec, .chart-box { break-inside:avoid; }
+}
+.stamp{
+  background:#FFF5F5;
+  border:1px solid rgba(164,0,0,.15);
+  border-radius:9px;padding:8px 13px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.stamp-lb{font-size:12px;color:#A40000;font-weight:700;letter-spacing:.02em;}
+.stamp-tm{font-size:12px;color:#888;}
+
+/* ── 필터바 ── */
+.filter-bar{
+  background:#F7F4F4;
+  border-bottom:1px solid #E8E0E0;
+  padding:11px 16px;
+  display:flex;gap:14px;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  position:sticky;top:88px;z-index:90;
+}
+.filter-bar::-webkit-scrollbar{display:none;}
+.f-wrap{display:flex;flex-direction:column;gap:4px;min-width:90px;}
+.f-lb{font-size:11px;color:#A40000;font-weight:700;white-space:nowrap;letter-spacing:.03em;}
+.f-sel{
+  background:#fff;
+  border:1px solid #E0D0D0;
+  color:#1a1a1a;
+  border-radius:8px;padding:7px 9px;
+  font-size:13px;font-family:inherit;
+  cursor:pointer;-webkit-appearance:none;appearance:none;width:100%;
+}
+.f-sel:focus{outline:none;border-color:#A40000;}
+
+/* ── 섹션 ── */
+.sec{padding:14px 16px 0;}
+.sec-ttl{
+  font-size:13px;font-weight:800;color:#A40000;
+  letter-spacing:.04em;
+  margin-bottom:12px;
+  display:flex;align-items:center;gap:8px;
+}
+.sec-ttl::before{
+  content:'';display:inline-block;
+  width:4px;height:16px;border-radius:2px;
+  background:var(--ac,#A40000);
+}
+
+/* ── KPI 카드 ── */
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.kc{
+  background:var(--kc-bg,rgba(164,0,0,.06));
+  border-radius:16px;padding:18px 14px 14px;
+  border:1px solid var(--kc-bd,rgba(164,0,0,.18));
+  text-align:center;
+}
+.kc-ic{font-size:32px;margin-bottom:10px;line-height:1;}
+.kc-lb{font-size:11px;color:var(--kc-cl,#A40000);font-weight:700;margin-bottom:4px;letter-spacing:.03em;}
+.kc-vl{font-size:26px;font-weight:900;color:#1a1a1a;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.5px;}
+.kc-sb{font-size:11px;color:#888;margin-top:4px;}
+.kc.wide{grid-column:1/-1;}
+.rate-bg{background:rgba(164,0,0,.12);border-radius:99px;height:6px;margin:8px 0 5px;}
+.rate-fg{height:6px;border-radius:99px;background:linear-gradient(90deg,#A40000,#f87171);transition:width .8s ease;}
+.kc-cmp{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-top:7px;padding-top:6px;
+  border-top:1px solid rgba(164,0,0,.15);
+  font-size:12px;
+}
+.kc-avg-lbl{color:#888;}
+.kc-up{color:#A40000;font-weight:800;}
+.kc-dn{color:#D97706;font-weight:800;}
+
+/* ── 차트 ── */
+.chart-box{
+  background:#FFF5F5;
+  border:1px solid rgba(164,0,0,.12);
+  border-radius:14px;padding:16px 14px 14px;
+}
+.chart-ttl{font-size:14px;font-weight:800;color:#1a1a1a;margin-bottom:4px;letter-spacing:-.2px;}
+.chart-sub{font-size:11px;color:#888;margin-bottom:14px;}
+.chart-canvas-wrap{position:relative;height:clamp(180px,54vw,230px);width:100%;}
+
+/* ── 본부 테이블 ── */
+.tbl-wrap{
+  background:#fff;
+  border:1px solid rgba(164,0,0,.12);
+  border-radius:14px;overflow:hidden;
+}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead tr{background:#FFF5F5;border-bottom:1px solid rgba(164,0,0,.15);}
+th{padding:10px 9px;text-align:right;color:#A40000;font-weight:700;white-space:nowrap;font-size:12px;letter-spacing:.02em;}
+th:first-child{text-align:left;padding-left:13px;}
+tbody tr{border-bottom:1px solid #F0EAEA;}
+tbody tr:last-child{border-bottom:none;}
+td{padding:11px 9px;text-align:right;color:#555;font-size:13px;}
+td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
+.badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:800;}
+.bg{background:rgba(164,0,0,.12);color:#A40000;}
+.by{background:rgba(217,119,6,.12);color:#B45309;}
+.br{background:rgba(120,53,15,.12);color:#92400E;}
+
+/* ── TOP 10 ── */
+.top-wrap{
+  background:#fff;
+  border:1px solid rgba(164,0,0,.12);
+  border-radius:14px;padding:14px 16px;
+}
+.top-item{display:flex;align-items:center;gap:13px;padding:11px 0;border-bottom:1px solid #F0EAEA;}
+.top-item:last-child{border-bottom:none;}
+.top-rank{font-size:16px;min-width:30px;text-align:center;font-weight:900;color:#CCC;}
+.top-info{flex:1;}
+.top-name{font-size:15px;font-weight:700;color:#1a1a1a;letter-spacing:-.2px;}
+.top-branch{font-size:12px;color:#888;margin-top:2px;}
+.top-val{font-size:15px;font-weight:800;color:#A40000;font-family:monospace;letter-spacing:-.3px;}
+.top-note{font-size:11px;color:#888;margin-top:3px;text-align:right;}
+
+/* ── 로딩·에러 ── */
+.ctr{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;}
+.spin{
+  width:38px;height:38px;
+  border:3px solid rgba(164,0,0,.15);
+  border-top-color:#A40000;
+  border-radius:50%;
+  animation:sp .8s linear infinite;
+}
+@keyframes sp{to{transform:rotate(360deg);}}
+.ld-tx{font-size:14px;color:#888;}
+.err-bx{
+  background:#FFF5F5;
+  border:1px solid rgba(164,0,0,.2);
+  border-radius:13px;padding:20px;
+  text-align:center;font-size:14px;color:#A40000;
+  line-height:1.7;max-width:320px;
+}
+
+/* ── 구분선 ── */
+.divider{
+  margin:16px 16px 0;
+  border:none;border-top:1px solid #F0EAEA;
+}
+
+/* ── 푸터 ── */
+.footer{
+  margin:20px 16px 0;padding:13px;
+  background:#FFF5F5;
+  border:1px solid rgba(164,0,0,.1);
+  border-radius:10px;
+  text-align:center;font-size:11px;color:#888;line-height:2;
+}
+</style>
+</head>
+<body>
+<!-- ── 관리자 로그인 게이트 ── -->
+<div id="login-ovl" style="display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#7a0000,#a40000);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;padding:32px 28px;width:300px;box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:center;">
+    <div style="font-size:17px;font-weight:800;color:#A40000;margin-bottom:4px;">해빙 관리자 로그인</div>
+    <div style="font-size:11px;color:#94a3b8;margin-bottom:18px;">소속 조직 실적만 조회됩니다</div>
+    <input id="mgr-emp" placeholder="인카 사원번호" autocomplete="username" style="width:100%;box-sizing:border-box;padding:11px;margin-bottom:9px;border:1px solid #e2e8f0;border-radius:9px;font-size:13px;">
+    <input id="mgr-pw" type="password" placeholder="비밀번호" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" style="width:100%;box-sizing:border-box;padding:11px;margin-bottom:9px;border:1px solid #e2e8f0;border-radius:9px;font-size:13px;">
+    <button id="mgr-btn" onclick="doLogin()" style="width:100%;padding:11px;background:#A40000;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;">로그인</button>
+    <div id="mgr-err" style="color:#dc2626;font-size:11px;margin-top:10px;min-height:14px;"></div>
+  </div>
+</div>
+
+<!-- ── 헤더 ── -->
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="logo">
+      <img src="data:image/png;base64,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" width="120" height="26" alt="해빙 Having" style="display:block;">
+      <div class="logo-sb" style="margin-top:2px;">총괄사업단 · 관리자 전용</div>
+    </div>
+    <button class="ref-btn" onclick="refreshMgr()">갱신</button>
+    <button class="ref-btn" onclick="window.print()" style="margin-left:6px;">🖨 인쇄</button>
+    <button class="ref-btn" onclick="logoutMgr()" style="margin-left:6px;">로그아웃</button>
+  </div>
+  <div class="stamp">
+    <span class="stamp-lb">📌 마감 기준</span>
+    <span class="stamp-tm" id="stamp-time">불러오는 중...</span>
+    <span id="scope-banner" style="margin-left:8px;font-size:11px;font-weight:800;color:#A40000;"></span>
+  </div>
+</div>
+
+<!-- ── 필터바 ── -->
+<div class="filter-bar" id="filter-bar" style="display:none;">
+  <div class="f-wrap" style="min-width:76px;">
+    <div class="f-lb">납입연도</div>
+    <select class="f-sel" id="f-year" onchange="applyFilters()"><option value="all">전체</option></select>
+  </div>
+  <div class="f-wrap" style="min-width:70px;">
+    <div class="f-lb">납입월</div>
+    <select class="f-sel" id="f-month" onchange="applyFilters()"><option value="all">전체</option></select>
+  </div>
+  <div class="f-wrap" style="min-width:100px;">
+    <div class="f-lb">소속사업단</div>
+    <select class="f-sel" id="f-branch" onchange="applyFilters()"><option value="all">전체</option></select>
+  </div>
+  <div class="f-wrap" style="min-width:100px;">
+    <div class="f-lb">소속본부</div>
+    <select class="f-sel" id="f-branch3" onchange="applyFilters()"><option value="all">전체</option></select>
+  </div>
+  <div class="f-wrap" style="min-width:84px;">
+    <div class="f-lb">납입방법</div>
+    <select class="f-sel" id="f-paymethod" onchange="applyFilters()"><option value="all">전체</option></select>
+  </div>
+</div>
+
+<!-- ── 메인 ── -->
+<div id="main" style="display:none;">
+
+  <!-- KPI 카드 -->
+  <div class="sec" style="margin-top:14px;">
+    <div class="sec-ttl" style="--ac:#A40000;">핵심 KPI <span id="kpi-period" style="font-size:11px;color:#5a3a3a;font-weight:400;margin-left:5px;"></span></div>
+    <div class="kpi-grid" id="kpi-grid"></div>
+  </div>
+
+  <!-- 당월 조직별 실적현황 -->
+  <div class="sec" style="margin-top:14px;">
+    <div class="sec-ttl" style="--ac:#A40000;">당월 조직별 실적현황 <span id="cur-month-ttl" style="font-size:11px;color:#5a3a3a;font-weight:400;margin-left:5px;"></span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th id="cur-branch-th">소속사업단</th>
+          <th style="text-align:left;padding-left:13px;">월납(인정/비중) 현황</th>
+          <th style="text-align:center;">가동률</th>
+          <th style="text-align:center;">추세</th>
+        </tr></thead>
+        <tbody id="cur-branch-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 월별 실적 추이 -->
+  <div class="sec" style="margin-top:14px;">
+    <div class="chart-box">
+      <div class="chart-ttl">월별 실적 추이</div>
+      <div class="chart-sub">레드=월보험료 · 골드=인정실적 · 점선=전년동월</div>
+      <div class="chart-canvas-wrap"><canvas id="ch-trend"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 납입 지속성 (수금율·유지율) -->
+  <div class="sec" style="margin-top:14px;">
+    <div class="sec-ttl" style="--ac:#0ea5e9;">🩺 납입 지속성 <span id="cr-asof-v" style="font-size:11px;color:#5a3a3a;font-weight:400;margin-left:5px;"></span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;" id="cr-v-cards"></div>
+    <div id="cr-v-insight" style="font-size:12px;color:#A40000;font-weight:700;background:#fff5f5;border:1px solid #ffd9d9;border-radius:10px;padding:10px 12px;margin-bottom:12px;line-height:1.5;"></div>
+    <div class="chart-box" style="margin-bottom:10px;">
+      <div class="chart-ttl">유지율 — 회차별 (장기 급락)</div>
+      <div class="chart-sub">회차가 올라갈수록 유지율 하락 (7회 → 61회)</div>
+      <div class="chart-canvas-wrap"><canvas id="cr-ret-chart-v"></canvas></div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-ttl">응당월 수금율 — 회차별 (2~13회)</div>
+      <div class="chart-sub">그 달 응당분의 정시 납입 비율</div>
+      <div class="chart-canvas-wrap"><canvas id="cr-coll-chart-v"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 설계사 TOP 10 -->
+  <div class="sec" style="margin-top:14px;">
+    <div class="sec-ttl" style="--ac:#f59e0b;">설계사 TOP 10 <span style="font-size:11px;color:#5a3a3a;font-weight:400;margin-left:5px;" id="top10-period"></span></div>
+    <div class="top-wrap" id="top10"></div>
+  </div>
+
+  <div class="footer">
+    ⊕ 인카금융서비스 해빙총괄사업단<br>
+    본 자료는 마감(확정)·가마감(잠정) 혼합 데이터입니다 — 당월이 가마감이면 잠정치
+  </div>
+</div>
+
+<!-- 로딩 / 에러 -->
+<div id="loading" class="ctr">
+  <div class="spin"></div>
+  <div class="ld-tx">데이터 불러오는 중...</div>
+</div>
+<div id="error" class="ctr" style="display:none;">
+  <div class="err-bx" id="err-msg">오류가 발생했습니다</div>
+  <button class="ref-btn" onclick="showLogin()" style="margin-top:8px;">다시 시도</button>
+</div>
+
+<script>
+const AS_URL = 'https://script.google.com/macros/s/AKfycbyM-Yhnt6nqkV2Nwk-iDjHud_8In5KjyGlrXp3lpJzDhWiCnfme8VcQaoTKCqXwkF_5/exec';
+
+let RAW = { employees: [], aggregated: [], top10: [], topByBranch: {}, topByBranch3: {} };
+let FILTERS = { branch: 'all', branch3: 'all', payMethod: 'all', year: 'all', month: 'all' };
+let MGR = {};
+
+// ── 포맷 ──
+function fmtK(n) {
+  n = Number(n) || 0;
+  if (n >= 1e8) return (n / 1e8).toFixed(1) + '억';
+  if (n >= 1e4) return Math.round(n / 1e4).toLocaleString() + '만';
+  return Math.round(n).toLocaleString();
+}
+function fmtP(n) { return (Number(n) || 0).toFixed(1) + '%'; }
+function mLabel(m) {
+  m = String(m || '');
+  if (m.length < 6) return m;
+  return m.slice(0, 4) + '.' + m.slice(4, 6);
+}
+
+// ── 데이터 로드 ──
+async function loadData() {
+  document.getElementById('loading').style.display = 'flex';
+  document.getElementById('main').style.display    = 'none';
+  document.getElementById('error').style.display   = 'none';
+  document.getElementById('filter-bar').style.display = 'none';
+  try {
+    const res  = await fetch(AS_URL + '?slim=1&t=' + Date.now());
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || '마감 데이터 없음 — 관리자에게 문의하세요');
+    if (!data.aggregated?.length) throw new Error('사전집계 데이터 없음 — 대시보드에서 클라우드 저장을 다시 실행해 주세요');
+
+    RAW.employees     = data.employees     || [];
+    RAW.monthStatus   = data.monthStatus   || {};
+    RAW.aggregated    = data.aggregated    || [];
+    RAW.top10         = data.top10         || [];
+    RAW.topByBranch   = data.topByBranch   || {};
+    RAW.topByBranch3  = data.topByBranch3  || {};
+
+    const ts = data.lastUpdated
+      ? new Date(data.lastUpdated).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      : '알 수 없음';
+    document.getElementById('stamp-time').textContent = ts + ' 갱신';
+
+    initFilters();
+    document.getElementById('loading').style.display     = 'none';
+    document.getElementById('main').style.display        = 'block';
+    document.getElementById('filter-bar').style.display  = 'flex';
+    syncFilterTop();
+    renderAll();
+  } catch (e) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error').style.display   = 'flex';
+    document.getElementById('err-msg').textContent   = '❌ ' + e.message;
+  }
+}
+
+// ── 필터 초기화 ──
+function initFilters() {
+  const agg      = RAW.aggregated;
+  const branches = [...new Set(agg.map(r => r.branch).filter(Boolean))].sort();
+  const pays     = [...new Set(agg.map(r => r.payMethod).filter(Boolean))].sort();
+
+  fillSelect('f-branch',    branches);
+  fillSelect('f-paymethod', pays);
+  updateBranch3Options();  // branch 전체 기준으로 초기화
+
+  // 납입연도 옵션 + 대시보드 기본값(최신연도) 일치
+  const years = [...new Set(agg.map(r => (r.month || '').slice(0, 4)).filter(Boolean))].sort();
+  fillSelect('f-year', years);
+  if (years.length) {
+    const latestYear = years[years.length - 1];
+    document.getElementById('f-year').value = latestYear;
+    FILTERS.year = latestYear;
+  }
+  updateMonthOptions();  // 선택연도 기준 납입월 옵션
+
+  if (pays.includes('월납')) {
+    document.getElementById('f-paymethod').value = '월납';
+    FILTERS.payMethod = '월납';
+  }
+}
+
+// ── 납입월 옵션 동적 갱신 (연도 변경 시 cascade) ──
+function updateMonthOptions() {
+  const agg = RAW.aggregated;
+  const scoped = FILTERS.year === 'all' ? agg
+    : agg.filter(r => (r.month || '').slice(0, 4) === FILTERS.year);
+  const months = [...new Set(scoped.map(r => (r.month || '').slice(4, 6)).filter(Boolean))].sort();
+  const el = document.getElementById('f-month');
+  el.innerHTML = '<option value="all">전체</option>' +
+    months.map(v => `<option value="${v}">${parseInt(v, 10)}월</option>`).join('');
+  const keep = FILTERS.month !== 'all' && months.includes(FILTERS.month);
+  el.value = keep ? FILTERS.month : 'all';
+  if (!keep) FILTERS.month = 'all';
+}
+
+// ── 조직3 옵션 동적 갱신 (소속본부 변경 시 cascade) ──
+function updateBranch3Options() {
+  const agg = RAW.aggregated;
+  const filtered = FILTERS.branch === 'all'
+    ? agg
+    : agg.filter(r => r.branch === FILTERS.branch);
+  const b3vals = [...new Set(filtered.map(r => r.branch3).filter(Boolean))].sort();
+  fillSelect('f-branch3', b3vals);
+  // 기존 선택값이 유효하면 유지, 아니면 전체로 초기화
+  if (FILTERS.branch3 !== 'all' && b3vals.includes(FILTERS.branch3)) {
+    document.getElementById('f-branch3').value = FILTERS.branch3;
+  } else {
+    FILTERS.branch3 = 'all';
+  }
+}
+
+function fillSelect(id, vals) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '<option value="all">전체</option>' +
+    vals.map(v => `<option value="${v}">${v}</option>`).join('');
+  el.value = 'all';
+}
+
+// ── 필터 적용 ──
+function applyFilters() {
+  const prevBranch  = FILTERS.branch;
+  const prevYear    = FILTERS.year;
+  FILTERS.branch    = document.getElementById('f-branch').value;
+  FILTERS.payMethod = document.getElementById('f-paymethod').value;
+  FILTERS.year      = document.getElementById('f-year').value;
+
+  // 납입연도 변경 시 → 납입월 옵션 cascade 후 전체로 초기화
+  if (prevYear !== FILTERS.year) {
+    updateMonthOptions();
+  } else {
+    FILTERS.month = document.getElementById('f-month').value;
+  }
+
+  // 소속본부 변경 시 → 조직3 옵션 cascade 갱신 후 전체로 초기화
+  if (prevBranch !== FILTERS.branch) {
+    updateBranch3Options();
+  } else {
+    FILTERS.branch3 = document.getElementById('f-branch3').value;
+  }
+
+  renderAll();
+}
+
+// ── 필터된 aggregated ──
+function getAgg() {
+  return RAW.aggregated.filter(r => {
+    if (FILTERS.branch    !== 'all' && r.branch    !== FILTERS.branch)    return false;
+    if (FILTERS.branch3   !== 'all' && r.branch3   !== FILTERS.branch3)   return false;
+    if (FILTERS.payMethod !== 'all' && r.payMethod !== FILTERS.payMethod) return false;
+    if (FILTERS.year  !== 'all' && (r.month || '').slice(0, 4) !== FILTERS.year)  return false;
+    if (FILTERS.month !== 'all' && (r.month || '').slice(4, 6) !== FILTERS.month) return false;
+    return true;
+  });
+}
+
+// ── 납입방법 필터 제외 (활동설계사·가동률 전용) ──
+function getAggAllPay() {
+  return RAW.aggregated.filter(r => {
+    if (FILTERS.branch  !== 'all' && r.branch  !== FILTERS.branch)  return false;
+    if (FILTERS.branch3 !== 'all' && r.branch3 !== FILTERS.branch3) return false;
+    if (FILTERS.year  !== 'all' && (r.month || '').slice(0, 4) !== FILTERS.year)  return false;
+    if (FILTERS.month !== 'all' && (r.month || '').slice(4, 6) !== FILTERS.month) return false;
+    return true;
+  });
+}
+
+// ── KPI 계산 ──
+function calcKPIs() {
+  const agg   = getAgg();
+  const aggAP = getAggAllPay();
+
+  const now   = new Date();
+  const currM = String(now.getFullYear()) + String(now.getMonth() + 1).padStart(2, '0');
+
+  const _mPass = (m) => {
+    if (FILTERS.year  !== 'all' && m.slice(0, 4) !== FILTERS.year)  return false;
+    if (FILTERS.month !== 'all' && m.slice(4, 6) !== FILTERS.month) return false;
+    return true;
+  };
+  const allMonths = [...new Set(RAW.aggregated.map(r => r.month).filter(Boolean))].filter(_mPass).sort();
+  const latM      = allMonths[allMonths.length - 1] || '';
+
+  const closedMonths = allMonths.filter(m => m < currM);
+  const last6Closed  = closedMonths.slice(-6);
+  const closedSet    = new Set(last6Closed);
+  const mc           = last6Closed.length || 1;
+
+  const regEmps = (RAW.employees || []).filter(e => (e.type || '').replace(/\s/g, '') === '재직');
+  const filteredEmps = regEmps.filter(e => {
+    if (FILTERS.branch  !== 'all' && (e.b2 || '').trim() !== FILTERS.branch)  return false;
+    if (FILTERS.branch3 !== 'all' && (e.b3 || '').trim() !== FILTERS.branch3) return false;
+    return true;
+  });
+  const kpiE = filteredEmps.length || regEmps.length;
+
+  const latAgg   = agg.filter(r => r.month === latM);
+  const latAggAP = aggAP.filter(r => r.month === latM);
+  const latA  = latAgg.reduce((s, r) => s + r.premium, 0);
+  const latProvPrem = latAgg.reduce((s, r) => s + (r.provPrem || 0), 0);
+  const latC  = latAgg.reduce((s, r) => s + r.count, 0);
+  const latD  = latAggAP.reduce((s, r) => s + r.activeAgents, 0);
+  const latF  = kpiE > 0 ? latD / kpiE * 100 : 0;
+  const latProd = latD > 0 ? latA / latD : 0;
+
+  const closedAgg   = agg.filter(r => closedSet.has(r.month));
+  const closedAggAP = aggAP.filter(r => closedSet.has(r.month));
+
+  const avgA = closedAgg.reduce((s, r) => s + r.premium, 0) / mc;
+  const avgC = closedAgg.reduce((s, r) => s + r.count, 0)   / mc;
+
+  const byMonth = {};
+  closedAggAP.forEach(r => {
+    byMonth[r.month] = (byMonth[r.month] || 0) + r.activeAgents;
+  });
+  const monthActVals = Object.values(byMonth);
+  const avgD = monthActVals.length > 0
+    ? monthActVals.reduce((a, b) => a + b, 0) / monthActVals.length
+    : latD;
+  const avgF    = kpiE > 0 ? avgD / kpiE * 100 : 0;
+  const avgProd = avgD > 0 ? avgA / avgD : 0;
+
+  return { latA, latProvPrem, latC, latD, latE: kpiE, latF, latProd, avgA, avgC, avgD, avgF, avgProd, mc, latM, closedMonths, allMonths };
+}
+
+// ── 비교 태그 ──
+function cmp(lat, avg, unit) {
+  if (!avg) return '';
+  const p  = avg > 0 ? (lat - avg) / avg * 100 : 0;
+  let fa;
+  if      (unit === 'pct')    fa = fmtP(avg);
+  else if (unit === 'person') fa = Math.round(avg).toLocaleString() + '명';
+  else if (unit === 'cnt')    fa = Math.round(avg).toLocaleString() + '건';
+  else                         fa = fmtK(avg) + '원';
+  return `<div class="kc-cmp">
+    <span class="kc-avg-lbl">월평균 ${fa}</span>
+    <span class="${p >= 0 ? 'kc-up' : 'kc-dn'}">${p >= 0 ? '+' : ''}${p.toFixed(1)}%</span>
+  </div>`;
+}
+
+// ── 전체 렌더 ──
+function renderAll() {
+  const kpis = calcKPIs();
+  renderKPICards(kpis);
+  renderCurrentMonth(kpis);
+  renderTrend(kpis);
+  renderTop10();
+  renderCollRetV();
+}
+
+// ── 추세 배지 (5단계: 급성장/성장/유지/부진/위험) ──
+function trendBadge(diff) {
+  if (diff === null) return '<span style="color:#ccc;font-size:13px;">-</span>';
+
+  let cfg;
+  if      (diff >  20) cfg = { icon:'ti-trending-up',      label:'급성장', color:'#16a34a', bg:'rgba(22,163,74,0.10)',    fw:900, is:22 };
+  else if (diff >   5) cfg = { icon:'ti-arrow-up-right',   label:'성장',   color:'#166534', bg:'rgba(22,101,52,0.08)',    fw:700, is:18 };
+  else if (diff >= -5) cfg = { icon:'ti-arrow-right',      label:'유지',   color:'#6b7280', bg:'rgba(107,114,128,0.07)', fw:500, is:16 };
+  else if (diff >= -20)cfg = { icon:'ti-arrow-down-right', label:'부진',   color:'#991b1b', bg:'rgba(153,27,27,0.08)',   fw:700, is:18 };
+  else                  cfg = { icon:'ti-trending-down',   label:'위험',   color:'#dc2626', bg:'rgba(220,38,38,0.10)',   fw:900, is:22 };
+
+  const sign    = diff >= 0 ? '+' : '';
+  const pct     = `${sign}${diff.toFixed(0)}%`;
+  const lblSize = cfg.fw === 900 ? 11 : cfg.fw === 500 ? 10 : 11;
+  const valSize = cfg.fw === 900 ? 12 : cfg.fw === 500 ? 11 : 12;
+
+  return `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;background:${cfg.bg};border-radius:8px;padding:5px 8px;min-width:54px;">
+    <i class="ti ${cfg.icon}" style="font-size:${cfg.is}px;color:${cfg.color};"></i>
+    <span style="font-size:${lblSize}px;font-weight:${cfg.fw};color:${cfg.color};letter-spacing:-0.2px;">${cfg.label}</span>
+    <span style="font-size:${valSize}px;font-weight:700;color:${cfg.color};">${pct}</span>
+  </div>`;
+}
+
+// ── 당월 조직별 실적현황 ──
+function renderCurrentMonth(kpis) {
+  const { latM, closedMonths } = kpis;
+  const yr = latM ? latM.slice(0, 4) : '';
+  const mo = latM ? latM.slice(4)    : '';
+  const _dl = (FILTERS.branch === 'all') ? 'branch' : 'branch3';
+  const _dlTh = _dl === 'branch' ? '소속사업단' : '소속본부';
+  const _dlShort = _dl === 'branch' ? '사업단' : '본부';
+  const _vSt = (RAW.monthStatus && RAW.monthStatus[latM]) || '마감';
+  const _vProv = _vSt === '가마감';
+  document.getElementById('cur-month-ttl').innerHTML =
+    latM ? `(${yr}.${mo}) <span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;background:${_vProv?'rgba(245,158,11,.15)':'rgba(34,197,94,.13)'};color:${_vProv?'#b45309':'#15803d'};border:1px solid ${_vProv?'rgba(245,158,11,.5)':'rgba(34,197,94,.5)'};">${_vProv?'🟡 가마감(자동실적)':'🟢 마감(건별실적)'}</span>` : '';
+  const _cbth = document.getElementById('cur-branch-th'); if (_cbth) _cbth.textContent = _dlTh;
+  if (latM) document.getElementById('cur-month-ttl').innerHTML += ` <span style="color:#94a3b8;font-size:10px;font-weight:600;">· ${_dlShort}별</span>`;
+
+  const agg = getAgg();
+
+  // 본부별 당월 가동설계사
+  const aggAP = getAggAllPay();
+  const latActive = {};
+  aggAP.filter(r => r.month === latM).forEach(r => {
+    const b = r[_dl] || '미분류';
+    latActive[b] = (latActive[b] || 0) + r.activeAgents;
+  });
+
+  // 본부별 재직 설계사 (branch3 필터 반영)
+  const regEmps = (RAW.employees || []).filter(e => (e.type || '').replace(/\s/g, '') === '재직');
+  const branchReg = {};
+  regEmps.forEach(e => {
+    if (_dl === 'branch3') {
+      if (FILTERS.branch !== 'all' && (e.b2 || '').trim() !== FILTERS.branch) return;
+      const b = (e.b3 || '').trim() || '미분류';
+      branchReg[b] = (branchReg[b] || 0) + 1;
+    } else {
+      if (FILTERS.branch3 !== 'all' && (e.b3 || '').trim() !== FILTERS.branch3) return;
+      const b = (e.b2 || '').trim() || '미분류';
+      branchReg[b] = (branchReg[b] || 0) + 1;
+    }
+  });
+
+  // MoM 기준: 직전 마감월 vs 전전 마감월 (안정된 완결 데이터끼리 비교)
+  const sortedClosed = [...(closedMonths || [])].sort().filter(m => m < latM);
+  const _prevM2 = sortedClosed[sortedClosed.length - 1];  // 전월(당월 직전)
+
+  const latCrMap  = {};
+  const prevCrMap = {};
+  agg.forEach(r => {
+    const b = r[_dl] || '미분류';
+    if (r.month === latM)     latCrMap[b]  = (latCrMap[b]  || 0) + r.credit;   // 당월 인정
+    if (r.month === _prevM2)  prevCrMap[b] = (prevCrMap[b] || 0) + r.credit;   // 전월 인정
+  });
+
+  // 당월 집계
+  const curAgg = agg.filter(r => r.month === latM);
+  if (!curAgg.length) {
+    document.getElementById('cur-branch-tbody').innerHTML =
+      '<tr><td colspan="3" style="text-align:center;color:#888;font-size:11px;padding:10px;">당월 데이터 없음</td></tr>';
+    return;
+  }
+
+  const bMap = {};
+  curAgg.forEach(r => {
+    const b = r[_dl] || '미분류';
+    if (!bMap[b]) bMap[b] = { premium: 0, credit: 0 };
+    bMap[b].premium += r.premium;
+    bMap[b].credit  += r.credit;
+  });
+
+  const totalCredit  = Object.values(bMap).reduce((s, v) => s + v.credit, 0) || 1;
+  const totalPremium = Object.values(bMap).reduce((s, v) => s + v.premium, 0) || 1;
+
+  const rows = Object.entries(bMap)
+    .filter(([k]) => k && k !== '미분류')
+    .map(([name, v]) => {
+      // 가마감월은 인정실적 0 → 비중을 월보험료(영수금) 기준
+      const share   = _vProv ? (v.premium / totalPremium * 100) : (v.credit / totalCredit * 100);
+      const latCr   = latCrMap[name]  || 0;
+      const prevCr  = prevCrMap[name] || 0;
+      const diff    = prevCr > 0 ? (latCr / prevCr - 1) * 100 : null;
+      const act     = latActive[name] || 0;
+      const reg     = branchReg[name] || 0;
+      const actRate = reg > 0 ? act / reg * 100 : 0;
+      return { name, premium: v.premium, credit: v.credit, share, diff, actRate, reg };
+    })
+    .filter(b => b.premium > 0)
+    .sort((a, b) => b.premium - a.premium);
+
+  document.getElementById('cur-branch-tbody').innerHTML = rows.map(b => {
+    const rc = b.actRate < 30 ? '#dc2626' : b.actRate < 50 ? '#d97706' : '#16a34a';
+    const _selFn = _dl === 'branch' ? 'selectBranch' : 'selectBranch3';
+    const isSel = (_dl === 'branch' ? FILTERS.branch : FILTERS.branch3) === b.name;
+    return `
+    <tr onclick="${_selFn}('${b.name.replace(/'/g,"\\'")}')" style="cursor:pointer;${isSel ? 'background:#fff0f0;' : ''}transition:background .15s;">
+      <td style="${isSel ? 'font-weight:800;color:#A40000;' : ''}">${isSel ? '● ' : ''}${b.name}</td>
+      <td style="text-align:left;padding-left:13px;">
+        <div style="font-weight:800;color:#A40000;font-size:14px;">${fmtK(b.premium)}원</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">${_vProv ? `비중 ${fmtP(b.share)}` : `인정 ${fmtK(b.credit)}원 &nbsp;·&nbsp; ${fmtP(b.share)}`}</div>
+      </td>
+      <td style="text-align:center;">
+        ${b.reg > 0
+          ? `<span class="badge" style="background:${rc}22;color:${rc};font-weight:700;">${fmtP(b.actRate)}</span>`
+          : '<span style="color:#ccc;font-size:12px;">-</span>'}
+      </td>
+      <td style="text-align:center;padding:7px 5px;">${trendBadge(b.diff)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 테이블 행 클릭 → 사업단 필터 적용 ──
+function selectBranch(name) {
+  const newVal = FILTERS.branch === name ? 'all' : name;
+  FILTERS.branch = newVal;
+  document.getElementById('f-branch').value = newVal;
+  updateBranch3Options();
+  renderAll();
+}
+
+// ── 본부(branch3) 행 클릭 → 소속본부 필터 토글 ──
+function selectBranch3(name) {
+  const newVal = FILTERS.branch3 === name ? 'all' : name;
+  FILTERS.branch3 = newVal;
+  const sel = document.getElementById('f-branch3'); if (sel) sel.value = newVal;
+  renderAll();
+}
+
+// ── KPI 카드 ──
+function renderKPICards(kpis) {
+  const { latA, latProvPrem, latC, latD, latE, latF, latProd, avgA, avgC, avgD, avgF, avgProd, mc, latM } = kpis;
+
+  document.getElementById('kpi-period').textContent =
+    latM ? `(${mLabel(latM)} vs 직전 6개월 월평균)` : '';
+
+  const rc   = latF < 50 ? '#d97706' : latF < 70 ? '#f59e0b' : '#f87171';
+  const defs = [
+    {
+      ic: '💰', lb: '당월 월보험료',
+      vl: fmtK(latA) + '원',
+      sb: (latProvPrem > 0
+             ? `마감 ${fmtK(latA - latProvPrem)} + 잠정 ${fmtK(latProvPrem)}`
+             : mLabel(latM) + ' 확정'),
+      cm: cmp(latA, avgA, 'money'),
+      cl: '#A40000', trend: latA >= avgA
+    },
+    {
+      ic: '📋', lb: '당월 계약건수',
+      vl: Math.round(latC).toLocaleString() + '건',
+      sb: '중복제거 완료',
+      cm: cmp(latC, avgC, 'cnt'),
+      cl: '#A40000', trend: latC >= avgC
+    },
+    {
+      ic: '📈', lb: '당월 생산성',
+      vl: fmtK(latProd) + '원',
+      sb: '활동설계사 1인당',
+      cm: cmp(latProd, avgProd, 'money'),
+      cl: '#A40000', trend: latProd >= avgProd
+    },
+    {
+      ic: '🏃', lb: '당월 활동설계사',
+      vl: latD + '명',
+      sb: '납입방법 무관',
+      cm: cmp(latD, avgD, 'person'),
+      cl: '#A40000', trend: latD >= avgD
+    },
+    {
+      ic: '👥', lb: '재직 설계사',
+      vl: latE + '명',
+      sb: '등록구분=재직',
+      cm: '',
+      cl: '#A40000', trend: null
+    },
+    {
+      ic: '⚡', lb: '당월 가동률',
+      vl: fmtP(latF),
+      sb: latD + '명 / ' + latE + '명',
+      cm: cmp(latF, avgF, 'pct'),
+      cl: '#A40000', trend: latF >= avgF,
+      rate: latF
+    },
+  ];
+
+  document.getElementById('kpi-grid').innerHTML = defs.map(k => {
+    const bg = k.trend === true  ? 'rgba(34,197,94,.1)'
+             : k.trend === false ? 'rgba(164,0,0,.07)'
+             : 'rgba(164,0,0,.05)';
+    const bd = k.trend === true  ? 'rgba(34,197,94,.35)'
+             : k.trend === false ? 'rgba(164,0,0,.2)'
+             : 'rgba(164,0,0,.12)';
+    const cl = k.trend === true  ? '#15803d'
+             : '#A40000';
+    return `
+    <div class="kc${k.wide ? ' wide' : ''}" style="--kc-bg:${bg};--kc-bd:${bd};--kc-cl:${cl};">
+      <div class="kc-ic">${k.ic}</div>
+      <div class="kc-lb">${k.lb}</div>
+      <div class="kc-vl">${k.vl}</div>
+      ${k.rate != null ? `<div class="rate-bg"><div class="rate-fg" style="width:${Math.min(k.rate, 100)}%"></div></div>` : ''}
+      <div class="kc-sb">${k.sb}</div>
+      ${k.cm}
+    </div>`;
+  }).join('');
+}
+
+// ── 월별 트렌드 ──
+const _chartReg = {};
+function renderTrend(kpis) {
+  const agg        = getAgg();
+  const allMonths  = kpis.allMonths.slice(-6);
+
+  const monthMap = {};
+  agg.forEach(r => {
+    if (!monthMap[r.month]) monthMap[r.month] = { premium: 0, credit: 0 };
+    monthMap[r.month].premium += r.premium;
+    monthMap[r.month].credit  += r.credit;
+  });
+
+  const allAggMap = {};
+  RAW.aggregated.filter(r => {
+    if (FILTERS.branch  !== 'all' && r.branch  !== FILTERS.branch)  return false;
+    if (FILTERS.branch3 !== 'all' && r.branch3 !== FILTERS.branch3) return false;
+    return true;
+  }).forEach(r => { allAggMap[r.month] = (allAggMap[r.month] || 0) + r.premium; });
+  const yoyData = allMonths.map(m => {
+    const prevM = String(parseInt(m.slice(0, 4)) - 1) + m.slice(4, 6);
+    return allAggMap[prevM] != null ? allAggMap[prevM] : null;
+  });
+
+  const labels   = allMonths.map(m => mLabel(m) + '월');
+  const premData = allMonths.map(m => monthMap[m]?.premium || 0);
+  const credData = allMonths.map(m => monthMap[m]?.credit  || 0);
+  const hasYoY   = yoyData.some(v => v !== null);
+
+  if (_chartReg['trend']) _chartReg['trend'].destroy();
+  const ctx = document.getElementById('ch-trend');
+  if (!ctx) return;
+  _chartReg['trend'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { type:'bar', label:'월보험료', data:premData,
+          backgroundColor:'rgba(164,0,0,.45)', borderColor:'#a40000',
+          borderWidth:1, borderRadius:4, yAxisID:'y' },
+        { type:'bar', label:'인정실적', data:credData,
+          backgroundColor:'rgba(217,119,6,.4)', borderColor:'#d97706',
+          borderWidth:1, borderRadius:4, yAxisID:'y' },
+        ...(hasYoY ? [{ type:'line', label:'전년동월', data:yoyData,
+          borderColor:'#fbbf24', borderDash:[5,4], borderWidth:1.5,
+          pointRadius:3, pointBackgroundColor:'#fbbf24',
+          spanGaps:false, fill:false, tension:.15, yAxisID:'y' }] : []),
+      ],
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:{duration:500},
+      plugins:{
+        legend:{
+          display:true,
+          labels:{ color:'#888', font:{size:9}, boxWidth:10, padding:12 }
+        },
+      },
+      scales:{
+        x:{ grid:{color:'rgba(0,0,0,.06)'}, ticks:{color:'#999', font:{size:10}} },
+        y:{ type:'linear', position:'left', grid:{color:'rgba(0,0,0,.06)'},
+          ticks:{ color:'#999', font:{size:9}, callback:v=>{
+            if(v===0) return '0';
+            const a=Math.abs(v);
+            if(a>=100000000) return (v/100000000).toFixed(1).replace(/\.0$/,'')+'억';
+            if(a>=10000000)  return (v/10000000).toFixed(0)+'천만';
+            if(a>=1000000)   return (v/1000000).toFixed(0)+'백만';
+            return (v/10000).toFixed(0)+'만';
+          }}
+        },
+      },
+    },
+  });
+}
+
+// ── 본부별 매트릭스 ──
+function renderBranchTable(kpis) {
+  const agg   = getAgg();
+  const aggAP = getAggAllPay();
+  const { latM, mc, closedMonths } = kpis;
+  const closedSet = new Set((closedMonths || []).slice(-6));
+
+  const bMap = {};
+  agg.forEach(r => {
+    const b = r.branch || '미분류';
+    if (!bMap[b]) bMap[b] = { premium: 0, credit: 0, creditClosed: 0 };
+    bMap[b].premium += r.premium;
+    bMap[b].credit  += r.credit;
+    if (closedSet.has(r.month)) bMap[b].creditClosed += r.credit;
+  });
+
+  const latActive = {};
+  aggAP.filter(r => r.month === latM).forEach(r => {
+    const b = r.branch || '미분류';
+    latActive[b] = (latActive[b] || 0) + r.activeAgents;
+  });
+
+  const regEmps = (RAW.employees || []).filter(e => (e.type || '').replace(/\s/g, '') === '재직');
+  const branchReg = {};
+  regEmps.forEach(e => {
+    if (FILTERS.branch3 !== 'all' && (e.b3 || '').trim() !== FILTERS.branch3) return;
+    const b = (e.b2 || '').trim() || '미분류';
+    branchReg[b] = (branchReg[b] || 0) + 1;
+  });
+
+  // 1차: avgCr 먼저 계산
+  const mapped = Object.entries(bMap)
+    .filter(([k]) => k && k !== '미분류')
+    .map(([name, v]) => {
+      const reg     = FILTERS.branch !== 'all' ? kpis.latE : (branchReg[name] || 0);
+      const act     = latActive[name] || 0;
+      const actRate = reg > 0 ? act / reg * 100 : 0;
+      const avgCr   = (v.creditClosed ?? 0) / (mc || 1);
+      return { name, premium: v.premium, actRate, avgCr };
+    })
+    .filter(b => b.premium > 0);
+
+  // 2차: 직전 6M 인정실적 기준 비중 계산 + 정렬
+  const totalAvgCr = mapped.reduce((s, r) => s + r.avgCr, 0) || 1;
+  const rows = mapped
+    .map(b => ({ ...b, share: b.avgCr / totalAvgCr * 100 }))
+    .sort((a, b) => b.avgCr - a.avgCr);
+
+  const medals = ['🥇', '🥈', '🥉'];
+  document.getElementById('branch-tbody').innerHTML = rows.map((b, i) => `
+    <tr>
+      <td>${medals[i] || (i + 1)} ${b.name}</td>
+      <td style="color:#A40000;font-family:monospace;">${fmtK(b.avgCr)}원<br>
+        <span style="font-size:11px;color:#5a3a3a;">월평균</span></td>
+      <td><span class="badge ${b.actRate < 50 ? 'br' : b.actRate < 70 ? 'by' : 'bg'}">${fmtP(b.actRate)}</span></td>
+      <td style="color:#888">${fmtP(b.share)}</td>
+    </tr>`).join('');
+}
+
+// ── TOP 10 ──
+function pctOptsV(label) {
+  return { responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:ctx=>label+' '+ctx.parsed.y+'%' } } },
+    scales:{ x:{ grid:{ color:'rgba(0,0,0,.06)' }, ticks:{ color:'#999', font:{ size:10 } } },
+      y:{ grid:{ color:'rgba(0,0,0,.06)' }, ticks:{ color:'#999', font:{ size:9 }, callback:v=>v+'%' } } } };
+}
+
+function renderCollRetV() {
+  const C = window.COLLECTION, R = window.RETENTION;
+  if (!C || !R) return;
+  const a = document.getElementById('cr-asof-v'); if (a) a.textContent = '(' + (C.asof||'') + ' 스냅샷)';
+  const card = (label, val, sub, color) => `<div style="background:#faf7f7;border:1px solid #eee;border-radius:12px;padding:12px 14px;text-align:center;"><div style="font-size:11px;color:#888;font-weight:700;">${label}</div><div style="font-size:26px;font-weight:900;color:${color};margin:3px 0;">${val}</div><div style="font-size:10px;color:#999;">${sub}</div></div>`;
+  document.getElementById('cr-v-cards').innerHTML =
+      card('응당월 수금율', fmtP(C.total.rate), '정시 납입 · 2~13회', C.total.rate<50?'#dc2626':'#16a34a')
+    + card('통산 유지율', fmtP(R.total.rate), '계약 유지 · 2~13회', R.total.rate>=80?'#16a34a':'#d97706');
+  document.getElementById('cr-v-insight').innerHTML = '💬 계약은 유지(' + fmtP(R.total.rate) + ')되나 정시 납입이 무너집니다(수금율 ' + fmtP(C.total.rate) + ') → 실효·환수의 <b>선행경보</b>. 장기 회차로 갈수록 유지율이 급락합니다.';
+  if (_chartReg['crRet']) _chartReg['crRet'].destroy();
+  _chartReg['crRet'] = new Chart(document.getElementById('cr-ret-chart-v'), { type:'line',
+    data:{ labels:R.hoecha.map(x=>x.h+'회'), datasets:[{ label:'유지율', data:R.hoecha.map(x=>x.rate), borderColor:'#dc2626', backgroundColor:'rgba(220,38,38,.1)', fill:true, tension:.3, pointRadius:3, pointBackgroundColor:'#dc2626' }] }, options:pctOptsV('유지율') });
+  if (_chartReg['crColl']) _chartReg['crColl'].destroy();
+  _chartReg['crColl'] = new Chart(document.getElementById('cr-coll-chart-v'), { type:'line',
+    data:{ labels:C.hoecha.map(x=>x.h+'회'), datasets:[{ label:'수금율', data:C.hoecha.map(x=>x.rate), borderColor:'#0ea5e9', backgroundColor:'rgba(14,165,233,.1)', fill:true, tension:.3, pointRadius:3, pointBackgroundColor:'#0ea5e9' }] }, options:pctOptsV('수금율') });
+}
+
+function renderTop10() {
+  // 필터에 따라 사용할 top10 결정
+  let top10;
+  let scopeLabel;
+  if (FILTERS.branch3 !== 'all') {
+    // 소속본부 선택 → topByBranch3 사용 (가장 정확)
+    top10 = RAW.topByBranch3[FILTERS.branch3] || [];
+    scopeLabel = (FILTERS.branch !== 'all' ? FILTERS.branch + ' · ' : '') + FILTERS.branch3;
+  } else if (FILTERS.branch !== 'all') {
+    // 소속사업단만 선택 → topByBranch 사용
+    top10 = RAW.topByBranch[FILTERS.branch] || [];
+    scopeLabel = FILTERS.branch;
+  } else {
+    top10 = RAW.top10 || [];
+    scopeLabel = '전체';
+  }
+
+  document.getElementById('top10-period').textContent =
+    `(${scopeLabel} · 당월 실적순)`;
+
+  if (!top10.length) {
+    document.getElementById('top10').innerHTML =
+      '<div style="color:#888;text-align:center;padding:16px;font-size:12px;">데이터 없음</div>';
+    return;
+  }
+
+  const medals = ['🥇', '🥈', '🥉'];
+  document.getElementById('top10').innerHTML = top10.map((a, i) => `
+    <div class="top-item">
+      <div class="top-rank">${medals[i] || (i + 1) + '위'}</div>
+      <div class="top-info">
+        <div class="top-name">${a.name || '알 수 없음'}</div>
+        <div class="top-branch">${a.branch || ''}${a.branch3 ? ' · ' + a.branch3 : ''}${a.avgCredit ? ' · 월평균 인정 ' + fmtK(a.avgCredit) + '원' : ''}</div>
+      </div>
+      <div>
+        <div class="top-val">${fmtK(a.latPremium||0)}원</div>
+        <div class="top-note">당월</div>
+      </div>
+    </div>`).join('');
+}
+
+// 필터바 sticky top을 헤더 실제 높이에 맞춤 (스크롤 시 필터 가려짐 방지)
+function syncFilterTop(){ try{ const h=document.querySelector('.hdr'); const f=document.getElementById('filter-bar'); if(h&&f) f.style.top=h.offsetHeight+'px'; }catch(e){} }
+window.addEventListener('resize', syncFilterTop);
+window.addEventListener('load', ()=>{ syncFilterTop(); setTimeout(syncFilterTop,400); });
+
+// ── 관리자 로그인 처리 ──
+function applyLoginData(data){
+  RAW.employees=data.employees||[]; RAW.monthStatus=data.monthStatus||{}; RAW.aggregated=data.aggregated||[];
+  RAW.top10=data.top10||[]; RAW.topByBranch=data.topByBranch||{}; RAW.topByBranch3=data.topByBranch3||{};
+  const ts=data.lastUpdated?new Date(data.lastUpdated).toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'알 수 없음';
+  document.getElementById('stamp-time').textContent=ts+' 갱신';
+  const sc=(MGR&&MGR.scope)||{}; const scopeName=sc.level==='사업단'?(sc['사업단']||''):(sc['본부']||'');
+  const bn=document.getElementById('scope-banner'); if(bn) bn.textContent='🔒 '+scopeName+' 전용'+(sc.name?(' · '+sc.name):'');
+  initFilters();
+  document.getElementById('loading').style.display='none';
+  document.getElementById('main').style.display='block';
+  document.getElementById('filter-bar').style.display='flex';
+  syncFilterTop(); renderAll();
+}
+async function doLogin(){
+  const emp=document.getElementById('mgr-emp').value.trim();
+  const pw=document.getElementById('mgr-pw').value.trim();
+  const errEl=document.getElementById('mgr-err'); errEl.textContent='';
+  if(!emp||!pw){ errEl.textContent='사원번호와 비밀번호를 입력하세요'; return; }
+  const btn=document.getElementById('mgr-btn'); btn.disabled=true; btn.textContent='확인 중...';
+  try{
+    const res=await fetch(AS_URL,{method:'POST',body:JSON.stringify({action:'login',emp:emp,pw:pw})});
+    const data=await res.json();
+    if(!data.ok) throw new Error(data.error||'로그인 실패');
+    MGR={emp:emp,pw:pw,scope:data.scope};
+    applyLoginData(data);
+    document.getElementById('login-ovl').style.display='none';
+  }catch(e){ errEl.textContent='❌ '+e.message; }
+  finally{ btn.disabled=false; btn.textContent='로그인'; }
+}
+async function refreshMgr(){
+  if(!MGR.emp){ showLogin(); return; }
+  try{
+    const res=await fetch(AS_URL,{method:'POST',body:JSON.stringify({action:'login',emp:MGR.emp,pw:MGR.pw})});
+    const data=await res.json(); if(data.ok) applyLoginData(data);
+  }catch(e){}
+}
+function showLogin(){
+  document.getElementById('login-ovl').style.display='flex';
+  document.getElementById('main').style.display='none';
+  document.getElementById('filter-bar').style.display='none';
+  document.getElementById('loading').style.display='none';
+  document.getElementById('error').style.display='none';
+}
+function logoutMgr(){ MGR={}; const p=document.getElementById('mgr-pw'); if(p)p.value=''; showLogin(); }
+
+showLogin();
+
+// ── Service Worker 등록 ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/inca-dashboard/sw.js')
+      .then(r => console.log('SW registered:', r.scope))
+      .catch(e => console.log('SW error:', e));
+  });
+}
+</script>
+</body>
+</html>
