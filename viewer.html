@@ -232,6 +232,14 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
 
 <!-- ── 필터바 ── -->
 <div class="filter-bar" id="filter-bar" style="display:none;">
+  <div class="f-wrap" style="min-width:76px;">
+    <div class="f-lb">납입연도</div>
+    <select class="f-sel" id="f-year" onchange="applyFilters()"><option value="all">전체</option></select>
+  </div>
+  <div class="f-wrap" style="min-width:70px;">
+    <div class="f-lb">납입월</div>
+    <select class="f-sel" id="f-month" onchange="applyFilters()"><option value="all">전체</option></select>
+  </div>
   <div class="f-wrap" style="min-width:100px;">
     <div class="f-lb">소속사업단</div>
     <select class="f-sel" id="f-branch" onchange="applyFilters()"><option value="all">전체</option></select>
@@ -323,7 +331,7 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
 const AS_URL = 'https://script.google.com/macros/s/AKfycbyM-Yhnt6nqkV2Nwk-iDjHud_8In5KjyGlrXp3lpJzDhWiCnfme8VcQaoTKCqXwkF_5/exec';
 
 let RAW = { employees: [], aggregated: [], top10: [], topByBranch: {}, topByBranch3: {} };
-let FILTERS = { branch: 'all', branch3: 'all', payMethod: 'all' };
+let FILTERS = { branch: 'all', branch3: 'all', payMethod: 'all', year: 'all', month: 'all' };
 
 // ── 포맷 ──
 function fmtK(n) {
@@ -386,10 +394,34 @@ function initFilters() {
   fillSelect('f-paymethod', pays);
   updateBranch3Options();  // branch 전체 기준으로 초기화
 
+  // 납입연도 옵션 + 대시보드 기본값(최신연도) 일치
+  const years = [...new Set(agg.map(r => (r.month || '').slice(0, 4)).filter(Boolean))].sort();
+  fillSelect('f-year', years);
+  if (years.length) {
+    const latestYear = years[years.length - 1];
+    document.getElementById('f-year').value = latestYear;
+    FILTERS.year = latestYear;
+  }
+  updateMonthOptions();  // 선택연도 기준 납입월 옵션
+
   if (pays.includes('월납')) {
     document.getElementById('f-paymethod').value = '월납';
     FILTERS.payMethod = '월납';
   }
+}
+
+// ── 납입월 옵션 동적 갱신 (연도 변경 시 cascade) ──
+function updateMonthOptions() {
+  const agg = RAW.aggregated;
+  const scoped = FILTERS.year === 'all' ? agg
+    : agg.filter(r => (r.month || '').slice(0, 4) === FILTERS.year);
+  const months = [...new Set(scoped.map(r => (r.month || '').slice(4, 6)).filter(Boolean))].sort();
+  const el = document.getElementById('f-month');
+  el.innerHTML = '<option value="all">전체</option>' +
+    months.map(v => `<option value="${v}">${parseInt(v, 10)}월</option>`).join('');
+  const keep = FILTERS.month !== 'all' && months.includes(FILTERS.month);
+  el.value = keep ? FILTERS.month : 'all';
+  if (!keep) FILTERS.month = 'all';
 }
 
 // ── 조직3 옵션 동적 갱신 (소속본부 변경 시 cascade) ──
@@ -419,8 +451,17 @@ function fillSelect(id, vals) {
 // ── 필터 적용 ──
 function applyFilters() {
   const prevBranch  = FILTERS.branch;
+  const prevYear    = FILTERS.year;
   FILTERS.branch    = document.getElementById('f-branch').value;
   FILTERS.payMethod = document.getElementById('f-paymethod').value;
+  FILTERS.year      = document.getElementById('f-year').value;
+
+  // 납입연도 변경 시 → 납입월 옵션 cascade 후 전체로 초기화
+  if (prevYear !== FILTERS.year) {
+    updateMonthOptions();
+  } else {
+    FILTERS.month = document.getElementById('f-month').value;
+  }
 
   // 소속본부 변경 시 → 조직3 옵션 cascade 갱신 후 전체로 초기화
   if (prevBranch !== FILTERS.branch) {
@@ -438,6 +479,8 @@ function getAgg() {
     if (FILTERS.branch    !== 'all' && r.branch    !== FILTERS.branch)    return false;
     if (FILTERS.branch3   !== 'all' && r.branch3   !== FILTERS.branch3)   return false;
     if (FILTERS.payMethod !== 'all' && r.payMethod !== FILTERS.payMethod) return false;
+    if (FILTERS.year  !== 'all' && (r.month || '').slice(0, 4) !== FILTERS.year)  return false;
+    if (FILTERS.month !== 'all' && (r.month || '').slice(4, 6) !== FILTERS.month) return false;
     return true;
   });
 }
@@ -447,6 +490,8 @@ function getAggAllPay() {
   return RAW.aggregated.filter(r => {
     if (FILTERS.branch  !== 'all' && r.branch  !== FILTERS.branch)  return false;
     if (FILTERS.branch3 !== 'all' && r.branch3 !== FILTERS.branch3) return false;
+    if (FILTERS.year  !== 'all' && (r.month || '').slice(0, 4) !== FILTERS.year)  return false;
+    if (FILTERS.month !== 'all' && (r.month || '').slice(4, 6) !== FILTERS.month) return false;
     return true;
   });
 }
@@ -459,7 +504,12 @@ function calcKPIs() {
   const now   = new Date();
   const currM = String(now.getFullYear()) + String(now.getMonth() + 1).padStart(2, '0');
 
-  const allMonths = [...new Set(RAW.aggregated.map(r => r.month).filter(Boolean))].sort();
+  const _mPass = (m) => {
+    if (FILTERS.year  !== 'all' && m.slice(0, 4) !== FILTERS.year)  return false;
+    if (FILTERS.month !== 'all' && m.slice(4, 6) !== FILTERS.month) return false;
+    return true;
+  };
+  const allMonths = [...new Set(RAW.aggregated.map(r => r.month).filter(Boolean))].filter(_mPass).sort();
   const latM      = allMonths[allMonths.length - 1] || '';
 
   const closedMonths = allMonths.filter(m => m < currM);
@@ -478,6 +528,7 @@ function calcKPIs() {
   const latAgg   = agg.filter(r => r.month === latM);
   const latAggAP = aggAP.filter(r => r.month === latM);
   const latA  = latAgg.reduce((s, r) => s + r.premium, 0);
+  const latProvPrem = latAgg.reduce((s, r) => s + (r.provPrem || 0), 0);
   const latC  = latAgg.reduce((s, r) => s + r.count, 0);
   const latD  = latAggAP.reduce((s, r) => s + r.activeAgents, 0);
   const latF  = kpiE > 0 ? latD / kpiE * 100 : 0;
@@ -500,7 +551,7 @@ function calcKPIs() {
   const avgF    = kpiE > 0 ? avgD / kpiE * 100 : 0;
   const avgProd = avgD > 0 ? avgA / avgD : 0;
 
-  return { latA, latC, latD, latE: kpiE, latF, latProd, avgA, avgC, avgD, avgF, avgProd, mc, latM, closedMonths, allMonths };
+  return { latA, latProvPrem, latC, latD, latE: kpiE, latF, latProd, avgA, avgC, avgD, avgF, avgProd, mc, latM, closedMonths, allMonths };
 }
 
 // ── 비교 태그 ──
@@ -678,7 +729,7 @@ function selectBranch3(name) {
 
 // ── KPI 카드 ──
 function renderKPICards(kpis) {
-  const { latA, latC, latD, latE, latF, latProd, avgA, avgC, avgD, avgF, avgProd, mc, latM } = kpis;
+  const { latA, latProvPrem, latC, latD, latE, latF, latProd, avgA, avgC, avgD, avgF, avgProd, mc, latM } = kpis;
 
   document.getElementById('kpi-period').textContent =
     latM ? `(${mLabel(latM)} vs 직전 6개월 월평균)` : '';
@@ -688,7 +739,9 @@ function renderKPICards(kpis) {
     {
       ic: '💰', lb: '당월 월보험료',
       vl: fmtK(latA) + '원',
-      sb: mLabel(latM) + ((RAW.monthStatus && RAW.monthStatus[latM] === '가마감') ? ' · 가마감(잠정)' : ' 확정'),
+      sb: (latProvPrem > 0
+             ? `마감 ${fmtK(latA - latProvPrem)} + 잠정 ${fmtK(latProvPrem)}`
+             : mLabel(latM) + ' 확정'),
       cm: cmp(latA, avgA, 'money'),
       cl: '#A40000', trend: latA >= avgA
     },
