@@ -758,6 +758,7 @@ function selectBranch(name) {
   FILTERS.branch = newVal;
   document.getElementById('f-branch').value = newVal;
   updateBranch3Options();
+  updateFilterSummary();
   renderAll();
 }
 
@@ -766,6 +767,7 @@ function selectBranch3(name) {
   const newVal = FILTERS.branch3 === name ? 'all' : name;
   FILTERS.branch3 = newVal;
   const sel = document.getElementById('f-branch3'); if (sel) sel.value = newVal;
+  updateFilterSummary();
   renderAll();
 }
 
