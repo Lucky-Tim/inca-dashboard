@@ -592,8 +592,8 @@ function renderCurrentMonth(kpis) {
   });
 
   // MoM 기준: 직전 마감월 vs 전전 마감월 (안정된 완결 데이터끼리 비교)
-  const sortedClosed = [...(closedMonths || [])].sort();
-  const _prevM2 = sortedClosed[sortedClosed.length - 1];  // 전월
+  const sortedClosed = [...(closedMonths || [])].sort().filter(m => m < latM);
+  const _prevM2 = sortedClosed[sortedClosed.length - 1];  // 전월(당월 직전)
 
   const latCrMap  = {};
   const prevCrMap = {};
