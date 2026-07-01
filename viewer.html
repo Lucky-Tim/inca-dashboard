@@ -593,15 +593,14 @@ function renderCurrentMonth(kpis) {
 
   // MoM 기준: 직전 마감월 vs 전전 마감월 (안정된 완결 데이터끼리 비교)
   const sortedClosed = [...(closedMonths || [])].sort();
-  const latClosed    = sortedClosed[sortedClosed.length - 1];
-  const prevClosed   = sortedClosed[sortedClosed.length - 2];
+  const _prevM2 = sortedClosed[sortedClosed.length - 1];  // 전월
 
   const latCrMap  = {};
   const prevCrMap = {};
   agg.forEach(r => {
     const b = r[_dl] || '미분류';
-    if (r.month === latClosed)  latCrMap[b]  = (latCrMap[b]  || 0) + r.credit;
-    if (r.month === prevClosed) prevCrMap[b] = (prevCrMap[b] || 0) + r.credit;
+    if (r.month === latM)     latCrMap[b]  = (latCrMap[b]  || 0) + r.credit;   // 당월 인정
+    if (r.month === _prevM2)  prevCrMap[b] = (prevCrMap[b] || 0) + r.credit;   // 전월 인정
   });
 
   // 당월 집계

@@ -856,18 +856,39 @@ function mergeData() {
   STATE.monthStatus = deriveMonthStatus(STATE.merged, STATE.monthStatus);
 }
 
-// 가마감 행의 예상 인정실적 = 영수금 × 보종별(손/생보) 마감 비율
+// 상품명 → 상품군 (규정 인정비율 낮은 유형 판별)
+function _prodGun(name){
+  const n = String(name||'');
+  if(n.includes('연금저축')) return '연금저축';
+  if(n.includes('변액')) return '변액연금';
+  if(n.includes('연금')) return '연금';
+  if(n.includes('실손')) return '단독실손';
+  if(n.includes('운전자')) return '운전자';
+  if(n.includes('재물')||n.includes('화재')) return '재물';
+  if(n.includes('저축')) return '저축';
+  return null;
+}
+// 가마감 예상 인정실적 = 영수금 × (상품군 마감비율 있으면 그것, 없으면 손/생보 평균)
 function estimateGamagamCredit(rows){
   const compLG = {};
   rows.forEach(r=>{ if(r.source==='가마감' && r.company){ compLG[r.company] = String(r.category||'').includes('생')?'생보':'손보'; } });
   const lgOf = r => r.source==='가마감'
       ? (String(r.category||'').includes('생')?'생보':'손보')
       : (compLG[r.company] || (String(r.company||'').includes('생')?'생보':'손보'));
-  const acc={손보:[0,0],생보:[0,0]};
-  rows.forEach(r=>{ if(r.source!=='가마감'){ const t=lgOf(r); acc[t][0]+=(+r.premium||0); acc[t][1]+=(+r.credit||0); } });
-  const ratio={ 손보: acc.손보[0]?acc.손보[1]/acc.손보[0]:0, 생보: acc.생보[0]?acc.생보[1]/acc.생보[0]:0 };
-  rows.forEach(r=>{ if(r.source==='가마감'){ const t=lgOf(r); r.credit = Math.round((+r.premium||0)*(ratio[t]||0)); r._est=true; } });
-  STATE._estRatio = ratio;
+  // 손/생보 평균 + 상품군별 비율 (마감 기준)
+  const acc={손보:[0,0],생보:[0,0]}; const gun={};
+  rows.forEach(r=>{ if(r.source!=='가마감'){
+    const t=lgOf(r); acc[t][0]+=(+r.premium||0); acc[t][1]+=(+r.credit||0);
+    const g=(r.상품군||'').trim(); if(g){ (gun[g]=gun[g]||[0,0]); gun[g][0]+=(+r.premium||0); gun[g][1]+=(+r.credit||0); }
+  } });
+  const ratioLG={ 손보: acc.손보[0]?acc.손보[1]/acc.손보[0]:0, 생보: acc.생보[0]?acc.생보[1]/acc.생보[0]:0 };
+  const ratioGun={}; Object.keys(gun).forEach(g=>{ if(gun[g][0]>0) ratioGun[g]=gun[g][1]/gun[g][0]; });
+  rows.forEach(r=>{ if(r.source==='가마감'){
+    const g=_prodGun(r.상품명);
+    const rt = (g && ratioGun[g]!=null) ? ratioGun[g] : (ratioLG[lgOf(r)]||0);
+    r.credit = Math.round((+r.premium||0)*rt); r._est=true;
+  } });
+  STATE._estRatio = { lg:ratioLG, gun:ratioGun };
 }
 
 // ── 월별 마감/가마감 상태: 데이터에서 직접 도출 ──
@@ -1795,13 +1816,12 @@ function renderDashboard(kpis, filtered) {
     const latMLabel2 = (latM ? String(latM).slice(0,4)+'년 '+String(latM).slice(4,6)+'월 진행중' : '') + ` · ${_drill.label}별`;
     if (curMonthSub) curMonthSub.textContent = latMLabel2;
     const sortedClosed = [...new Set(filtered.map(r=>r.month).filter(Boolean))].sort().filter(m=>m<latM);
-    const latClosed  = sortedClosed[sortedClosed.length - 1];
-    const prevClosed = sortedClosed[sortedClosed.length - 2];
+    const _prevM2 = sortedClosed[sortedClosed.length - 1];  // 전월
     const latCrMap = {}, prevCrMap = {};
     filtered.forEach(r => {
       const b = orgNameOf(r, _drill.level);
-      if (r.month === latClosed)  latCrMap[b]  = (latCrMap[b]  || 0) + (r.credit || 0);
-      if (r.month === prevClosed) prevCrMap[b] = (prevCrMap[b] || 0) + (r.credit || 0);
+      if (r.month === latM)     latCrMap[b]  = (latCrMap[b]  || 0) + (r.credit || 0);   // 당월 인정
+      if (r.month === _prevM2)  prevCrMap[b] = (prevCrMap[b] || 0) + (r.credit || 0);   // 전월 인정
     });
     const curRows = {};
     latF_.forEach(r => {
@@ -2610,6 +2630,7 @@ function parsePerfSheet(rows, fname) {
     parsed.push({
       SUNAB_PK: pk||`AUTO_${i}`,
       증권번호: String(r[ix('증권번호')]||'').trim(),
+      상품군: String(r[ix('상품군')]||'').trim(),
       month:    String(r[ix('납입월도')]).trim(),
       agentId:  String(r[ix('담당자코드')]).trim(),
       premium:  cn(r[ix('월보험료')]),
@@ -2661,6 +2682,7 @@ function parseAutoSheet(rows, fname) {
     parsed.push({
       SUNAB_PK: 'AUTO_'+String(r[ix('보험사')]||'').trim()+'_'+String(r[ix('증권번호')]||'').trim()+'_'+i,
       증권번호: String(r[ix('증권번호')]||'').trim(),
+      상품명:   String(r[ix('보험사 상품명')]||r[ix('상품명')]||'').trim(),
       month:    ym,
       agentId:  agent,
       premium:  cn(r[ix('영수금')]),
