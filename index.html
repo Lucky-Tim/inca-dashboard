@@ -833,9 +833,12 @@ function mergeData() {
   const { employees, performance } = STATE;
   // O(1) 조회를 위해 Map으로 변환 (employees.find 대신 → 1.2억 → 6만 연산)
   const empMap = new Map(employees.map(e => [String(e.id), e]));
-  // SUNAB_PK 기반 중복제거
+  // 증권번호 dedup: 같은 (월,증권번호)에 마감(건별)이 있으면 가마감(자동) 제거 → 처리건 중복 방지
+  const _magamKey = new Set();
+  performance.forEach(p=>{ if(p.source!=='가마감' && p.증권번호) _magamKey.add(p.month+'|'+p.증권번호); });
   const seen = new Set();
   const deduped = performance.filter(p => {
+    if (p.source==='가마감' && p.증권번호 && _magamKey.has(p.month+'|'+p.증권번호)) return false;
     if (seen.has(p.SUNAB_PK)) return false;
     seen.add(p.SUNAB_PK);
     return true;
@@ -847,8 +850,24 @@ function mergeData() {
     };
     return { ...p, agentName: emp.name, agentType: emp.type, branch2: emp.b2, branch3: emp.b3, branch4: emp.b4, joinDate: emp.joinDate };
   });
+  // 가마감(미처리) 예상 인정실적 채움 (영수금 × 보종별 마감비율)
+  estimateGamagamCredit(STATE.merged);
   // 월별 마감/가마감 상태를 실데이터에서 직접 재도출
   STATE.monthStatus = deriveMonthStatus(STATE.merged, STATE.monthStatus);
+}
+
+// 가마감 행의 예상 인정실적 = 영수금 × 보종별(손/생보) 마감 비율
+function estimateGamagamCredit(rows){
+  const compLG = {};
+  rows.forEach(r=>{ if(r.source==='가마감' && r.company){ compLG[r.company] = String(r.category||'').includes('생')?'생보':'손보'; } });
+  const lgOf = r => r.source==='가마감'
+      ? (String(r.category||'').includes('생')?'생보':'손보')
+      : (compLG[r.company] || (String(r.company||'').includes('생')?'생보':'손보'));
+  const acc={손보:[0,0],생보:[0,0]};
+  rows.forEach(r=>{ if(r.source!=='가마감'){ const t=lgOf(r); acc[t][0]+=(+r.premium||0); acc[t][1]+=(+r.credit||0); } });
+  const ratio={ 손보: acc.손보[0]?acc.손보[1]/acc.손보[0]:0, 생보: acc.생보[0]?acc.생보[1]/acc.생보[0]:0 };
+  rows.forEach(r=>{ if(r.source==='가마감'){ const t=lgOf(r); r.credit = Math.round((+r.premium||0)*(ratio[t]||0)); r._est=true; } });
+  STATE._estRatio = ratio;
 }
 
 // ── 월별 마감/가마감 상태: 데이터에서 직접 도출 ──
@@ -887,8 +906,9 @@ function getFiltered() {
 
 // ─── 규정 가동 헬퍼: 그 달 인정실적(마감)/영수금(가마감) 10만원 이상 ───
 const ACTIVE_TH = 100000;
-function _amAgg(rows){ const g={}; rows.forEach(r=>{ const id=String(r.agentId||''),m=r.month; if(!id||!m)return; const k=id+'|'+m; (g[k]=g[k]||{id,m,c:0,p:0}); g[k].c+=(+r.credit||0); g[k].p+=(+r.premium||0); }); return g; }
-function _amActive(a){ const prov=(STATE.monthStatus&&STATE.monthStatus[a.m]==='가마감'); return (prov?a.p:a.c)>=ACTIVE_TH; }
+function _gVal(r){ return (r.source==='가마감') ? (+r.premium||0) : (+r.credit||0); }
+function _amAgg(rows){ const g={}; rows.forEach(r=>{ const id=String(r.agentId||''),m=r.month; if(!id||!m)return; const k=id+'|'+m; (g[k]=g[k]||{id,m,v:0}); g[k].v += _gVal(r); }); return g; }
+function _amActive(a){ return a.v>=ACTIVE_TH; }
 function activeMonthMap(rows){ const g=_amAgg(rows),byMonth={},anySet=new Set(); for(const k in g){ const a=g[k]; if(_amActive(a)){ (byMonth[a.m]=byMonth[a.m]||new Set()).add(a.id); anySet.add(a.id);} } return {byMonth,anySet}; }
 function activeAgentsSingleMonth(rows){ const g=_amAgg(rows),s=new Set(); for(const k in g){ const a=g[k]; if(_amActive(a)) s.add(a.id);} return s; }
 
@@ -968,8 +988,8 @@ function getBranchStats(data) {
   });
   // 규정 가동: 브랜치별 월별 인정실적(마감)/영수금(가마감) 10만↑ 활동설계사
   { const _bam={};
-    data.forEach(r=>{ const k=r.branch2||'기타', id=String(r.agentId||''), m=r.month; if(!id||!m)return; const kk=k+'|'+id+'|'+m; (_bam[kk]=_bam[kk]||{k,id,m,c:0,p:0}); _bam[kk].c+=(+r.credit||0); _bam[kk].p+=(+r.premium||0); });
-    for(const kk in _bam){ const a=_bam[kk]; const prov=(STATE.monthStatus&&STATE.monthStatus[a.m]==='가마감'); if((prov?a.p:a.c)>=ACTIVE_TH && map[a.k]) map[a.k].agentSet.add(a.id); }
+    data.forEach(r=>{ const k=r.branch2||'기타', id=String(r.agentId||''), m=r.month; if(!id||!m)return; const kk=k+'|'+id+'|'+m; (_bam[kk]=_bam[kk]||{k,id,v:0}); _bam[kk].v += _gVal(r); });
+    for(const kk in _bam){ const a=_bam[kk]; if(a.v>=ACTIVE_TH && map[a.k]) map[a.k].agentSet.add(a.id); }
   }
   // Attach registered count from employees
   STATE.employees.filter(e=>e.type==='재직').forEach(e => {
@@ -1578,12 +1598,24 @@ function renderDashboard(kpis, filtered) {
   const _latLabel  = _latM  ? String(_latM).slice(0,4)+'년 '+String(_latM).slice(4,6)+'월' : '최신월';
   const _prevLabel = _prevM ? String(_prevM).slice(0,4)+'년 '+String(_prevM).slice(4,6)+'월' : '전월';
 
-  // ── 당월 마감/가마감 상태 배지 (마감=건별실적 / 가마감=자동실적) ──
-  const _latStatus = (STATE.merged.some(r => r.month===_latM && r.source==='가마감'))
-        ? '가마감'
-        : ((STATE.monthStatus && STATE.monthStatus[_latM]) || '마감');
-  const _isProv = _latStatus === '가마감';
-  const _statusBadge = `<span style="display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:800;padding:2px 8px;border-radius:999px;background:${_isProv?'rgba(245,158,11,.15)':'rgba(34,197,94,.15)'};color:${_isProv?'#f59e0b':'#22c55e'};border:1px solid ${_isProv?'rgba(245,158,11,.45)':'rgba(34,197,94,.45)'};white-space:nowrap;">${_isProv?'🟡 가마감(자동실적)':'🟢 마감(건별실적)'}</span>`;
+  // ── 당월 마감/가마감/예상 상태 ──
+  const _latRows = STATE.merged.filter(r => r.month===_latM);
+  const _nMag = _latRows.filter(r=>r.source!=='가마감').length;
+  const _nGam = _latRows.filter(r=>r.source==='가마감').length;
+  const _confCred = _latRows.filter(r=>r.source!=='가마감').reduce((s,r)=>s+(+r.credit||0),0);
+  const _estCred  = _latRows.filter(r=>r.source==='가마감').reduce((s,r)=>s+(+r.credit||0),0);
+  const _confPrem = _latRows.filter(r=>r.source!=='가마감').reduce((s,r)=>s+(+r.premium||0),0);
+  const _estPrem  = _latRows.filter(r=>r.source==='가마감').reduce((s,r)=>s+(+r.premium||0),0);
+  const _hasEst = _nGam>0;
+  const _bA='background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.45)';
+  const _bG='background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.45)';
+  const _bB='background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.45)';
+  const _bcss='display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap;';
+  const _statusBadge = _hasEst
+    ? (_nMag>0 ? `<span style="${_bcss}${_bB}">🔵 마감 ${_nMag} · 🟡 잠정 ${_nGam}</span>`
+               : `<span style="${_bcss}${_bA}">🟡 잠정(예상) ${_nGam}</span>`)
+    : `<span style="${_bcss}${_bG}">🟢 마감(건별실적)</span>`;
+  const _estTag = _hasEst ? ` <span style="font-size:8px;font-weight:800;padding:1px 5px;border-radius:6px;${_bA};" title="가마감(미처리)은 영수금×보종별 마감비율로 추정한 예상 인정실적입니다.">예상 포함</span>` : '';
 
   // KPI Cards
   const combined = document.getElementById('kpi-combined');
@@ -1595,16 +1627,16 @@ function renderDashboard(kpis, filtered) {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
         <div style="padding-right:20px;">
-          <div style="font-size:9px;color:#64748b;margin-bottom:4px;">💰 ${labelA}${_isProv?' · 영수금(가마감)':''}</div>
+          <div style="font-size:9px;color:#64748b;margin-bottom:4px;">💰 ${labelA}</div>
           <div style="font-size:24px;font-weight:900;color:#3b82f6;font-variant-numeric:tabular-nums;">${fmtK(dispA)}</div>
-          <div style="font-size:10px;color:#64748b;margin-top:4px;">${subA}</div>
+          <div style="font-size:10px;color:#64748b;margin-top:4px;">${(isCompare&&_hasEst)?`마감 ${fmtK(_confPrem)} <span style="color:#f59e0b;">+ 잠정 ${fmtK(_estPrem)}</span>`:subA}</div>
           ${cmpHtml(latPrem,avgA,'money')}
         </div>
         <div style="padding-left:20px;border-left:1px solid rgba(255,255,255,.1);">
-          <div style="font-size:9px;color:#64748b;margin-bottom:4px;">💵 ${labelB}</div>
-          <div style="font-size:24px;font-weight:900;color:#6366f1;font-variant-numeric:tabular-nums;">${_isProv?'—':fmtK(dispB)}</div>
-          <div style="font-size:10px;color:#64748b;margin-top:4px;">${_isProv?'가마감 미확정':subB}</div>
-          ${_isProv?'':cmpHtml(latCred,avgB,'money')}
+          <div style="font-size:9px;color:#64748b;margin-bottom:4px;">💵 ${labelB}${_estTag}</div>
+          <div style="font-size:24px;font-weight:900;color:#6366f1;font-variant-numeric:tabular-nums;">${fmtK(dispB)}</div>
+          <div style="font-size:10px;color:#64748b;margin-top:4px;">${(isCompare&&_hasEst)?`확정 ${fmtK(_confCred)} <span style="color:#f59e0b;">+ 예상 ${fmtK(_estCred)}</span>`:subB}</div>
+          ${cmpHtml(latCred,avgB,'money')}
         </div>
       </div>
     </div>`;
@@ -1821,9 +1853,8 @@ function renderDashboard(kpis, filtered) {
     });
     const latActByBranch = {};
     { const _agg={};
-      latF_.forEach(r=>{ const id=String(r.agentId||''), b=orgNameOf(r,_drill.level); if(!id)return; const k=b+'|'+id; (_agg[k]=_agg[k]||{b,id,c:0,p:0}); _agg[k].c+=(+r.credit||0); _agg[k].p+=(+r.premium||0); });
-      const prov=(STATE.monthStatus&&STATE.monthStatus[latM]==='가마감');
-      for(const k in _agg){ const a=_agg[k]; if((prov?a.p:a.c)>=ACTIVE_TH){ (latActByBranch[a.b]=latActByBranch[a.b]||new Set()).add(a.id); } }
+      latF_.forEach(r=>{ const id=String(r.agentId||''), b=orgNameOf(r,_drill.level); if(!id)return; const k=b+'|'+id; (_agg[k]=_agg[k]||{b,id,v:0}); _agg[k].v += _gVal(r); });
+      for(const k in _agg){ const a=_agg[k]; if(a.v>=ACTIVE_TH){ (latActByBranch[a.b]=latActByBranch[a.b]||new Set()).add(a.id); } }
     }
     const regByBranch = orgRegMap(_drill.level);
     const n6 = last6M.size || 1;
@@ -2578,6 +2609,7 @@ function parsePerfSheet(rows, fname) {
     if (!r[ix('담당자코드')]||!r[ix('납입월도')]) continue;
     parsed.push({
       SUNAB_PK: pk||`AUTO_${i}`,
+      증권번호: String(r[ix('증권번호')]||'').trim(),
       month:    String(r[ix('납입월도')]).trim(),
       agentId:  String(r[ix('담당자코드')]).trim(),
       premium:  cn(r[ix('월보험료')]),
@@ -2628,6 +2660,7 @@ function parseAutoSheet(rows, fname) {
     if (!agent || !ym) continue;
     parsed.push({
       SUNAB_PK: 'AUTO_'+String(r[ix('보험사')]||'').trim()+'_'+String(r[ix('증권번호')]||'').trim()+'_'+i,
+      증권번호: String(r[ix('증권번호')]||'').trim(),
       month:    ym,
       agentId:  agent,
       premium:  cn(r[ix('영수금')]),

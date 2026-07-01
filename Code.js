@@ -223,13 +223,13 @@ function buildAggregated(performance, employees) {
   });
 
   // ── 규정 가동: 설계사별 월 인정실적(마감)/영수금(가마감) 10만원 이상 ──
-  const _provMonth = {}, _agm = {}, _ACT_TH = 100000;
+  const _agm = {}, _ACT_TH = 100000;
   (performance || []).forEach(r => {
-    const m = String(r.month || '').trim(); const id = String(r.agentId || ''); if (!m) return;
-    if ((r.source || '').toString().trim() === '가마감') _provMonth[m] = true;
-    if (id) { const k = id + '|' + m; if (!_agm[k]) _agm[k] = { c:0, p:0 }; _agm[k].c += (Number(r.credit)||0); _agm[k].p += (Number(r.premium)||0); }
+    const m = String(r.month || '').trim(); const id = String(r.agentId || ''); if (!m || !id) return;
+    const k = id + '|' + m; if (!_agm[k]) _agm[k] = { v:0 };
+    _agm[k].v += ((r.source||'').toString().trim() === '가마감') ? (Number(r.premium)||0) : (Number(r.credit)||0);
   });
-  function _gActive(id, m){ const a = _agm[id + '|' + m]; if (!a) return false; return (_provMonth[m] ? a.p : a.c) >= _ACT_TH; }
+  function _gActive(id, m){ const a = _agm[id + '|' + m]; return a ? a.v >= _ACT_TH : false; }
 
   const map = {};
   (performance || []).forEach(r => {
@@ -429,14 +429,13 @@ function refreshCache() {
 
 // ─── 월별 마감/가마감 상태 (가마감=자동실적 1건이라도 있으면 가마감) ──
 function buildMonthStatus(performance) {
-  const st = {};
+  const prov = {}, fin = {};
   (performance || []).forEach(r => {
-    const m = String(r.month||'').trim();
-    if (!m) return;
-    const src = (r.source||'마감').toString().trim();
-    if (src === '가마감') st[m] = '가마감';
-    else if (!st[m])      st[m] = '마감';
+    const m = String(r.month||'').trim(); if (!m) return;
+    if ((r.source||'마감').toString().trim() === '가마감') prov[m] = true; else fin[m] = true;
   });
+  const st = {};
+  new Set([...Object.keys(prov), ...Object.keys(fin)]).forEach(m => { st[m] = (prov[m] && !fin[m]) ? '가마감' : '마감'; });
   return st;
 }
 
