@@ -202,6 +202,7 @@ input[type=file]{display:none;}
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;">
     <div class="glass" style="padding:16px;border-radius:16px;">
       <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:2px;">당월 조직별 실적현황</div>
+      <div style="font-size:9px;color:#fbbf24;margin-bottom:4px;">💡 표는 보기 전용 — 조직 필터는 아래 ‘인정실적 비중’ 도넛 차트를 클릭</div>
       <div id="cur-month-sub" style="font-size:10px;color:#64748b;margin-bottom:10px;"></div>
       <div style="max-height:300px;overflow-y:auto;">
       <table style="width:100%;border-collapse:collapse;font-size:11px;">
@@ -245,7 +246,7 @@ input[type=file]{display:none;}
     </div>
     <div class="glass" style="padding:16px;border-radius:16px;">
       <div id="branch-donut-title" style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">소속사업단별 인정실적 비중</div>
-      <div id="branch-donut-sub" style="font-size:10px;color:#64748b;margin-bottom:12px;">클릭 시 해당 사업단 필터 적용</div>
+      <div id="branch-donut-sub" style="font-size:10px;color:#fbbf24;font-weight:700;margin-bottom:12px;">👆 클릭하면 해당 사업단 필터 적용</div>
       <div style="height:220px;position:relative;"><canvas id="ch-branch-donut"></canvas></div>
     </div>
     <div class="glass" style="padding:16px;border-radius:16px;">
@@ -1741,7 +1742,7 @@ function renderDashboard(kpis, filtered) {
     });
     drillStats    = Object.values(agMap).filter(a=>a.credit>0).sort((a,b)=>b.credit-a.credit).slice(0,10);
     drillTitle    = '설계사별 인정실적 비중';
-    drillSub      = [...STATE.filters.branch3].join(', ') + ' 내';
+    drillSub      = [...STATE.filters.branch3].join(', ') + ' 내 · 최하위 (필터 해제는 상단 필터에서)';
     drillClickKey = null;
   } else if (b2Sel) {
     // 소속사업단 선택 → 소속본부(b3) breakdown
@@ -1753,13 +1754,13 @@ function renderDashboard(kpis, filtered) {
     });
     drillStats    = Object.values(b3Map).filter(b=>b.credit>0).sort((a,b)=>b.credit-a.credit).slice(0,8);
     drillTitle    = '소속본부별 인정실적 비중';
-    drillSub      = [...STATE.filters.branch2].join(', ') + ' 내 · 클릭 시 본부 필터 적용';
+    drillSub      = [...STATE.filters.branch2].join(', ') + ' 내 · 👆 클릭하면 본부 필터 적용';
     drillClickKey = 'branch3';
   } else {
     // 전체 → 소속사업단(b2) breakdown
     drillStats    = getBranchStats(filtered).filter(b=>b.credit>0).slice(0,8);
     drillTitle    = '소속사업단별 인정실적 비중';
-    drillSub      = '클릭 시 해당 사업단 필터 적용';
+    drillSub      = '👆 클릭하면 해당 사업단 필터 적용';
     drillClickKey = 'branch2';
   }
   document.getElementById('branch-donut-title').textContent = drillTitle;
