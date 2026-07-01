@@ -2385,6 +2385,27 @@ function renderDataView(filtered) {
 function dvSearch() { STATE.ui.dvSearch = document.getElementById('dv-search').value; STATE.ui.dvPage=1; renderDataView(getFiltered()); }
 
 // ─── CHART UTILITY ───────────────────────────────────────
+// ─── 유지율 소속 스코프 헬퍼 (인별 사번 조인, 계약수 가중) ───
+function _crScopeIds(){
+  const b2=STATE.filters.branch2, b3=STATE.filters.branch3, fn=STATE.filtersNone;
+  const companyWide = (!fn.branch2 && !fn.branch3 && b2.size===0 && b3.size===0);
+  if(companyWide) return null;
+  const ids=new Set();
+  (STATE.employees||[]).forEach(e=>{
+    if(fn.branch2 || (b2.size>0 && !b2.has((e.b2||'').trim()))) return;
+    if(fn.branch3 || (b3.size>0 && !b3.has((e.b3||'').trim()))) return;
+    ids.add(String(e.id));
+  });
+  return ids;
+}
+function _scopedRet(ids){
+  const R=window.RETENTION;
+  if(!ids) return {scoped:false};
+  let sw=0,sn=0,kept=0;
+  (R.agents||[]).forEach(a=>{ const m=/\((\d+)\)/.exec(a.name); if(!m||!ids.has(m[1])) return; sw+=a.rate*a.n; sn+=a.n; kept+=Math.round(a.n*a.rate/100); });
+  return {scoped:true, rate: sn>0?sw/sn:null, n:sn, keptN:kept};
+}
+
 // ─── RENDER 수금·유지율 ───────────────────────────────────
 function renderCollRet() {
   const C = window.COLLECTION, R = window.RETENTION;
@@ -2403,14 +2424,24 @@ function renderCollRet() {
     const rc = o.rate<25?'#f87171':o.rate<35?'#fbbf24':'#4ade80';
     return `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:5px 8px;color:#e2e8f0;font-weight:600;">${o.org}</td><td style="padding:5px 8px;text-align:right;color:#94a3b8;font-family:monospace;">${fmtK(o.tgt)}</td><td style="padding:5px 8px;text-align:center;"><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;background:${rc}22;color:${rc};">${fmtP(o.rate)}</span></td></tr>`;
   }).join('');
-  // 유지율 KPI
-  document.getElementById('cr-ret-kpis').innerHTML =
-      kpi('통산 유지율', fmtP(R.total.rate), '2~13회 · 금액 기준', R.total.rate>=80?'#22c55e':'#fbbf24')
-    + kpi('대상 보험료', fmtK(R.total.amtTgt), R.total.nTgt.toLocaleString()+'건', '#60a5fa')
-    + kpi('유지 보험료', fmtK(R.total.amtKeep), R.total.nKeep.toLocaleString()+'건 유지', '#34d399')
-    + kpi('실효·해지', fmtK(R.total.amtTgt-R.total.amtKeep), (R.total.nTgt-R.total.nKeep).toLocaleString()+'건 이탈', '#f87171');
+  // 유지율 KPI (소속 스코프 반영 — 인별 계약수 가중, 전체는 공표값 유지)
+  const _crIds = _crScopeIds();
+  const _ret = _scopedRet(_crIds);
+  if (_ret.scoped) {
+    document.getElementById('cr-ret-kpis').innerHTML =
+        kpi('통산 유지율', _ret.rate==null?'—':fmtP(_ret.rate), '선택 조직 · 계약수 가중', (_ret.rate>=80)?'#22c55e':'#fbbf24')
+      + kpi('대상 계약', _ret.n.toLocaleString()+'건', '소속 인별 합산', '#60a5fa')
+      + kpi('유지 계약', _ret.keptN.toLocaleString()+'건', '유지 추정', '#34d399')
+      + kpi('실효·해지', (_ret.n-_ret.keptN).toLocaleString()+'건', '이탈 추정', '#f87171');
+  } else {
+    document.getElementById('cr-ret-kpis').innerHTML =
+        kpi('통산 유지율', fmtP(R.total.rate), '2~13회 · 금액 기준', R.total.rate>=80?'#22c55e':'#fbbf24')
+      + kpi('대상 보험료', fmtK(R.total.amtTgt), R.total.nTgt.toLocaleString()+'건', '#60a5fa')
+      + kpi('유지 보험료', fmtK(R.total.amtKeep), R.total.nKeep.toLocaleString()+'건 유지', '#34d399')
+      + kpi('실효·해지', fmtK(R.total.amtTgt-R.total.amtKeep), (R.total.nTgt-R.total.nKeep).toLocaleString()+'건 이탈', '#f87171');
+  }
   makeChart('cr-ret-chart','line',{ labels:R.hoecha.map(x=>x.h+'회'), datasets:[{ label:'유지율', data:R.hoecha.map(x=>x.rate), borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,.12)', fill:true, tension:.3, pointRadius:3 }] }, pctAxis);
-  document.getElementById('cr-ret-tbody').innerHTML = R.agents.filter(a=>a.n>=10).sort((a,b)=>a.rate-b.rate).slice(0,15).map(a=>{
+  document.getElementById('cr-ret-tbody').innerHTML = R.agents.filter(a=>{ if(a.n<10) return false; if(_crIds){ const m=/\((\d+)\)/.exec(a.name); if(!m||!_crIds.has(m[1])) return false; } return true; }).sort((a,b)=>a.rate-b.rate).slice(0,15).map(a=>{
     const rc = a.rate<60?'#f87171':a.rate<80?'#fbbf24':'#4ade80';
     return `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:5px 8px;color:#e2e8f0;font-weight:600;">${a.name}</td><td style="padding:5px 8px;text-align:right;color:#94a3b8;">${a.n}건</td><td style="padding:5px 8px;text-align:center;"><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;background:${rc}22;color:${rc};">${fmtP(a.rate)}</span></td></tr>`;
   }).join('');

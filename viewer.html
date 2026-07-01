@@ -945,15 +945,37 @@ function pctOptsV(label) {
       y:{ grid:{ color:'rgba(0,0,0,.06)' }, ticks:{ color:'#999', font:{ size:9 }, callback:v=>v+'%' } } } };
 }
 
+function _crScopeIdsV(){
+  const bAll = FILTERS.branch==='all', b3All = FILTERS.branch3==='all';
+  const isMgr = (typeof MGR!=='undefined') && MGR && MGR.scope;
+  if(!isMgr && bAll && b3All) return null;
+  const ids=new Set();
+  (RAW.employees||[]).forEach(e=>{
+    if(!bAll && (e.b2||'').trim()!==FILTERS.branch) return;
+    if(!b3All && (e.b3||'').trim()!==FILTERS.branch3) return;
+    ids.add(String(e.id));
+  });
+  return ids;
+}
+function _scopedRetV(ids){
+  const R=window.RETENTION;
+  if(!ids) return {scoped:false, rate:R.total.rate};
+  let sw=0,sn=0;
+  (R.agents||[]).forEach(a=>{ const m=/\((\d+)\)/.exec(a.name); if(!m||!ids.has(m[1])) return; sw+=a.rate*a.n; sn+=a.n; });
+  return {scoped:true, rate: sn>0?sw/sn:null, n:sn};
+}
 function renderCollRetV() {
   const C = window.COLLECTION, R = window.RETENTION;
   if (!C || !R) return;
   const a = document.getElementById('cr-asof-v'); if (a) a.textContent = '(' + (C.asof||'') + ' 스냅샷)';
   const card = (label, val, sub, color) => `<div style="background:#faf7f7;border:1px solid #eee;border-radius:12px;padding:12px 14px;text-align:center;"><div style="font-size:11px;color:#888;font-weight:700;">${label}</div><div style="font-size:26px;font-weight:900;color:${color};margin:3px 0;">${val}</div><div style="font-size:10px;color:#999;">${sub}</div></div>`;
+  const _vret = _scopedRetV(_crScopeIdsV());
+  const _rRate = _vret.rate;
+  const _rSub = _vret.scoped ? '계약 유지 · 소속 인별 가중' : '계약 유지 · 2~13회';
   document.getElementById('cr-v-cards').innerHTML =
-      card('응당월 수금율', fmtP(C.total.rate), '정시 납입 · 2~13회', C.total.rate<50?'#dc2626':'#16a34a')
-    + card('통산 유지율', fmtP(R.total.rate), '계약 유지 · 2~13회', R.total.rate>=80?'#16a34a':'#d97706');
-  document.getElementById('cr-v-insight').innerHTML = '💬 계약은 유지(' + fmtP(R.total.rate) + ')되나 정시 납입이 무너집니다(수금율 ' + fmtP(C.total.rate) + ') → 실효·환수의 <b>선행경보</b>. 장기 회차로 갈수록 유지율이 급락합니다.';
+      card('응당월 수금율', fmtP(C.total.rate), '정시 납입 · 2~13회' + (_vret.scoped?' · 전사기준':''), C.total.rate<50?'#dc2626':'#16a34a')
+    + card('통산 유지율', _rRate==null?'—':fmtP(_rRate), _rSub, (_rRate>=80)?'#16a34a':'#d97706');
+  document.getElementById('cr-v-insight').innerHTML = '💬 계약은 유지(' + (_rRate==null?'—':fmtP(_rRate)) + ')되나 정시 납입이 무너집니다(수금율 ' + fmtP(C.total.rate) + ' · 전사) → 실효·환수의 <b>선행경보</b>. 장기 회차로 갈수록 유지율이 급락합니다.';
   if (_chartReg['crRet']) _chartReg['crRet'].destroy();
   _chartReg['crRet'] = new Chart(document.getElementById('cr-ret-chart-v'), { type:'line',
     data:{ labels:R.hoecha.map(x=>x.h+'회'), datasets:[{ label:'유지율', data:R.hoecha.map(x=>x.rate), borderColor:'#dc2626', backgroundColor:'rgba(220,38,38,.1)', fill:true, tension:.3, pointRadius:3, pointBackgroundColor:'#dc2626' }] }, options:pctOptsV('유지율') });
