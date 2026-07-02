@@ -7,7 +7,7 @@
 <style>
   :root{--ink:#0E1F38;--navy:#16335B;--navy2:#1B3A6B;--ice:#E9EFF8;--ice2:#D6E3F4;--gold:#E0A33E;--teal:#1F7A8C;--red:#B3261E;--green:#1F7A43;--gray:#5B6B7B}
   *{box-sizing:border-box}
-  body{font-family:"맑은 고딕","Malgun Gothic",system-ui,sans-serif;margin:0;background:#F4F7FB;color:var(--ink);font-size:14px}
+  body{font-family:"맑은 고딕","Malgun Gothic",system-ui,sans-serif;margin:0;background:#F4F7FB;color:var(--ink);font-size:14px;letter-spacing:-0.2px;line-height:1.45}
   header{background:var(--navy);color:#fff;padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   header h1{font-size:17px;margin:0}
   header .sub{color:var(--ice2);font-size:12px}
@@ -27,14 +27,20 @@
   input[type=text],select{font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--ice2);border-radius:8px;background:#fff}
   .spacer{flex:1}
   .tablewrap{overflow-x:auto;border-radius:12px}
-  table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(14,31,56,.06);min-width:1100px}
-  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--ice);font-size:13px;vertical-align:middle}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(14,31,56,.06);min-width:1020px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--ice);font-size:13px;vertical-align:middle;letter-spacing:-0.2px}
   th{background:var(--navy);color:#fff;font-weight:600;cursor:pointer;white-space:nowrap}
   tr:nth-child(even) td{background:#F8FAFD}
   td input,td select{width:100%;border:1px solid transparent;background:transparent}
   td input:focus,td select:focus{border-color:var(--ice2);background:#fff}
-  td .ro{color:var(--gray);font-size:12px;display:block;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  td .ro{color:var(--gray);font-size:12px;display:block;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  td .fx{display:block;font-weight:600;color:var(--ink)}
+  td .fx.gA{color:var(--red)}td .fx.gB{color:var(--teal)}td .fx.gC{color:var(--gray)}
+  td input.ed,td select.ed{background:#FFFBEF;border:1px solid #EAD9AE;border-radius:6px;padding:6px 8px}
+  td input.ed:focus,td select.ed:focus{border-color:var(--gold);background:#fff;outline:none}
+  td input.ed::placeholder{color:#BBA050;font-size:12px}
   .gA{color:var(--red);font-weight:700}.gB{color:var(--teal);font-weight:700}.gC{color:var(--gray);font-weight:700}
+  .hint{background:#FFF8E6;border:1px solid #EAD9AE;color:#6b5518;font-size:12px;padding:8px 12px;border-radius:8px;margin-bottom:10px;line-height:1.5}
   .st{border-radius:6px;padding:4px 6px;font-weight:600}
   .empty{padding:30px;text-align:center;color:var(--gray)}
   .foot{font-size:11px;color:var(--gray);margin-top:14px;line-height:1.6}
@@ -57,6 +63,8 @@
     td:first-child::before{content:"#";flex:0 0 auto}
     td .ro{max-width:none;white-space:normal}
     td input,td select{padding:8px;border:1px solid var(--ice2);border-radius:8px;font-size:15px}
+    td input.ed,td select.ed{padding:10px;font-size:15px}
+    td .fx{font-size:15px}
   }
 </style>
 </head>
@@ -81,6 +89,7 @@
     <select id="fGrade" onchange="render()"><option value="">등급 전체</option><option>A</option><option>B</option><option>C</option></select>
     <select id="fStatus" onchange="render()"><option value="">상태 전체</option></select>
   </div>
+  <div class="hint">💡 <b>노란 칸</b>(상태·담당·방문일·계약금액·메모)만 탭해서 입력하세요. 업종·등급·연락처와 회색 칸(주소·점주명 등)은 고정값입니다.</div>
   <div class="tablewrap">
     <table><thead id="thead"></thead><tbody id="tb"></tbody></table>
   </div>
@@ -98,13 +107,12 @@ const API_URL = "https://script.google.com/macros/s/AKfycbxvX0st4dxyyretLcMuIOCW
 
 // 컬럼 구성: input=편집 / ro=읽기전용(동선 원본) / status·grade·phone=특수
 const COLS=[
-  {k:"매장명",label:"매장명",t:"input"},
-  {k:"업종",label:"업종",t:"input"},
+  {k:"업종",label:"업종",t:"fixed"},
   {k:"등급",label:"등급",t:"grade"},
   {k:"상태",label:"상태",t:"status"},
   {k:"연락처",label:"연락처",t:"phone"},
   {k:"담당",label:"담당",t:"input"},
-  {k:"방문일",label:"방문일",t:"input"},
+  {k:"방문일",label:"방문일",t:"date"},
   {k:"계약금액",label:"계약금액",t:"input"},
   {k:"메모",label:"메모",t:"input"},
   {k:"점주명",label:"점주명",t:"ro"},
@@ -186,17 +194,18 @@ function fmtPhone(v){ v=String(v==null?"":v).trim(); if(/^\d{9,10}$/.test(v)) re
 function cellHtml(d,c){
   const no=d["번호"], v=d[c.k]==null?"":d[c.k];
   if(c.t==="ro") return '<td data-label="'+c.label+'"><span class="ro" title="'+esc(v)+'">'+(esc(v)||"—")+'</span></td>';
-  if(c.t==="status"){
-    const opts=STATUSES.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join("");
-    return '<td data-label="상태"><select class="st" style="background:'+(ST_COLOR[v]||"#fff")+'" onchange="up('+no+',\'상태\',this.value)">'+opts+'</select></td>';
-  }
+  if(c.t==="fixed") return '<td data-label="'+c.label+'"><span class="fx">'+(esc(v)||"—")+'</span></td>';
+  if(c.t==="phone") return '<td data-label="연락처"><span class="fx">'+(esc(fmtPhone(v))||"—")+'</span></td>';
   if(c.t==="grade"){
     const gcls=v==="A"?"gA":v==="B"?"gB":"gC";
-    const opts=["A","B","C"].map(g=>'<option '+(g===v?"selected":"")+'>'+g+'</option>').join("");
-    return '<td data-label="등급"><select class="'+gcls+'" onchange="up('+no+',\'등급\',this.value)">'+opts+'</select></td>';
+    return '<td data-label="등급"><span class="fx '+gcls+'">'+(esc(v)||"—")+'</span></td>';
   }
-  if(c.t==="phone") return '<td data-label="연락처"><input value="'+esc(fmtPhone(v))+'" onchange="up('+no+',\'연락처\',this.value)"></td>';
-  return '<td data-label="'+c.label+'"><input value="'+esc(v)+'" placeholder="—" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
+  if(c.t==="status"){
+    const opts=STATUSES.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join("");
+    return '<td data-label="상태"><select class="st ed" style="background:'+(ST_COLOR[v]||"#fff")+'" onchange="up('+no+',\'상태\',this.value)">'+opts+'</select></td>';
+  }
+  if(c.t==="date") return '<td data-label="방문일"><input class="ed" type="date" value="'+esc(v)+'" onchange="up('+no+',\'방문일\',this.value)"></td>';
+  return '<td data-label="'+c.label+'"><input class="ed" value="'+esc(v)+'" placeholder="탭하여 입력" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
 }
 
 function render(){
