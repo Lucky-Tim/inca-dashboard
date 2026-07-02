@@ -1,0 +1,35 @@
+# ===== 절대 커밋 금지: 토큰·로컬 설정 =====
+sync_from_github.ps1
+sync_from_github.bat
+register_autostart.bat
+start_server.bat
+.clasp.json
+.claspignore
+인카_Apps_Script.js
+
+# ===== 내부 문서·전략자료 (공개 저장소에 올리지 않음) =====
+*.docx
+*.pptx
+*.pdf
+*.xlsx
+*.zip
+
+# ===== 개인정보/전략/설계/회의 문서 (한글) =====
+*검증요청서*.md
+*검증*종합*.md
+*설계*.md
+*설계서*.md
+*실행패키지*.md
+*보완사항*.md
+*자료정리*.md
+RLS_*.md
+RPC_*.md
+[오퍼스*.md
+
+# ===== 작업용 캐시·로그·백업 =====
+_backup/
+_*.md
+_*.json
+_*.py
+*.bak
+e5a8b991522d0.png
