@@ -27,8 +27,9 @@
   input[type=text],select{font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--ice2);border-radius:8px;background:#fff}
   .spacer{flex:1}
   .tablewrap{overflow-x:auto;border-radius:12px}
-  table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(14,31,56,.06);min-width:1020px}
-  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--ice);font-size:13px;vertical-align:middle;letter-spacing:-0.2px}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(14,31,56,.06);min-width:1500px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--ice);font-size:13px;vertical-align:middle;letter-spacing:-0.2px;white-space:nowrap}
+  th:first-child,td:first-child{min-width:150px;white-space:normal;word-break:keep-all}
   th{background:var(--navy);color:#fff;font-weight:600;cursor:pointer;white-space:nowrap}
   tr:nth-child(even) td{background:#F8FAFD}
   td input,td select{width:100%;border:1px solid transparent;background:transparent}
@@ -36,7 +37,9 @@
   td .ro{color:var(--gray);font-size:12px;display:block;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   td .fx{display:block;font-weight:600;color:var(--ink)}
   td .fx.gA{color:var(--red)}td .fx.gB{color:var(--teal)}td .fx.gC{color:var(--gray)}
-  td input.ed,td select.ed{background:#FFFBEF;border:1px solid #EAD9AE;border-radius:6px;padding:6px 8px}
+  td input.ed,td select.ed{background:#FFFBEF;border:1px solid #EAD9AE;border-radius:6px;padding:6px 8px;min-width:78px}
+  td select.ed{min-width:96px}
+  td input.ed[type=date]{min-width:144px}
   td input.ed:focus,td select.ed:focus{border-color:var(--gold);background:#fff;outline:none}
   td input.ed::placeholder{color:#BBA050;font-size:12px}
   .gA{color:var(--red);font-weight:700}.gB{color:var(--teal);font-weight:700}.gC{color:var(--gray);font-weight:700}
@@ -190,10 +193,16 @@ function renderKPIs(){
 }
 function esc(s){return String(s==null?"":s).replace(/"/g,"&quot;").replace(/</g,"&lt;");}
 function fmtPhone(v){ v=String(v==null?"":v).trim(); if(/^\d{9,10}$/.test(v)) return "0"+v; return v; }
+function fmtDate(v){
+  if(v==null||v==="") return "";
+  var s=String(v);
+  if(/^\d{4}-\d{2}-\d{2}T/.test(s)){ var d=new Date(s); if(!isNaN(d)){ var k=new Date(d.getTime()+9*3600*1000); return k.getUTCFullYear()+"-"+String(k.getUTCMonth()+1).padStart(2,"0")+"-"+String(k.getUTCDate()).padStart(2,"0"); } }
+  return s.length>10?s.slice(0,10):s;
+}
 
 function cellHtml(d,c){
   const no=d["번호"], v=d[c.k]==null?"":d[c.k];
-  if(c.t==="ro") return '<td data-label="'+c.label+'"><span class="ro" title="'+esc(v)+'">'+(esc(v)||"—")+'</span></td>';
+  if(c.t==="ro"){ var rv=(c.k==="입점일")?fmtDate(v):v; return '<td data-label="'+c.label+'"><span class="ro" title="'+esc(rv)+'">'+(esc(rv)||"—")+'</span></td>'; }
   if(c.t==="fixed") return '<td data-label="'+c.label+'"><span class="fx">'+(esc(v)||"—")+'</span></td>';
   if(c.t==="phone") return '<td data-label="연락처"><span class="fx">'+(esc(fmtPhone(v))||"—")+'</span></td>';
   if(c.t==="grade"){
@@ -204,8 +213,8 @@ function cellHtml(d,c){
     const opts=STATUSES.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join("");
     return '<td data-label="상태"><select class="st ed" style="background:'+(ST_COLOR[v]||"#fff")+'" onchange="up('+no+',\'상태\',this.value)">'+opts+'</select></td>';
   }
-  if(c.t==="date") return '<td data-label="방문일"><input class="ed" type="date" value="'+esc(v)+'" onchange="up('+no+',\'방문일\',this.value)"></td>';
-  return '<td data-label="'+c.label+'"><input class="ed" value="'+esc(v)+'" placeholder="탭하여 입력" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
+  if(c.t==="date") return '<td data-label="방문일"><input class="ed" type="date" value="'+esc(fmtDate(v))+'" onchange="up('+no+',\'방문일\',this.value)"></td>';
+  return '<td data-label="'+c.label+'"><input class="ed" value="'+esc(v)+'" placeholder="입력" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
 }
 
 function render(){
