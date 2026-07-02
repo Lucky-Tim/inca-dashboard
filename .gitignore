@@ -24,7 +24,16 @@ start_server.bat
 *자료정리*.md
 RLS_*.md
 RPC_*.md
-[오퍼스*.md
+*이어받기_프롬프트*.md
+
+# ===== 옛 버전·목업 HTML/가이드 (저장소 제외) =====
+baegot50.html
+enterprise_saas_v3_0.html
+success_os_html.html
+사용량확인.html
+인카금융_운영플랫폼_V2_5.html
+해빙총괄_SuccessDNA_Interactive.html
+배곧50_*
 
 # ===== 작업용 캐시·로그·백업 =====
 _backup/
