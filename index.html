@@ -20,6 +20,8 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:#070c16;color:
 .glass{background:rgba(15,23,42,0.7);border:1px solid rgba(51,65,85,0.4);backdrop-filter:blur(10px);}
 .kpi-card{background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.4);transition:all .2s;}
 .kpi-card:hover{border-color:rgba(59,130,246,0.5);transform:translateY(-1px);}
+.kpi-4grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+@media (max-width:900px){.kpi-4grid{grid-template-columns:repeat(2,1fr);}}
 .tab-btn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;transition:all .15s;cursor:pointer;white-space:nowrap;}
 .tab-btn.active{background:#3b82f6;color:#fff;}
 .tab-btn:not(.active){color:#94a3b8;}
@@ -194,8 +196,8 @@ input[type=file]{display:none;}
     </button>
     <span id="vm-period-label" style="font-size:10px;color:#64748b;margin-left:4px;"></span>
   </div>
-  <!-- KPI CARDS A-H (8 cards) -->
-  <div id="kpi-combined" style="margin-bottom:12px;"></div>
+  <!-- KPI CARDS: 직전월/선택월 x 월보험료/인정실적 (4 cards) + A-H (6 cards) -->
+  <div class="kpi-4grid" id="kpi-combined" style="margin-bottom:12px;"></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;" id="kpi-grid"></div>
 
   <!-- 당월 조직별 실적현황 + 조직별 주요지표 -->
@@ -830,16 +832,21 @@ function buildMockData() {
 }
 
 // ─── MERGE & DEDUP ───────────────────────────────────────
+// 증권번호 정규화: 하이픈·공백 제거 + 대문자 통일 (파일간 표기 차이 흡수)
+function _normPolicy(s) { return String(s||'').replace(/[\s\-]/g,'').toUpperCase(); }
+
 function mergeData() {
   const { employees, performance } = STATE;
   // O(1) 조회를 위해 Map으로 변환 (employees.find 대신 → 1.2억 → 6만 연산)
   const empMap = new Map(employees.map(e => [String(e.id), e]));
-  // 증권번호 dedup: 같은 (월,증권번호)에 마감(건별)이 있으면 가마감(자동) 제거 → 처리건 중복 방지
+  // 증권번호 dedup: 같은 (월,증권번호정규화)에 마감(건별)이 있으면 가마감(자동) 제거 → 이중집계 방지
+  // ※ 1차 방어선은 parseAutoSheet에서 원본 '상태'='처리'(이미 확정 반영) 행을 애초에 제외하는 것.
+  //   이 dedup은 상태 컬럼이 없는 구버전 파일이나 표기 차이(하이픈·공백 등)에 대비한 안전망.
   const _magamKey = new Set();
-  performance.forEach(p=>{ if(p.source!=='가마감' && p.증권번호) _magamKey.add(p.month+'|'+p.증권번호); });
+  performance.forEach(p=>{ if(p.source!=='가마감' && p.증권번호) _magamKey.add(p.month+'|'+_normPolicy(p.증권번호)); });
   const seen = new Set();
   const deduped = performance.filter(p => {
-    if (p.source==='가마감' && p.증권번호 && _magamKey.has(p.month+'|'+p.증권번호)) return false;
+    if (p.source==='가마감' && p.증권번호 && _magamKey.has(p.month+'|'+_normPolicy(p.증권번호))) return false;
     if (seen.has(p.SUNAB_PK)) return false;
     seen.add(p.SUNAB_PK);
     return true;
@@ -917,6 +924,28 @@ function getFiltered() {
     if (fn.payMethod) return false;
     if (f.year.size     > 0 && !f.year.has(r.month?.slice(0,4)))  return false;
     if (f.month.size    > 0 && !f.month.has(r.month?.slice(4,6))) return false;
+    if (f.branch2.size  > 0 && !f.branch2.has(r.branch2))         return false;
+    if (f.branch3.size  > 0 && !f.branch3.has(r.branch3))         return false;
+    if (f.category.size > 0 && !f.category.has(r.category))       return false;
+    if (f.company.size  > 0 && !f.company.has(r.company))         return false;
+    if (f.payMethod.size> 0 && !f.payMethod.has(r.payMethod))     return false;
+    return true;
+  });
+}
+
+// 납입월(month) 필터만 제외하고 나머지 필터(연도·조직·상품·회사·납입방법)는 그대로 적용
+// → KPI 카드에서 "선택월"의 직전월처럼 필터 상의 선택월과 다른 특정 월 데이터를 뽑을 때 사용
+function getFilteredExceptMonth() {
+  const f  = STATE.filters;
+  const fn = STATE.filtersNone;
+  return STATE.merged.filter(r => {
+    if (fn.year     ) return false;
+    if (fn.branch2  ) return false;
+    if (fn.branch3  ) return false;
+    if (fn.category ) return false;
+    if (fn.company  ) return false;
+    if (fn.payMethod) return false;
+    if (f.year.size     > 0 && !f.year.has(r.month?.slice(0,4)))  return false;
     if (f.branch2.size  > 0 && !f.branch2.has(r.branch2))         return false;
     if (f.branch3.size  > 0 && !f.branch3.has(r.branch3))         return false;
     if (f.category.size > 0 && !f.category.has(r.category))       return false;
@@ -1620,48 +1649,115 @@ function renderDashboard(kpis, filtered) {
   const _latLabel  = _latM  ? String(_latM).slice(0,4)+'년 '+String(_latM).slice(4,6)+'월' : '최신월';
   const _prevLabel = _prevM ? String(_prevM).slice(0,4)+'년 '+String(_prevM).slice(4,6)+'월' : '전월';
 
-  // ── 당월 마감/가마감/예상 상태 ──
-  const _latRows = STATE.merged.filter(r => r.month===_latM);
-  const _nMag = _latRows.filter(r=>r.source!=='가마감').length;
-  const _nGam = _latRows.filter(r=>r.source==='가마감').length;
-  const _confCred = _latRows.filter(r=>r.source!=='가마감').reduce((s,r)=>s+(+r.credit||0),0);
-  const _estCred  = _latRows.filter(r=>r.source==='가마감').reduce((s,r)=>s+(+r.credit||0),0);
-  const _confPrem = _latRows.filter(r=>r.source!=='가마감').reduce((s,r)=>s+(+r.premium||0),0);
-  const _estPrem  = _latRows.filter(r=>r.source==='가마감').reduce((s,r)=>s+(+r.premium||0),0);
-  const _hasEst = _nGam>0;
+  // ── 4카드 개편: [직전월 월보험료(마감)] [선택월 월보험료] [직전월 인정실적(확정)] [선택월 인정실적] ──
+  // 선택월 = 납입월 필터를 따라가는 "최신 표시월"(필터 없으면 데이터 최신월). filtered 기준 latM을 그대로 선택월로 사용.
+  const _selM = latM || _latM;
+  // 직전월 = 선택월에서 달력상 -1개월 (데이터 존재 여부와 무관하게 계산 → 그 달 데이터가 없으면 0으로 표시)
+  const _calcPrevMonth = (ym) => {
+    if (!ym) return '';
+    const y = parseInt(String(ym).slice(0,4),10), m = parseInt(String(ym).slice(4,6),10);
+    const d = new Date(y, m-2, 1); // m은 1-based이므로 -2
+    return String(d.getFullYear()) + String(d.getMonth()+1).padStart(2,'0');
+  };
+  const _selPrevM = _calcPrevMonth(_selM);
+  const _selLabel     = _selM     ? String(_selM).slice(0,4)+'년 '+String(_selM).slice(4,6)+'월'     : '선택월';
+  const _selPrevLabel = _selPrevM ? String(_selPrevM).slice(0,4)+'년 '+String(_selPrevM).slice(4,6)+'월' : '직전월';
+  // 그 직전전월(직전월 카드의 증감 비교 기준)
+  const _selPrevPrevM = _calcPrevMonth(_selPrevM);
+
+  // 월 필터를 제외한 나머지 필터만 적용된 데이터 풀 (선택월/직전월을 자유롭게 뽑기 위함)
+  const _poolAllMonths = getFilteredExceptMonth();
+  const _rowsOf = (ym) => _poolAllMonths.filter(r => r.month === ym);
+
+  const _selRows     = _rowsOf(_selM);
+  const _selPrevRows = _rowsOf(_selPrevM);
+  const _prevPrevRows= _rowsOf(_selPrevPrevM);
+
+  const _sumPrem = (rows, srcFilter) => rows.filter(r=>!srcFilter || (srcFilter==='마감'?r.source!=='가마감':r.source==='가마감')).reduce((s,r)=>s+(+r.premium||0),0);
+  const _sumCred = (rows, srcFilter) => rows.filter(r=>!srcFilter || (srcFilter==='마감'?r.source!=='가마감':r.source==='가마감')).reduce((s,r)=>s+(+r.credit||0),0);
+
+  // 직전월 카드: 항상 마감(확정) 기준만 — 직전월은 이미 마감 완료 상태여야 정상이지만, 데이터상 가마감만 있어도 마감치(0)로 표시
+  const _prevPrem = _sumPrem(_selPrevRows, '마감');
+  const _prevCred = _sumCred(_selPrevRows, '마감');
+  const _pp2Prem  = _sumPrem(_prevPrevRows, '마감'); // 직전월 카드 증감 비교 기준(그 전전월)
+  const _pp2Cred  = _sumCred(_prevPrevRows, '마감');
+
+  // 선택월 카드: 마감+잠정 합산, 잠정 존재 여부로 배지 분기
+  const _selNMag = _selRows.filter(r=>r.source!=='가마감').length;
+  const _selNGam = _selRows.filter(r=>r.source==='가마감').length;
+  const _selHasEst = _selNGam>0;
+  const _selConfPrem = _sumPrem(_selRows,'마감'), _selEstPrem = _sumPrem(_selRows,'가마감');
+  const _selConfCred = _sumCred(_selRows,'마감'), _selEstCred = _sumCred(_selRows,'가마감');
+  const _selPrem = _selConfPrem + _selEstPrem;
+  const _selCred = _selConfCred + _selEstCred;
+
   const _bA='background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.45)';
   const _bG='background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.45)';
   const _bB='background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.45)';
   const _bcss='display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap;';
-  const _statusBadge = _hasEst
-    ? (_nMag>0 ? `<span style="${_bcss}${_bB}">🔵 마감 ${_nMag} · 🟡 잠정 ${_nGam}</span>`
-               : `<span style="${_bcss}${_bA}">🟡 잠정(예상) ${_nGam}</span>`)
+  const _selBadge = _selHasEst
+    ? (_selNMag>0 ? `<span style="${_bcss}${_bB}">🔵 마감 ${_selNMag} · 🟡 잠정 ${_selNGam}</span>`
+                  : `<span style="${_bcss}${_bA}">🟡 잠정(예상) ${_selNGam}</span>`)
     : `<span style="${_bcss}${_bG}">🟢 마감(건별실적)</span>`;
-  const _estTag = _hasEst ? ` <span style="font-size:8px;font-weight:800;padding:1px 5px;border-radius:6px;${_bA};" title="가마감(미처리)은 영수금×보종별 마감비율로 추정한 예상 인정실적입니다.">예상 포함</span>` : '';
+  const _prevBadge = `<span style="${_bcss}${_bG}">🟢 마감</span>`;
+
+  // 증감(▲/▼%) 헬퍼 — 잠정월(가마감 존재)이면 "진행중" 표기 병기
+  function _deltaHtml(cur, base, isProvisional) {
+    if (!base) return `<div style="margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.07);font-size:10px;color:#64748b;">비교 데이터 없음</div>`;
+    const p = (cur-base)/base*100;
+    const up = p>=0;
+    const cl = up?'#4ade80':'#f87171';
+    const arrow = up?'▲':'▼';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.07);font-size:10px;">
+      <span style="color:#64748b;">직전월 대비</span>
+      <span style="display:flex;align-items:center;gap:5px;">
+        ${isProvisional?'<span style="color:#fbbf24;font-weight:800;">진행중</span>':''}
+        <span style="color:${cl};font-weight:800;">${arrow} ${Math.abs(p).toFixed(1)}%</span>
+      </span>
+    </div>`;
+  }
+
+  const _cardStyle = 'border-radius:16px;padding:18px 20px;';
+  function _kpiCard(opts) {
+    return `<div class="kpi-card" style="${_cardStyle}border-left:4px solid ${opts.color};">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <span style="font-size:11px;font-weight:800;color:#cbd5e1;letter-spacing:.02em;">${opts.title}</span>
+        ${opts.badge}
+      </div>
+      <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:6px;">${opts.icon} ${opts.label}</div>
+      <div style="font-size:30px;font-weight:900;color:${opts.color};font-variant-numeric:tabular-nums;line-height:1.05;">${fmtK(opts.val)}</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:7px;min-height:15px;">${opts.sub}</div>
+      ${opts.delta}
+    </div>`;
+  }
 
   // KPI Cards
   const combined = document.getElementById('kpi-combined');
-  if (combined) combined.innerHTML = `
-    <div class="kpi-card" style="border-radius:16px;padding:22px 28px;border-left:4px solid #3b82f6;">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-        <span style="font-size:12px;font-weight:800;color:#cbd5e1;letter-spacing:.03em;">당월 실적 · ${_latLabel}</span>
-        ${_statusBadge}
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
-        <div style="padding-right:28px;">
-          <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px;">💰 ${labelA}</div>
-          <div style="font-size:38px;font-weight:900;color:#60a5fa;font-variant-numeric:tabular-nums;line-height:1.05;">${fmtK(dispA)}</div>
-          <div style="font-size:12px;color:#94a3b8;margin-top:7px;">${(isCompare&&_hasEst)?`마감 ${fmtK(_confPrem)} <span style="color:#fbbf24;font-weight:700;">+ 잠정 ${fmtK(_estPrem)}</span>`:subA}</div>
-          <div style="margin-top:6px;">${cmpHtml(latPrem,avgA,'money')}</div>
-        </div>
-        <div style="padding-left:28px;border-left:1px solid rgba(255,255,255,.12);">
-          <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px;">💵 ${labelB}${_estTag}</div>
-          <div style="font-size:38px;font-weight:900;color:#818cf8;font-variant-numeric:tabular-nums;line-height:1.05;">${fmtK(dispB)}</div>
-          <div style="font-size:12px;color:#94a3b8;margin-top:7px;">${(isCompare&&_hasEst)?`확정 ${fmtK(_confCred)} <span style="color:#fbbf24;font-weight:700;">+ 예상 ${fmtK(_estCred)}</span>`:subB}</div>
-          <div style="margin-top:6px;">${cmpHtml(latCred,avgB,'money')}</div>
-        </div>
-      </div>
-    </div>`;
+  if (combined) combined.innerHTML =
+      _kpiCard({
+        title: `${_selPrevLabel} 마감`, badge: _prevBadge, icon:'💰', label:'월보험료(마감)',
+        val: _prevPrem, color:'#60a5fa',
+        sub: `${_selPrevLabel} 확정 실적`,
+        delta: _deltaHtml(_prevPrem, _pp2Prem, false)
+      })
+    + _kpiCard({
+        title: `${_selLabel}`, badge: _selBadge, icon:'💰', label:'월보험료',
+        val: _selPrem, color:'#3b82f6',
+        sub: _selHasEst ? `마감 ${fmtK(_selConfPrem)} <span style="color:#fbbf24;font-weight:700;">+ 잠정 ${fmtK(_selEstPrem)}</span>` : `${_selLabel} 확정 실적`,
+        delta: _deltaHtml(_selPrem, _prevPrem, _selHasEst)
+      })
+    + _kpiCard({
+        title: `${_selPrevLabel} 마감`, badge: _prevBadge, icon:'💵', label:'인정실적(확정)',
+        val: _prevCred, color:'#818cf8',
+        sub: `${_selPrevLabel} 확정 실적`,
+        delta: _deltaHtml(_prevCred, _pp2Cred, false)
+      })
+    + _kpiCard({
+        title: `${_selLabel}`, badge: _selBadge, icon:'💵', label:'인정실적',
+        val: _selCred, color:'#6366f1',
+        sub: _selHasEst ? `확정 ${fmtK(_selConfCred)} <span style="color:#fbbf24;font-weight:700;">+ 예상 ${fmtK(_selEstCred)}</span>` : `${_selLabel} 확정 실적`,
+        delta: _deltaHtml(_selCred, _prevCred, _selHasEst)
+      });
   const kpiDefs = [
     { label:labelC, val:dispC.toLocaleString()+'건',    sub:subC, icon:'📋', color:'#8b5cf6', cmp:cmpHtml(dispC,kpis.C/mc,'cnt') },
     { label:labelD, val:dispD+'명',                     sub:subD, icon:'🏃', color:'#10b981', cmp:cmpHtml(latD_,kpis.avgActive,'person') },
@@ -1769,7 +1865,11 @@ function renderDashboard(kpis, filtered) {
     labels: drillStats.map(b=>b.name),
     datasets:[{ data:drillStats.map(b=>b.credit), backgroundColor:COLORS10, borderColor:'#070c16', borderWidth:3 }]
   },{
-    onClick:(e,els)=>{ if(els.length>0 && drillClickKey){ const lbl=drillStats[els[0].index].name; selectOnly(drillClickKey,lbl); } },
+    // setTimeout 0으로 selectOnly(→renderAll→makeChart→destroy) 실행을 다음 태스크로 지연.
+    // Chart.js가 클릭 이벤트(afterEvent 단계 포함)를 완전히 처리하기 전에 현재 차트 인스턴스가
+    // destroy되면 'Cannot read properties of undefined (reading handleEvent)' 예외가 발생하므로,
+    // 이벤트 처리 스택이 다 빠진 뒤(매크로태스크) 안전하게 재생성한다.
+    onClick:(e,els)=>{ if(els.length>0 && drillClickKey){ const lbl=drillStats[els[0].index].name; setTimeout(()=>selectOnly(drillClickKey,lbl), 0); } },
     plugins:{ legend:{ position:'right', labels:{ color:'#94a3b8', font:{ size:9 }, boxWidth:10 } } }
   });
   
@@ -2694,6 +2794,7 @@ function parseAutoSheet(rows, fname) {
   if (hi < 0) { log(`❌ ${fname}: 자동실적 헤더(설계사CD·영수일자·영수금) 미발견`, 'error'); return; }
   const headers = rows[hi].map(h=>String(h).trim());
   const ix = k=>headers.indexOf(k);
+  const hasStatusCol = ix('상태') >= 0;
   const cat = ix('1차년환산월초') >= 0 ? '생명보험' : '손해보험';
   const ymOf = (v) => {
     if (v == null || v === '') return '';
@@ -2706,11 +2807,19 @@ function parseAutoSheet(rows, fname) {
     return '';
   };
   const parsed = [];
+  let skippedProcessed = 0;
   for (let i=hi+1;i<rows.length;i++) {
     const r = rows[i];
     const agent = String(r[ix('설계사CD')]||'').trim();
     const ym = ymOf(r[ix('영수일자')]);
     if (!agent || !ym) continue;
+    // '상태'='처리'는 이미 건별실적(마감)으로 확정 반영된 건 → 가마감 후보에서 제외(이중집계 방지)
+    // 증권번호 포맷 차이(하이픈·대소문자 등)로 mergeData의 증권번호 dedup이 놓칠 수 있어
+    // 원본 상태값을 1차 필터로 사용하고, mergeData의 증권번호 매칭은 안전망으로 유지한다.
+    if (hasStatusCol) {
+      const stat = String(r[ix('상태')]||'').trim();
+      if (stat === '처리') { skippedProcessed++; continue; }
+    }
     parsed.push({
       SUNAB_PK: 'AUTO_'+String(r[ix('보험사')]||'').trim()+'_'+String(r[ix('증권번호')]||'').trim()+'_'+i,
       증권번호: String(r[ix('증권번호')]||'').trim(),
@@ -2726,7 +2835,7 @@ function parseAutoSheet(rows, fname) {
       status:   '실제데이터'
     });
   }
-  if (!parsed.length) { log(`⚠️ ${fname}: 유효 행 0건`, 'warn'); return; }
+  if (!parsed.length) { log(`⚠️ ${fname}: 유효 행 0건(상태=처리 제외 ${skippedProcessed}건)`, 'warn'); return; }
   const newMonths = new Set(parsed.map(p => p.month));
   if (!STATE._uploadBatch) STATE._uploadBatch = new Set();
   newMonths.forEach(m => {
@@ -2736,7 +2845,7 @@ function parseAutoSheet(rows, fname) {
     }
   });
   STATE.performance = [...STATE.performance, ...parsed];
-  log(`✅ 자동실적(가마감) ${parsed.length}건 로드 — ${cat} · 교체월 ${[...newMonths].join('·')}`, 'success');
+  log(`✅ 자동실적(가마감) ${parsed.length}건 로드 — ${cat} · 교체월 ${[...newMonths].join('·')}${skippedProcessed?` · 상태=처리 제외 ${skippedProcessed}건`:''}`, 'success');
 }
 
 
