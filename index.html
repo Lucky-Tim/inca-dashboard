@@ -1653,19 +1653,40 @@ function toggleSlicers(force){
   const open=(force!==undefined)?force:collapsed;
   sb.classList.toggle('sb-collapsed', !open);
   if(c) c.style.transform = open?'rotate(180deg)':'';
+  // 하단 스크롤 상태에서 열어도 토글 바 바로 아래 보이도록 fixed 재배치 (뷰어 검증 패턴 이식)
+  if(open){
+    _positionSlicerBarFixed();
+    window.addEventListener('scroll', _positionSlicerBarFixed, true);
+    window.addEventListener('resize', _positionSlicerBarFixed);
+  } else {
+    _resetSlicerBarPosition();
+    window.removeEventListener('scroll', _positionSlicerBarFixed, true);
+    window.removeEventListener('resize', _positionSlicerBarFixed);
+  }
+}
+function _positionSlicerBarFixed(){
+  const tb=document.getElementById('slicer-toggle-bar');
+  const sb=document.getElementById('slicer-bar');
+  if(!tb||!sb) return;
+  const r=tb.getBoundingClientRect();
+  sb.style.position='fixed';
+  sb.style.top=Math.max(0,r.bottom)+'px';
+  sb.style.left='0'; sb.style.right='0'; sb.style.width='100%';
+  sb.style.zIndex='45';
+}
+function _resetSlicerBarPosition(){
+  const sb=document.getElementById('slicer-bar');
+  if(!sb) return;
+  sb.style.position=''; sb.style.top=''; sb.style.left=''; sb.style.right=''; sb.style.width=''; sb.style.zIndex='';
 }
 function updateSlicerSummary(){
-  const el=document.getElementById('slicer-summary'); if(!el||!window.STATE||!STATE.filters) return;
-  const f=STATE.filters, fn=STATE.filtersNone||{};
-  const part=(key,label,fmt)=>{
-    if(fn[key]) return label+' 없음';
-    const set=f[key]; if(!set||set.size===0) return null;
-    if(set.size===1){ const v=[...set][0]; return fmt?fmt(v):v; }
-    return label+' '+set.size+'개';
-  };
+  // 화면의 슬라이서 버튼 라벨을 그대로 요약 — 상태 객체와 어긋날 수 없는 방식
+  const el=document.getElementById('slicer-summary'); if(!el) return;
   const parts=[];
-  [['year','연도',null],['month','월',v=>parseInt(v,10)+'월'],['branch2','사업단',null],['branch3','본부',null],['category','종목',null],['company','회사',null],['payMethod','납입',null]]
-    .forEach(function(a){ const p=part(a[0],a[1],a[2]); if(p)parts.push(p); });
+  document.querySelectorAll('#slicer-bar .sl-btn').forEach(function(b){
+    const t=(b.textContent||'').replace(/[▾▴]/g,'').trim();
+    if(t && t!=='전체') parts.push(t);
+  });
   el.textContent = parts.length ? parts.join(' · ') : '전체';
 }
 
