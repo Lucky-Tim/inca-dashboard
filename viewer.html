@@ -87,16 +87,30 @@ body{
 
 /* ── 필터바 ── */
 .filter-topbar{background:#F7F4F4;border-bottom:1px solid #E8E0E0;padding:8px 16px;position:sticky;z-index:90;}
-.filter-toggle{display:flex;align-items:center;gap:8px;width:100%;background:#fff;border:1px solid #E0D0D0;border-radius:9px;padding:9px 13px;font-family:inherit;cursor:pointer;}
+.filter-topbar-row{display:flex;align-items:stretch;gap:8px;}
+.filter-toggle{display:flex;align-items:center;gap:8px;flex:1;min-width:0;background:#fff;border:1px solid #E0D0D0;border-radius:9px;padding:9px 13px;font-family:inherit;cursor:pointer;}
 .filter-toggle .ft-ic{color:#A40000;font-weight:800;font-size:13px;white-space:nowrap;}
 .filter-toggle .ft-sum{flex:1;text-align:left;color:#666;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .filter-toggle .ft-caret{color:#A40000;font-size:12px;transition:transform .2s;}
 .filter-toggle.open .ft-caret{transform:rotate(180deg);}
+.filter-back-btn{
+  background:#fff;
+  border:1.5px solid #A40000;
+  color:#A40000;
+  border-radius:9px;padding:9px 12px;
+  font-size:12px;font-weight:700;font-family:inherit;
+  cursor:pointer;white-space:nowrap;flex-shrink:0;
+  display:flex;align-items:center;gap:3px;
+  transition:all .15s;
+}
+.filter-back-btn:active{background:#FFF0F0;}
+.filter-back-btn[disabled]{opacity:.4;pointer-events:none;}
 .filter-bar{
   background:#FCFAFA;
   border-bottom:1px solid #E8E0E0;
   padding:12px 16px;
   display:flex;gap:12px 14px;flex-wrap:wrap;
+  position:sticky;z-index:89;
 }
 .f-wrap{display:flex;flex-direction:column;gap:4px;min-width:90px;}
 .f-lb{font-size:11px;color:#A40000;font-weight:700;white-space:nowrap;letter-spacing:.03em;}
@@ -251,11 +265,14 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
 
 <!-- ── 필터바 ── -->
 <div class="filter-topbar" id="filter-topbar" style="display:none;">
-  <button class="filter-toggle" id="filter-toggle" onclick="toggleFilters()">
-    <span class="ft-ic">🔎 필터</span>
-    <span class="ft-sum" id="filter-summary"></span>
-    <span class="ft-caret">▾</span>
-  </button>
+  <div class="filter-topbar-row">
+    <button class="filter-toggle" id="filter-toggle" onclick="toggleFilters()">
+      <span class="ft-ic">🔎 필터</span>
+      <span class="ft-sum" id="filter-summary"></span>
+      <span class="ft-caret">▾</span>
+    </button>
+    <button class="filter-back-btn" id="filter-back-btn" onclick="goBackFilter()" style="display:none;" disabled title="이전 필터 상태로 돌아가기">← 뒤로</button>
+  </div>
 </div>
 <div class="filter-bar" id="filter-bar" style="display:none;">
   <div class="f-wrap" style="min-width:76px;">
@@ -356,8 +373,9 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
 <script>
 const AS_URL = 'https://script.google.com/macros/s/AKfycbyM-Yhnt6nqkV2Nwk-iDjHud_8In5KjyGlrXp3lpJzDhWiCnfme8VcQaoTKCqXwkF_5/exec';
 
-let RAW = { employees: [], aggregated: [], top10: [], topByBranch: {}, topByBranch3: {} };
+let RAW = { employees: [], aggregated: [], top10: [], topByBranch: {}, topByBranch3: {}, top10ByMonth: {} };
 let FILTERS = { branch: 'all', branch3: 'all', payMethod: 'all', year: 'all', month: 'all' };
+let _filterHistory = [];  // FILTERS 스냅샷(JSON 문자열) 스택 — 뒤로가기용
 const TIPDEFS={prem:'당월 신계약 월납환산 보험료입니다. 마감(건별 확정) + 잠정(가마감 예상)을 합산한 값이에요.',cnt:'당월 신계약 건수. 증권번호 기준으로 중복을 제거했습니다.',prod:'생산성 = 당월 월보험료 ÷ 활동설계사 수. 활동설계사 1인당 실적입니다.',act:'당월 실적이 1건이라도 있는 설계사 수입니다 (납입방법 무관).',gadong:'규정 가동 기준 — 그 달 인정실적 10만원 이상 거수한 설계사 비율입니다.',ret:'통산 유지율(2~13회). 계약이 실효·해지되지 않고 유지된 비율. 소속을 선택하면 인별(계약수 가중)로 계산됩니다.'};
 function _tipK(e){ e.stopPropagation(); const k=e.currentTarget.dataset.tip; const txt=TIPDEFS[k]; if(!txt) return;
   let t=document.getElementById('_tipbox');
@@ -392,6 +410,8 @@ async function loadData() {
   document.getElementById('main').style.display    = 'none';
   document.getElementById('error').style.display   = 'none';
   document.getElementById('filter-bar').style.display = 'none';
+  _filterHistory = [];  // 새 데이터 로드 시 필터 히스토리 초기화
+  _updateBackBtn();
   try {
     const res  = await fetch(AS_URL + '?slim=1&t=' + Date.now());
     const data = await res.json();
@@ -404,6 +424,7 @@ async function loadData() {
     RAW.top10         = data.top10         || [];
     RAW.topByBranch   = data.topByBranch   || {};
     RAW.topByBranch3  = data.topByBranch3  || {};
+    RAW.top10ByMonth  = data.top10ByMonth  || {};
 
     const ts = data.lastUpdated
       ? new Date(data.lastUpdated).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -491,6 +512,7 @@ function fillSelect(id, vals) {
 
 // ── 필터 적용 ──
 function applyFilters() {
+  const _prevSnap   = _filtersSnapshot();  // 뒤로가기용 — 변경 직전 상태 저장
   const prevBranch  = FILTERS.branch;
   const prevYear    = FILTERS.year;
   FILTERS.branch    = document.getElementById('f-branch').value;
@@ -512,8 +534,68 @@ function applyFilters() {
   }
 
   updateFilterSummary();
+  _pushFilterHistory(_prevSnap);
   renderAll();
 }
+
+// ── 필터 히스토리 (뒤로가기) ──────────────────────────────
+function _filtersSnapshot() { return JSON.stringify(FILTERS); }
+
+function _pushFilterHistory(prevSnap) {
+  const newSnap = _filtersSnapshot();
+  if (newSnap === prevSnap) return;  // 실제 상태 변화 없으면 중복 push 방지
+  _filterHistory.push(prevSnap);
+  try { history.pushState({ _hbFilterDepth: _filterHistory.length }, '', location.href); } catch (e) {}
+  _updateBackBtn();
+}
+
+function _updateBackBtn() {
+  const btn = document.getElementById('filter-back-btn');
+  if (!btn) return;
+  if (_filterHistory.length > 0) {
+    btn.style.display = 'flex';
+    btn.disabled = false;
+  } else {
+    btn.style.display = 'none';
+    btn.disabled = true;
+  }
+}
+
+function _restoreFiltersFromSnapshot(str) {
+  let f;
+  try { f = JSON.parse(str); } catch (e) { return; }
+  FILTERS.branch    = f.branch;
+  FILTERS.branch3   = f.branch3;
+  FILTERS.payMethod = f.payMethod;
+  FILTERS.year      = f.year;
+  FILTERS.month     = f.month;
+
+  const elY = document.getElementById('f-year');       if (elY) elY.value = FILTERS.year;
+  const elB = document.getElementById('f-branch');      if (elB) elB.value = FILTERS.branch;
+  const elP = document.getElementById('f-paymethod');   if (elP) elP.value = FILTERS.payMethod;
+
+  updateMonthOptions();    // FILTERS.year 기준 옵션 재구성 + FILTERS.month 값 유지
+  updateBranch3Options();  // FILTERS.branch 기준 옵션 재구성 + FILTERS.branch3 값 유지
+
+  updateFilterSummary();
+  renderAll();
+}
+
+// 필터 바 안의 "← 뒤로" 버튼 클릭 → 브라우저 히스토리와 동기화된 방식으로 복원
+// (history.back() 이 popstate 를 트리거 → 아래 popstate 리스너가 실제 복원을 수행)
+function goBackFilter() {
+  if (!_filterHistory.length) return;
+  history.back();
+}
+
+window.addEventListener('popstate', function () {
+  if (_filterHistory.length > 0) {
+    const snap = _filterHistory.pop();
+    _restoreFiltersFromSnapshot(snap);
+    _updateBackBtn();
+  }
+  // 스택이 비어있으면 아무 것도 하지 않음 → 브라우저 기본 뒤로가기(페이지 이탈) 진행
+});
 
 // ── 필터된 aggregated ──
 function getAgg() {
@@ -754,20 +836,24 @@ function renderCurrentMonth(kpis) {
 
 // ── 테이블 행 클릭 → 사업단 필터 적용 ──
 function selectBranch(name) {
+  const _prevSnap = _filtersSnapshot();
   const newVal = FILTERS.branch === name ? 'all' : name;
   FILTERS.branch = newVal;
   document.getElementById('f-branch').value = newVal;
   updateBranch3Options();
   updateFilterSummary();
+  _pushFilterHistory(_prevSnap);
   renderAll();
 }
 
 // ── 본부(branch3) 행 클릭 → 소속본부 필터 토글 ──
 function selectBranch3(name) {
+  const _prevSnap = _filtersSnapshot();
   const newVal = FILTERS.branch3 === name ? 'all' : name;
   FILTERS.branch3 = newVal;
   const sel = document.getElementById('f-branch3'); if (sel) sel.value = newVal;
   updateFilterSummary();
+  _pushFilterHistory(_prevSnap);
   renderAll();
 }
 
@@ -1027,25 +1113,65 @@ function renderCollRetV() {
     data:{ labels:C.hoecha.map(x=>x.h+'회'), datasets:[{ label:'수금율', data:C.hoecha.map(x=>x.rate), borderColor:'#0ea5e9', backgroundColor:'rgba(14,165,233,.1)', fill:true, tension:.3, pointRadius:3, pointBackgroundColor:'#0ea5e9' }] }, options:pctOptsV('수금율') });
 }
 
+// 납입연도/월 → "YYYY년 M월" 라벨
+function _kMonthLabel(m) {
+  m = String(m || '');
+  if (m.length < 6) return m;
+  return m.slice(0, 4) + '년 ' + parseInt(m.slice(4, 6), 10) + '월';
+}
+
 function renderTop10() {
-  // 필터에 따라 사용할 top10 결정
-  let top10;
-  let scopeLabel;
-  if (FILTERS.branch3 !== 'all') {
-    // 소속본부 선택 → topByBranch3 사용 (가장 정확)
-    top10 = RAW.topByBranch3[FILTERS.branch3] || [];
-    scopeLabel = (FILTERS.branch !== 'all' ? FILTERS.branch + ' · ' : '') + FILTERS.branch3;
-  } else if (FILTERS.branch !== 'all') {
-    // 소속사업단만 선택 → topByBranch 사용
-    top10 = RAW.topByBranch[FILTERS.branch] || [];
-    scopeLabel = FILTERS.branch;
+  const monthMap = RAW.top10ByMonth || {};
+  const hasMonthMap = monthMap && Object.keys(monthMap).length > 0;
+
+  // FILTERS.year/month 로 조회할 대상 월(targetMonth) 결정
+  //  - 연/월 모두 지정      → 그 월 그대로
+  //  - 연도만 지정(월=전체) → 그 연도의 최신 월 (라벨에 명시)
+  //  - 연/월 모두 '전체'    → targetMonth 없음 → 기존(당월 고정) 동작
+  let targetMonth = null;
+  if (hasMonthMap) {
+    if (FILTERS.year !== 'all' && FILTERS.month !== 'all') {
+      targetMonth = FILTERS.year + FILTERS.month;
+    } else if (FILTERS.year !== 'all' && FILTERS.month === 'all') {
+      const monthsInYear = Object.keys(monthMap).filter(m => m.slice(0, 4) === FILTERS.year).sort();
+      targetMonth = monthsInYear[monthsInYear.length - 1] || null;
+    }
+  }
+
+  let top10, scopeLabel, monthNote, usingMonthly = false, fallbackHint = '';
+
+  if (targetMonth && monthMap[targetMonth]) {
+    const snap = monthMap[targetMonth];
+    if (FILTERS.branch3 !== 'all') {
+      top10 = (snap.byBranch3 && snap.byBranch3[FILTERS.branch3]) || [];
+      scopeLabel = (FILTERS.branch !== 'all' ? FILTERS.branch + ' · ' : '') + FILTERS.branch3;
+    } else if (FILTERS.branch !== 'all') {
+      top10 = (snap.byBranch && snap.byBranch[FILTERS.branch]) || [];
+      scopeLabel = FILTERS.branch;
+    } else {
+      top10 = snap.all || [];
+      scopeLabel = '전체';
+    }
+    monthNote = _kMonthLabel(targetMonth) + ' 실적순';
+    usingMonthly = true;
   } else {
-    top10 = RAW.top10 || [];
-    scopeLabel = '전체';
+    // 하위호환: top10ByMonth 없거나(재저장 전) 연/월 모두 '전체' → 기존 당월 고정 동작
+    if (FILTERS.branch3 !== 'all') {
+      top10 = RAW.topByBranch3[FILTERS.branch3] || [];
+      scopeLabel = (FILTERS.branch !== 'all' ? FILTERS.branch + ' · ' : '') + FILTERS.branch3;
+    } else if (FILTERS.branch !== 'all') {
+      top10 = RAW.topByBranch[FILTERS.branch] || [];
+      scopeLabel = FILTERS.branch;
+    } else {
+      top10 = RAW.top10 || [];
+      scopeLabel = '전체';
+    }
+    monthNote = '당월 실적순';
+    if (!hasMonthMap) fallbackHint = ' (당월 고정 — 대시보드 재저장 필요)';
   }
 
   document.getElementById('top10-period').textContent =
-    `(${scopeLabel} · 당월 실적순)`;
+    `(${scopeLabel} · ${monthNote})${fallbackHint}`;
 
   if (!top10.length) {
     document.getElementById('top10').innerHTML =
@@ -1054,27 +1180,62 @@ function renderTop10() {
   }
 
   const medals = ['🥇', '🥈', '🥉'];
+  const creditLabel = usingMonthly ? '인정' : '월평균 인정';
+  const noteLabel = usingMonthly ? _kMonthLabel(targetMonth) : '당월';
   document.getElementById('top10').innerHTML = top10.map((a, i) => `
     <div class="top-item">
       <div class="top-rank">${medals[i] || (i + 1) + '위'}</div>
       <div class="top-info">
         <div class="top-name">${a.name || '알 수 없음'}</div>
-        <div class="top-branch">${a.branch || ''}${a.branch3 ? ' · ' + a.branch3 : ''}${a.avgCredit ? ' · 월평균 인정 ' + fmtK(a.avgCredit) + '원' : ''}</div>
+        <div class="top-branch">${a.branch || ''}${a.branch3 ? ' · ' + a.branch3 : ''}${a.avgCredit ? ' · ' + creditLabel + ' ' + fmtK(a.avgCredit) + '원' : ''}</div>
       </div>
       <div>
         <div class="top-val">${fmtK(a.latPremium||0)}원</div>
-        <div class="top-note">당월</div>
+        <div class="top-note">${noteLabel}</div>
       </div>
     </div>`).join('');
 }
 
 // 필터바 sticky top을 헤더 실제 높이에 맞춤 (스크롤 시 필터 가려짐 방지)
+// + 하단 스크롤 상태에서 열어도 토글 바로 아래 보이도록 position:fixed 폴백 적용
 function toggleFilters(force){
   const p=document.getElementById('filter-bar'), t=document.getElementById('filter-toggle');
   const isOpen = p.style.display!=='none' && p.style.display!=='';
   const open = (force!==undefined) ? force : !isOpen;
   p.style.display = open ? 'flex' : 'none';
   if(t) t.classList.toggle('open', open);
+  if (open) {
+    syncFilterTop();
+    _positionFilterBarFixed();
+    window.addEventListener('scroll', _positionFilterBarFixed, true);
+    window.addEventListener('resize', _positionFilterBarFixed);
+  } else {
+    _resetFilterBarPosition();
+    window.removeEventListener('scroll', _positionFilterBarFixed, true);
+    window.removeEventListener('resize', _positionFilterBarFixed);
+  }
+}
+// 열림 상태에서 filter-bar를 filter-topbar 바로 아래 좌표에 고정 표시
+// (position:sticky 만으로 부족한 경우를 위한 안전망 — 스크롤/리사이즈마다 재계산)
+function _positionFilterBarFixed(){
+  const tb = document.getElementById('filter-topbar');
+  const fb = document.getElementById('filter-bar');
+  if (!tb || !fb) return;
+  const r = tb.getBoundingClientRect();
+  fb.style.position = 'fixed';
+  fb.style.top   = Math.max(0, r.bottom) + 'px';
+  fb.style.left  = '0';
+  fb.style.right = '0';
+  fb.style.width = '100%';
+}
+function _resetFilterBarPosition(){
+  const fb = document.getElementById('filter-bar');
+  if (!fb) return;
+  fb.style.position = '';
+  fb.style.top   = '';
+  fb.style.left  = '';
+  fb.style.right = '';
+  fb.style.width = '';
 }
 function updateFilterSummary(){
   const el=document.getElementById('filter-summary'); if(!el) return;
@@ -1086,7 +1247,18 @@ function updateFilterSummary(){
   parts.push(FILTERS.payMethod==='all'?'전체 납입':FILTERS.payMethod);
   el.textContent=parts.join(' · ');
 }
-function syncFilterTop(){ try{ const h=document.querySelector('.hdr'); const f=document.getElementById('filter-topbar'); if(h&&f) f.style.top=h.offsetHeight+'px'; }catch(e){} }
+function syncFilterTop(){
+  try{
+    const h=document.querySelector('.hdr');
+    const f=document.getElementById('filter-topbar');
+    const b=document.getElementById('filter-bar');
+    if(h&&f){
+      const headerH = h.offsetHeight;
+      f.style.top = headerH+'px';
+      if (b) b.style.top = (headerH + f.offsetHeight)+'px';
+    }
+  }catch(e){}
+}
 window.addEventListener('resize', syncFilterTop);
 window.addEventListener('load', ()=>{ syncFilterTop(); setTimeout(syncFilterTop,400); });
 
