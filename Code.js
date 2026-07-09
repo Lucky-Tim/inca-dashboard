@@ -110,6 +110,8 @@ function readSheetsAndCache() {
   result.top10        = topResult.top10;
   result.topByBranch  = topResult.topByBranch;
   result.topByBranch3 = topResult.topByBranch3;
+  // 뷰어 납입연/월 필터 연동용 — 월별 TOP10 스냅샷(전체/사업단별/본부별)
+  result.top10ByMonth = buildTop10ByMonth(result.performance, result.employees);
 
   // 월별 마감/가마감 상태
   result.monthStatus = buildMonthStatus(result.performance);
@@ -186,6 +188,7 @@ function doPost(e) {
     const perfForAgg = allPerf.map(r => ({...r, status:'실제데이터'}));
     const aggData    = buildAggregated(perfForAgg, employees);
     const topResult  = buildTop10(perfForAgg, employees);
+    const top10ByMonthData = buildTop10ByMonth(perfForAgg, employees);
 
     // 캐시 즉시 갱신
     writeCache({
@@ -197,6 +200,7 @@ function doPost(e) {
       top10:         topResult.top10,
       topByBranch:   topResult.topByBranch,
       topByBranch3:  topResult.topByBranch3,
+      top10ByMonth:  top10ByMonthData,
       monthStatus:   buildMonthStatus(perfForAgg),
     });
 
@@ -369,6 +373,71 @@ function buildTop10(performance, employees) {
   });
 
   return { top10, topByBranch, topByBranch3 };
+}
+
+// ─── TOP10 월별 스냅샷 생성 (뷰어 납입연/월 필터 연동용) ──
+// 각 실적월(YYYYMM)마다 그 달 실적(latPremium) 기준 TOP10 / 사업단별 TOP10 / 본부별 TOP10
+// 반환: { 'YYYYMM': { all:[...10], byBranch:{사업단:[...10]}, byBranch3:{본부:[...10]} }, ... }
+function buildTop10ByMonth(performance, employees) {
+  // employee map: id → { name, branch(b2), branch3(b3) }
+  const empMap = {};
+  (employees || []).forEach(e => {
+    empMap[String(e.id)] = {
+      name:    (e.name || '').trim(),
+      branch:  (e.b2   || '').trim(),
+      branch3: (e.b3   || '').trim(),
+    };
+  });
+
+  // month → agentId → { premium, credit } 그 달 합계
+  const monthAgentMap = {};
+  (performance || []).forEach(r => {
+    const m  = String(r.month   || '').trim();
+    const id = String(r.agentId || '');
+    if (!m || !id) return;
+    if (!monthAgentMap[m]) monthAgentMap[m] = {};
+    if (!monthAgentMap[m][id]) monthAgentMap[m][id] = { premium: 0, credit: 0 };
+    monthAgentMap[m][id].premium += Number(r.premium) || 0;
+    monthAgentMap[m][id].credit  += Number(r.credit)  || 0;
+  });
+
+  const top10ByMonth = {};
+  Object.keys(monthAgentMap).forEach(m => {
+    const list = Object.entries(monthAgentMap[m]).map(([id, d]) => {
+      const emp = empMap[id] || { name: id, branch: '', branch3: '' };
+      return {
+        agentId:    id,
+        name:       emp.name,
+        branch:     emp.branch,
+        branch3:    emp.branch3,
+        latPremium: d.premium,   // 해당 월 월보험료
+        avgCredit:  d.credit,    // 해당 월 인정실적 (단월 — "월평균" 아님, 뷰어에서 라벨 구분)
+      };
+    });
+
+    // 그 달 실적순 정렬
+    list.sort((a, b) => b.latPremium - a.latPremium);
+
+    const all = list.slice(0, 10).map((v, i) => ({ rank: i + 1, ...v }));
+
+    const byBranch = {};
+    list.forEach(a => { const b = a.branch || '미분류'; (byBranch[b] = byBranch[b] || []).push(a); });
+    const branchTop = {};
+    Object.keys(byBranch).forEach(b => {
+      branchTop[b] = byBranch[b].slice(0, 10).map((v, i) => ({ rank: i + 1, ...v }));
+    });
+
+    const byBranch3 = {};
+    list.forEach(a => { const b3 = a.branch3 || '직할'; (byBranch3[b3] = byBranch3[b3] || []).push(a); });
+    const branch3Top = {};
+    Object.keys(byBranch3).forEach(b3 => {
+      branch3Top[b3] = byBranch3[b3].slice(0, 10).map((v, i) => ({ rank: i + 1, ...v }));
+    });
+
+    top10ByMonth[m] = { all, byBranch: branchTop, byBranch3: branch3Top };
+  });
+
+  return top10ByMonth;
 }
 
 // ─── 파서 함수 ───────────────────────────────────────────
