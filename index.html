@@ -22,6 +22,20 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:#070c16;color:
 .kpi-card:hover{border-color:rgba(59,130,246,0.5);transform:translateY(-1px);}
 .kpi-4grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
 @media (max-width:900px){.kpi-4grid{grid-template-columns:repeat(2,1fr);}}
+@media (max-width:640px){
+  main{padding:12px !important;}
+  header{padding:10px 12px !important;}
+  .kpi-4grid{grid-template-columns:repeat(2,1fr) !important;}
+  div[style*="grid-template-columns:2fr 1fr 1fr"]{grid-template-columns:1fr !important;}
+  div[style*="grid-template-columns:1fr 1fr 1fr"]{grid-template-columns:1fr !important;}
+  div[style*="grid-template-columns:repeat(3"]{grid-template-columns:1fr !important;}
+  div[style*="grid-template-columns:1fr 1fr;"]{grid-template-columns:1fr !important;}
+  #slicer-bar .sl-wrap{flex:1 1 44% !important;}
+  #slicer-bar .sl-btn{min-width:0 !important;width:100% !important;}
+  #slicer-bar{transition:max-height .25s ease, padding .25s ease, opacity .2s ease;}
+  #slicer-bar.sb-collapsed{max-height:0 !important;padding-top:0 !important;padding-bottom:0 !important;opacity:0 !important;overflow:hidden !important;}
+  #kpi-combined div[style*="font-size:30px"]{font-size:22px !important;}
+}
 .tab-btn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;transition:all .15s;cursor:pointer;white-space:nowrap;}
 .tab-btn.active{background:#3b82f6;color:#fff;}
 .tab-btn:not(.active){color:#94a3b8;}
@@ -1622,6 +1636,20 @@ function updateUnmatchedBadge() {
 function syncStickyTops(){ try{ const h=document.querySelector('header'); const sb=document.getElementById('slicer-bar'); if(h&&sb) sb.style.top=h.offsetHeight+'px'; }catch(e){} }
 window.addEventListener('load', ()=>{ syncStickyTops(); setTimeout(syncStickyTops,400); });
 window.addEventListener('resize', syncStickyTops);
+
+// 모바일: 아래로 스크롤 시 슬라이서(필터) 자동 접힘 / 위로 올리면 다시 표시
+(function(){
+  let _lastY=0, _tick=false;
+  function _run(){
+    const sb=document.getElementById('slicer-bar'); _tick=false;
+    if(!sb) return;
+    const y=window.scrollY||document.documentElement.scrollTop||0;
+    if(y>140 && y>_lastY+4)      sb.classList.add('sb-collapsed');
+    else if(y<_lastY-4 || y<90)  sb.classList.remove('sb-collapsed');
+    _lastY=y;
+  }
+  window.addEventListener('scroll', function(){ if(!_tick){ _tick=true; requestAnimationFrame(_run); } }, {passive:true});
+})();
 
 function renderAll() {
   initSlicers();
