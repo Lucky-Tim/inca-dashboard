@@ -939,11 +939,24 @@ function renderKPICards(kpis) {
 // ── 월별 트렌드 ──
 const _chartReg = {};
 function renderTrend(kpis) {
-  const agg        = getAgg();
-  const allMonths  = kpis.allMonths.slice(-6);
+  // 추이 차트는 납입월 필터 예외 — 월을 골라도 흐름(시계열)은 유지하고 선택월만 강조.
+  // (월 필터까지 적용하면 점 1개짜리 차트가 되어 '추이'의 의미가 사라짐)
+  const rows = RAW.aggregated.filter(r => {
+    if (FILTERS.branch    !== 'all' && r.branch    !== FILTERS.branch)    return false;
+    if (FILTERS.branch3   !== 'all' && r.branch3   !== FILTERS.branch3)   return false;
+    if (FILTERS.payMethod !== 'all' && r.payMethod !== FILTERS.payMethod) return false;
+    if (FILTERS.year !== 'all' && (r.month || '').slice(0, 4) !== FILTERS.year) return false;
+    return true;
+  });
+  const monthsAll = [...new Set(rows.map(r => r.month).filter(Boolean))].sort();
+  // 연도 미지정: 최근 6개월 / 연도 지정: 그 해 전체(최대 12개)
+  const allMonths = FILTERS.year === 'all' ? monthsAll.slice(-6) : monthsAll.slice(-12);
+  // 선택월 강조 대상 판별
+  const _isSel = m => FILTERS.month !== 'all' && m.slice(4, 6) === FILTERS.month
+                      && (FILTERS.year === 'all' || m.slice(0, 4) === FILTERS.year);
 
   const monthMap = {};
-  agg.forEach(r => {
+  rows.forEach(r => {
     if (!monthMap[r.month]) monthMap[r.month] = { premium: 0, credit: 0 };
     monthMap[r.month].premium += r.premium;
     monthMap[r.month].credit  += r.credit;
@@ -974,11 +987,15 @@ function renderTrend(kpis) {
       labels,
       datasets: [
         { type:'bar', label:'월보험료', data:premData,
-          backgroundColor:'rgba(164,0,0,.45)', borderColor:'#a40000',
-          borderWidth:1, borderRadius:4, yAxisID:'y' },
+          backgroundColor: allMonths.map(m => _isSel(m) ? 'rgba(164,0,0,.9)' : 'rgba(164,0,0,.45)'),
+          borderColor:'#a40000',
+          borderWidth: allMonths.map(m => _isSel(m) ? 2 : 1),
+          borderRadius:4, yAxisID:'y' },
         { type:'bar', label:'인정실적', data:credData,
-          backgroundColor:'rgba(217,119,6,.4)', borderColor:'#d97706',
-          borderWidth:1, borderRadius:4, yAxisID:'y' },
+          backgroundColor: allMonths.map(m => _isSel(m) ? 'rgba(217,119,6,.85)' : 'rgba(217,119,6,.4)'),
+          borderColor:'#d97706',
+          borderWidth: allMonths.map(m => _isSel(m) ? 2 : 1),
+          borderRadius:4, yAxisID:'y' },
         ...(hasYoY ? [{ type:'line', label:'전년동월', data:yoyData,
           borderColor:'#fbbf24', borderDash:[5,4], borderWidth:1.5,
           pointRadius:3, pointBackgroundColor:'#fbbf24',
