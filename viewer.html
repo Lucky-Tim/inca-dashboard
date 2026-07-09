@@ -1209,13 +1209,22 @@ function toggleFilters(force){
   if (open) {
     syncFilterTop();
     _positionFilterBarFixed();
+    _fbOpenScrollY = window.scrollY;
     window.addEventListener('scroll', _positionFilterBarFixed, true);
+    window.addEventListener('scroll', _autoCollapseFilterOnScroll, true);
     window.addEventListener('resize', _positionFilterBarFixed);
   } else {
     _resetFilterBarPosition();
     window.removeEventListener('scroll', _positionFilterBarFixed, true);
+    window.removeEventListener('scroll', _autoCollapseFilterOnScroll, true);
     window.removeEventListener('resize', _positionFilterBarFixed);
   }
+}
+// 필터 열림 상태에서 일정량 이상 스크롤하면 자동 접힘 (내용 가림 방지)
+// 임계값 120px: 셀렉트 포커스 등으로 발생하는 미세 스크롤은 무시
+let _fbOpenScrollY = 0;
+function _autoCollapseFilterOnScroll(){
+  if (Math.abs(window.scrollY - _fbOpenScrollY) > 120) toggleFilters(false);
 }
 // 열림 상태에서 filter-bar를 filter-topbar 바로 아래 좌표에 고정 표시
 // (position:sticky 만으로 부족한 경우를 위한 안전망 — 스크롤/리사이즈마다 재계산)
