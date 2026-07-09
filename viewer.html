@@ -283,6 +283,10 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
     <div class="f-lb">납입월</div>
     <select class="f-sel" id="f-month" onchange="applyFilters()"><option value="all">전체</option></select>
   </div>
+  <div class="f-wrap" style="min-width:84px;">
+    <div class="f-lb">납입방법</div>
+    <select class="f-sel" id="f-paymethod" onchange="applyFilters()"><option value="all">전체</option></select>
+  </div>
   <div class="f-wrap" style="min-width:100px;">
     <div class="f-lb">소속사업단</div>
     <select class="f-sel" id="f-branch" onchange="applyFilters()"><option value="all">전체</option></select>
@@ -290,10 +294,6 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
   <div class="f-wrap" style="min-width:100px;">
     <div class="f-lb">소속본부</div>
     <select class="f-sel" id="f-branch3" onchange="applyFilters()"><option value="all">전체</option></select>
-  </div>
-  <div class="f-wrap" style="min-width:84px;">
-    <div class="f-lb">납입방법</div>
-    <select class="f-sel" id="f-paymethod" onchange="applyFilters()"><option value="all">전체</option></select>
   </div>
 </div>
 
@@ -865,9 +865,11 @@ function renderKPICards(kpis) {
     latM ? `(${mLabel(latM)} vs 직전 6개월 월평균)` : '';
 
   const rc   = latF < 50 ? '#d97706' : latF < 70 ? '#f59e0b' : '#f87171';
+  // 카드 라벨: '당월' 대신 실제 표시 월 (예: '7월 월보험료') — 필터로 과거 월 선택 시에도 해당 월 표기
+  const mShort = latM ? parseInt(latM.slice(4, 6), 10) + '월' : '당월';
   const defs = [
     {
-      ic: '💰', lb: '당월 월보험료', tip:'prem',
+      ic: '💰', lb: mShort + ' 월보험료', tip:'prem',
       vl: fmtK(latA) + '원',
       sb: (latProvPrem > 0
              ? `마감 ${fmtK(latA - latProvPrem)} + 잠정 ${fmtK(latProvPrem)}`
@@ -876,21 +878,21 @@ function renderKPICards(kpis) {
       cl: '#A40000', trend: latA >= avgA
     },
     {
-      ic: '📋', lb: '당월 계약건수', tip:'cnt',
+      ic: '📋', lb: mShort + ' 계약건수', tip:'cnt',
       vl: Math.round(latC).toLocaleString() + '건',
       sb: '중복제거 완료',
       cm: cmp(latC, avgC, 'cnt'),
       cl: '#A40000', trend: latC >= avgC
     },
     {
-      ic: '📈', lb: '당월 생산성', tip:'prod',
+      ic: '📈', lb: mShort + ' 생산성', tip:'prod',
       vl: fmtK(latProd) + '원',
       sb: '활동설계사 1인당',
       cm: cmp(latProd, avgProd, 'money'),
       cl: '#A40000', trend: latProd >= avgProd
     },
     {
-      ic: '🏃', lb: '당월 활동설계사', tip:'act',
+      ic: '🏃', lb: mShort + ' 활동설계사', tip:'act',
       vl: latD + '명',
       sb: '납입방법 무관',
       cm: cmp(latD, avgD, 'person'),
@@ -904,7 +906,7 @@ function renderKPICards(kpis) {
       cl: '#A40000', trend: null
     },
     {
-      ic: '⚡', lb: '당월 가동률', tip:'gadong',
+      ic: '⚡', lb: mShort + ' 가동률', tip:'gadong',
       vl: fmtP(latF),
       sb: latD + '명 / ' + latE + '명',
       cm: cmp(latF, avgF, 'pct'),
