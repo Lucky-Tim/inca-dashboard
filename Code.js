@@ -238,17 +238,17 @@ function doPost(e) {
       allPerf = [...kept, ...payload.performance];
 
       // 전체 다시 쓰기 (500행 청크)
-      const headers = [['SUNAB_PK','증권번호','month','agentId','premium','credit','category','company','payMethod','source']];
+      const headers = [['SUNAB_PK','증권번호','month','agentId','premium','credit','category','company','payMethod','source','day']];
       sheet.clearContents();
-      sheet.getRange(1, 1, 1, 10).setValues(headers);
+      sheet.getRange(1, 1, 1, 11).setValues(headers);
       const CHUNK = 500;
       for (let i = 0; i < allPerf.length; i += CHUNK) {
         const chunk = allPerf.slice(i, i + CHUNK).map(r => [
           r.SUNAB_PK||'', r.증권번호||'', r.month||'', r.agentId||'',
           r.premium||0, r.credit||0, r.category||'', r.company||'', r.payMethod||'',
-          (r.source||_postSrc||'마감')
+          (r.source||_postSrc||'마감'), (r.day||0)
         ]);
-        sheet.getRange(i + 2, 1, chunk.length, 10).setValues(chunk);
+        sheet.getRange(i + 2, 1, chunk.length, 11).setValues(chunk);
       }
     } else {
       // performance 미전송 시 기존 Sheets 데이터 그대로 사용

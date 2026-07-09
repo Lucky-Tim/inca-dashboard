@@ -1787,6 +1787,19 @@ function renderDashboard(kpis, filtered) {
   const _selPrem = _selConfPrem + _selEstPrem;
   const _selCred = _selConfCred + _selEstCred;
 
+  // ── (B) 진행중 카드: 직전월을 '같은 날짜까지' 누계로 비교 ──
+  const _dayList = _selRows.map(r=>+r.day||0).filter(d=>d>0);
+  const _asOfDay = _dayList.length ? Math.max(..._dayList) : 0;
+  const _prevHasDay = _selPrevRows.some(r=>(+r.day||0)>0);
+  const _useAsOf = _selHasEst && _asOfDay>0 && _prevHasDay;
+  const _sumPremDay = (rows,d)=>rows.filter(r=>r.source!=='가마감' && (+r.day||0)>0 && (+r.day||0)<=d).reduce((s,r)=>s+(+r.premium||0),0);
+  const _sumCredDay = (rows,d)=>rows.filter(r=>r.source!=='가마감' && (+r.day||0)>0 && (+r.day||0)<=d).reduce((s,r)=>s+(+r.credit||0),0);
+  const _prevPremBase = _useAsOf ? _sumPremDay(_selPrevRows,_asOfDay) : _prevPrem;
+  const _prevCredBase = _useAsOf ? _sumCredDay(_selPrevRows,_asOfDay) : _prevCred;
+  const _asOfNote = _useAsOf ? `~${_asOfDay}일 기준` : '';
+  const _selPrevLabelShort  = _selPrevM     ? String(_selPrevM).slice(0,4)+'.'+String(_selPrevM).slice(4,6)     : '직전월';
+  const _selPrevPrevLabel   = _selPrevPrevM ? String(_selPrevPrevM).slice(0,4)+'.'+String(_selPrevPrevM).slice(4,6) : '전월';
+
   const _bA='background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.45)';
   const _bG='background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.45)';
   const _bB='background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.45)';
@@ -1798,14 +1811,14 @@ function renderDashboard(kpis, filtered) {
   const _prevBadge = `<span style="${_bcss}${_bG}">🟢 마감</span>`;
 
   // 증감(▲/▼%) 헬퍼 — 잠정월(가마감 존재)이면 "진행중" 표기 병기
-  function _deltaHtml(cur, base, isProvisional) {
-    if (!base) return `<div style="margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.07);font-size:10px;color:#64748b;">비교 데이터 없음</div>`;
+  function _deltaHtml(cur, base, isProvisional, baseLabel, asOfNote) {
+    if (!base) return `<div style="margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.07);font-size:10px;color:#64748b;">${baseLabel||'직전월'} 비교 데이터 없음</div>`;
     const p = (cur-base)/base*100;
     const up = p>=0;
     const cl = up?'#4ade80':'#f87171';
     const arrow = up?'▲':'▼';
     return `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.07);font-size:10px;">
-      <span style="color:#64748b;">직전월 대비</span>
+      <span style="color:#64748b;">${baseLabel||'직전월'} 대비${asOfNote?` <span style="color:#fbbf24;font-weight:700;">${asOfNote}</span>`:''}</span>
       <span style="display:flex;align-items:center;gap:5px;">
         ${isProvisional?'<span style="color:#fbbf24;font-weight:800;">진행중</span>':''}
         <span style="color:${cl};font-weight:800;">${arrow} ${Math.abs(p).toFixed(1)}%</span>
@@ -1834,25 +1847,25 @@ function renderDashboard(kpis, filtered) {
         title: `${_selPrevLabel} 마감`, badge: _prevBadge, icon:'💰', label:'월보험료(마감)',
         val: _prevPrem, color:'#60a5fa',
         sub: `${_selPrevLabel} 확정 실적`,
-        delta: _deltaHtml(_prevPrem, _pp2Prem, false)
+        delta: _deltaHtml(_prevPrem, _pp2Prem, false, _selPrevPrevLabel)
       })
     + _kpiCard({
         title: `${_selLabel}`, badge: _selBadge, icon:'💰', label:'월보험료',
         val: _selPrem, color:'#3b82f6',
         sub: _selHasEst ? `마감 ${fmtK(_selConfPrem)} <span style="color:#fbbf24;font-weight:700;">+ 잠정 ${fmtK(_selEstPrem)}</span>` : `${_selLabel} 확정 실적`,
-        delta: _deltaHtml(_selPrem, _prevPrem, _selHasEst)
+        delta: _deltaHtml(_selPrem, _prevPremBase, _selHasEst, _selPrevLabelShort, _asOfNote)
       })
     + _kpiCard({
         title: `${_selPrevLabel} 마감`, badge: _prevBadge, icon:'💵', label:'인정실적(확정)',
         val: _prevCred, color:'#818cf8',
         sub: `${_selPrevLabel} 확정 실적`,
-        delta: _deltaHtml(_prevCred, _pp2Cred, false)
+        delta: _deltaHtml(_prevCred, _pp2Cred, false, _selPrevPrevLabel)
       })
     + _kpiCard({
         title: `${_selLabel}`, badge: _selBadge, icon:'💵', label:'인정실적',
         val: _selCred, color:'#6366f1',
         sub: _selHasEst ? `확정 ${fmtK(_selConfCred)} <span style="color:#fbbf24;font-weight:700;">+ 예상 ${fmtK(_selEstCred)}</span>` : `${_selLabel} 확정 실적`,
-        delta: _deltaHtml(_selCred, _prevCred, _selHasEst)
+        delta: _deltaHtml(_selCred, _prevCredBase, _selHasEst, _selPrevLabelShort, _asOfNote)
       });
   const kpiDefs = [
     { label:labelC, val:dispC.toLocaleString()+'건',    sub:subC, icon:'📋', color:'#8b5cf6', cmp:cmpHtml(dispC,kpis.C/mc,'cnt') },
@@ -2844,6 +2857,16 @@ function parseEmployeeSheet(rows, fname) {
 
 const cn = v => { if(!v) return 0; const s=String(v).replace(/[",]/g,'').trim(); return isNaN(s)?0:parseInt(s)||0; };
 
+function dayOf(v){
+  if (v==null||v==='') return 0;
+  if (v instanceof Date) return v.getDate();
+  const s=String(v).trim();
+  const m=s.match(/\d{4}[\/\-.]\d{1,2}[\/\-.](\d{1,2})/);
+  if(m) return parseInt(m[1],10);
+  const n=Number(s);
+  if(!isNaN(n)&&n>30000){ const d=new Date(Math.round((n-25569)*86400*1000)); return d.getDate(); }
+  return 0;
+}
 function parsePerfSheet(rows, fname) {
   // Auto-detect header row
   const hi = detectHeaderRow(rows, ['SUNAB_PK','담당자코드','납입월도','인정실적']);
@@ -2866,6 +2889,7 @@ function parsePerfSheet(rows, fname) {
       증권번호: String(r[ix('증권번호')]||'').trim(),
       상품군: String(r[ix('상품군')]||'').trim(),
       month:    String(r[ix('납입월도')]).trim(),
+      day:      dayOf(r[ix('영수/환급일')]),
       agentId:  String(r[ix('담당자코드')]).trim(),
       premium:  cn(r[ix('월보험료')]),
       credit:   cn(r[ix('인정실적')]),
@@ -2927,6 +2951,7 @@ function parseAutoSheet(rows, fname) {
       증권번호: String(r[ix('증권번호')]||'').trim(),
       상품명:   String(r[ix('보험사 상품명')]||r[ix('상품명')]||'').trim(),
       month:    ym,
+      day:      dayOf(r[ix('영수일자')]),
       agentId:  agent,
       premium:  cn(r[ix('영수금')]),
       credit:   0,
