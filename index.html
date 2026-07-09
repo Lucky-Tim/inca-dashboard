@@ -198,6 +198,25 @@ input[type=file]{display:none;}
   </div>
   <!-- KPI CARDS: 직전월/선택월 x 월보험료/인정실적 (4 cards) + A-H (6 cards) -->
   <div class="kpi-4grid" id="kpi-combined" style="margin-bottom:12px;"></div>
+  <!-- CHARTS ROW -->
+  <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:16px;margin-bottom:20px;">
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">월별 실적 추이 (현재 필터기준)</div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:12px;">전월대비·YoY 보조선 포함</div>
+      <div style="height:220px;position:relative;"><canvas id="ch-trend"></canvas></div>
+    </div>
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div id="branch-donut-title" style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">소속사업단별 인정실적 비중</div>
+      <div id="branch-donut-sub" style="font-size:10px;color:#fbbf24;font-weight:700;margin-bottom:12px;">👆 클릭하면 해당 사업단 필터 적용</div>
+      <div style="height:220px;position:relative;"><canvas id="ch-branch-donut"></canvas></div>
+    </div>
+    <div class="glass" style="padding:16px;border-radius:16px;">
+      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">보험종목별 비중</div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:12px;">생명보험 / 손해보험 구성</div>
+      <div style="height:220px;position:relative;"><canvas id="ch-cat-pie"></canvas></div>
+    </div>
+  </div>
+
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;" id="kpi-grid"></div>
 
   <!-- 당월 조직별 실적현황 + 조직별 주요지표 -->
@@ -239,24 +258,6 @@ input[type=file]{display:none;}
     </div>
   </div>
 
-  <!-- CHARTS ROW -->
-  <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:16px;margin-bottom:20px;">
-    <div class="glass" style="padding:16px;border-radius:16px;">
-      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">월별 실적 추이 (현재 필터기준)</div>
-      <div style="font-size:10px;color:#64748b;margin-bottom:12px;">전월대비·YoY 보조선 포함</div>
-      <div style="height:220px;position:relative;"><canvas id="ch-trend"></canvas></div>
-    </div>
-    <div class="glass" style="padding:16px;border-radius:16px;">
-      <div id="branch-donut-title" style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">소속사업단별 인정실적 비중</div>
-      <div id="branch-donut-sub" style="font-size:10px;color:#fbbf24;font-weight:700;margin-bottom:12px;">👆 클릭하면 해당 사업단 필터 적용</div>
-      <div style="height:220px;position:relative;"><canvas id="ch-branch-donut"></canvas></div>
-    </div>
-    <div class="glass" style="padding:16px;border-radius:16px;">
-      <div style="font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:4px;">보험종목별 비중</div>
-      <div style="font-size:10px;color:#64748b;margin-bottom:12px;">생명보험 / 손해보험 구성</div>
-      <div style="height:220px;position:relative;"><canvas id="ch-cat-pie"></canvas></div>
-    </div>
-  </div>
 
 </div>
 
