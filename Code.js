@@ -12,6 +12,8 @@ const SYNC_KEY    = 'INCA2026';
 const SS_PROP     = 'SPREADSHEET_ID';
 const CACHE_PROP  = 'CACHE_FILE_ID';   // Drive JSON 캐시 파일 ID
 const CACHE_NAME  = 'inca_cache.json'; // 캐시 파일명
+const ORG_OVR_PROP = 'ORG_OVR_FILE_ID';    // Drive JSON 조직지정 마스터 파일 ID
+const ORG_OVR_NAME = '_org_overrides.json'; // 조직지정 마스터 파일명 (캐시와 같은 폴더)
 
 // ─── 데이터 소스 레지스트리 ──────────────────────────────
 const DATA_SOURCES = [
@@ -64,6 +66,72 @@ function writeCache(data) {
   }
 }
 
+// ─── 조직 지정 마스터(오버라이드) — Drive JSON 별도 파일 ──────
+// 사번 → [사업단,본부](구버전 배열) 또는 {b2,b3,name}(신버전 객체). Script Properties는
+// 9KB/키 제한이 있어 사원 수백 명 규모에 부적합 → Drive 파일로 별도 관리(캐시 파일과 같은 위치).
+function readOrgOverrides() {
+  try {
+    const props  = PropertiesService.getScriptProperties();
+    const fileId = props.getProperty(ORG_OVR_PROP);
+    if (!fileId) return {};
+    const file = DriveApp.getFileById(fileId);
+    const obj  = JSON.parse(file.getBlob().getDataAsString());
+    return (obj && typeof obj === 'object') ? obj : {};
+  } catch(e) { return {}; }
+}
+
+function writeOrgOverrides(data) {
+  try {
+    const props   = PropertiesService.getScriptProperties();
+    const content = JSON.stringify(data);
+    let fileId    = props.getProperty(ORG_OVR_PROP);
+    if (fileId) {
+      try { DriveApp.getFileById(fileId).setContent(content); return; }
+      catch(e) { /* 파일이 삭제된 경우 새로 생성 */ }
+    }
+    const file = DriveApp.createFile(ORG_OVR_NAME, content, 'application/json');
+    props.setProperty(ORG_OVR_PROP, file.getId());
+  } catch(e) {
+    Logger.log('조직 오버라이드 저장 실패: ' + e.message);
+  }
+}
+
+// 오버라이드 값 정규화: [사업단,본부] 배열(구버전) 또는 {b2,b3,name} 객체(신버전) 둘 다 지원
+function _ovrParts(v) {
+  if (!v) return null;
+  if (Array.isArray(v)) return { b2: v[0]||'', b3: v[1]||'', name: '' };
+  return { b2: v.b2||'', b3: v.b3||'', name: v.name||'' };
+}
+
+// 직원관리 명단에 오버라이드 적용 (b2/b3만 교체 — 성명은 직원관리 원본 유지)
+function applyOrgOverridesToEmployees(employees, overrides) {
+  if (!overrides || !Object.keys(overrides).length) return employees || [];
+  return (employees || []).map(e => {
+    const p = _ovrParts(overrides[String(e.id)]);
+    if (!p) return e;
+    const out = Object.assign({}, e);
+    if (p.b2) out.b2 = p.b2;
+    if (p.b3) out.b3 = p.b3;
+    return out;
+  });
+}
+
+// 집계 전용: 직원관리에 없는(실적만 있는) 사번도 오버라이드가 있으면 가상 직원 레코드로 추가
+// → buildAggregated/buildTop10/buildTop10ByMonth의 empMap 조회 시 조직이 반영되도록 함
+// (실제 result.employees에는 추가하지 않음 — 뷰어의 재직인원 집계를 왜곡하지 않기 위함)
+function addOverrideStubs(employees, overrides) {
+  const list = (employees || []).slice();
+  if (!overrides) return list;
+  const haveIds = new Set(list.map(e => String(e.id)));
+  Object.keys(overrides).forEach(id => {
+    if (haveIds.has(String(id))) return;
+    const p = _ovrParts(overrides[id]);
+    if (!p || (!p.b2 && !p.b3)) return;
+    list.push({ id, name: p.name || '미매칭', type: '미정', b1:'', b2: p.b2||'', b3: p.b3||'', joinDate:'' });
+  });
+  return list;
+}
+
 // ─── GET: 캐시 우선 반환 → 없으면 Sheets에서 읽기 ────────
 function doGet(e) {
   try {
@@ -104,17 +172,25 @@ function readSheetsAndCache() {
     return json({ ok: false, error: '데이터 없음 — Sheets에 직원관리·건별실적 탭을 확인하세요' });
   }
 
+  // 미매칭 사원 조직 지정 마스터 적용 (b2/b3 교체) — 재업로드 없이도 대시보드에서 지정한 값이 반영됨
+  const orgOverrides = readOrgOverrides();
+  result.employees   = applyOrgOverridesToEmployees(result.employees, orgOverrides);
+  const empForAgg    = addOverrideStubs(result.employees, orgOverrides); // 실적-only 사원도 집계에 포함
+
   // 사전집계 생성
-  result.aggregated = buildAggregated(result.performance, result.employees);
-  const topResult   = buildTop10(result.performance, result.employees);
+  result.aggregated = buildAggregated(result.performance, empForAgg);
+  const topResult   = buildTop10(result.performance, empForAgg);
   result.top10        = topResult.top10;
   result.topByBranch  = topResult.topByBranch;
   result.topByBranch3 = topResult.topByBranch3;
   // 뷰어 납입연/월 필터 연동용 — 월별 TOP10 스냅샷(전체/사업단별/본부별)
-  result.top10ByMonth = buildTop10ByMonth(result.performance, result.employees);
+  result.top10ByMonth = buildTop10ByMonth(result.performance, empForAgg);
 
   // 월별 마감/가마감 상태
   result.monthStatus = buildMonthStatus(result.performance);
+
+  // 조직 지정 마스터도 함께 내려줌 — 대시보드가 localStorage와 병합해 오프라인에서도 활용
+  result.orgOverrides = orgOverrides;
 
   // 캐시 저장 (다음 GET부터 빠르게 응답)
   writeCache(result);
@@ -128,6 +204,8 @@ function doPost(e) {
     const payload = JSON.parse(e.postData.contents);
     // ── 관리자 로그인 (사번+비번 → 소속 데이터만 반환) ──
     if (payload.action === 'login') return handleManagerLogin(payload);
+    // ── 미매칭 사원 조직 지정 저장 (대시보드 팝업 → 서버 마스터에 병합) ──
+    if (payload.action === 'saveOrgOverrides') return handleSaveOrgOverrides(payload);
     if (payload.key !== SYNC_KEY) return json({ ok: false, error: '인증 실패' });
 
     const ss = getSpreadsheet();
@@ -184,11 +262,17 @@ function doPost(e) {
     setMeta(ss, 'perfCount',   allPerf.length);
 
     // 사전집계는 전체(merged) 기준으로 생성
-    const employees  = payload.employees || [];
-    const perfForAgg = allPerf.map(r => ({...r, status:'실제데이터'}));
-    const aggData    = buildAggregated(perfForAgg, employees);
-    const topResult  = buildTop10(perfForAgg, employees);
-    const top10ByMonthData = buildTop10ByMonth(perfForAgg, employees);
+    const employeesRaw = payload.employees || [];
+    const perfForAgg    = allPerf.map(r => ({...r, status:'실제데이터'}));
+
+    // 미매칭 사원 조직 지정 마스터 적용 (재업로드 시에도 지정값이 살아남도록)
+    const orgOverrides = readOrgOverrides();
+    const employees     = applyOrgOverridesToEmployees(employeesRaw, orgOverrides);
+    const empForAgg      = addOverrideStubs(employees, orgOverrides);
+
+    const aggData    = buildAggregated(perfForAgg, empForAgg);
+    const topResult  = buildTop10(perfForAgg, empForAgg);
+    const top10ByMonthData = buildTop10ByMonth(perfForAgg, empForAgg);
 
     // 캐시 즉시 갱신
     writeCache({
@@ -202,6 +286,7 @@ function doPost(e) {
       topByBranch3:  topResult.topByBranch3,
       top10ByMonth:  top10ByMonthData,
       monthStatus:   buildMonthStatus(perfForAgg),
+      orgOverrides:  orgOverrides,
     });
 
     return json({
@@ -211,6 +296,30 @@ function doPost(e) {
       updatedMonths: [...newMonths],
       aggCount:  aggData.length,
     });
+  } catch(err) {
+    return json({ ok: false, error: err.message });
+  }
+}
+
+// ─── 미매칭 사원 조직 지정 저장 (대시보드 팝업 → 서버 마스터 병합) ──
+// payload: { action:'saveOrgOverrides', key, overrides:{ id:[사업단,본부] 또는 {b2,b3,name}, ... } }
+// 값이 null이면 해당 사번 지정을 삭제. 저장 즉시 캐시를 재계산해 재업로드 없이 반영한다.
+function handleSaveOrgOverrides(payload) {
+  try {
+    if (payload.key !== SYNC_KEY) return json({ ok: false, error: '인증 실패' });
+    const incoming = payload.overrides || {};
+    const master   = readOrgOverrides();
+    Object.keys(incoming).forEach(id => {
+      const v = incoming[id];
+      if (v === null) delete master[id];
+      else master[id] = v;
+    });
+    writeOrgOverrides(master);
+
+    // 저장 즉시 시트 기준으로 캐시/사전집계 재계산 (재배포·재업로드 불필요)
+    try { readSheetsAndCache(); } catch(e) { /* 캐시 재계산 실패해도 마스터 저장 자체는 성공 처리 */ }
+
+    return json({ ok: true, count: Object.keys(master).length });
   } catch(err) {
     return json({ ok: false, error: err.message });
   }

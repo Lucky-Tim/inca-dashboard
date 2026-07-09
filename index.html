@@ -656,25 +656,55 @@ input[type=file]{display:none;}
 <!-- ═══════════════════════ SCRIPTS ═══════════════════════ -->
 <script>
 // ─── 조직 매핑 (사원번호 → 사업단/본부) + 미매칭 팝업 ──────
+// 저장 형식 하위호환: 값은 [사업단,본부] 배열(구버전) 또는 {b2,b3,name}(신버전 객체) 둘 다 지원.
+// localStorage는 기기별 오프라인 캐시 역할만 하고, 정본은 서버(Apps Script, Drive JSON)에 저장된다.
 const ORG_OVR_KEY = 'inca_org_overrides';
 function loadOrgOverrides(){ try{return JSON.parse(localStorage.getItem(ORG_OVR_KEY)||'{}');}catch(e){return {};} }
 function saveOrgOverrides(o){ try{localStorage.setItem(ORG_OVR_KEY,JSON.stringify(o));}catch(e){} }
+// 오버라이드 원시값(배열 또는 객체) → {b2,b3,name} 정규화
+function _ovrParts(v){
+  if(!v) return null;
+  if(Array.isArray(v)) return {b2:v[0]||'', b3:v[1]||'', name:''};
+  return {b2:v.b2||'', b3:v.b3||'', name:v.name||''};
+}
 function orgLookup(id){
   id=String(id||'').trim();
   const ovr=loadOrgOverrides();
-  if(ovr[id]) return ovr[id];
-  if(window.ORG_MAP && window.ORG_MAP[id]) return window.ORG_MAP[id];
+  if(ovr[id]) return _ovrParts(ovr[id]);
+  if(window.ORG_MAP && window.ORG_MAP[id]) return _ovrParts(window.ORG_MAP[id]);
   return null;
+}
+// 서버에서 내려온 조직 지정 마스터를 로컬 저장소와 병합(서버 값 우선)
+function mergeServerOrgOverrides(serverOvr){
+  if(!serverOvr || typeof serverOvr!=='object') return;
+  const local = loadOrgOverrides();
+  const merged = Object.assign({}, local, serverOvr);
+  saveOrgOverrides(merged);
 }
 function applyOrgMapToEmployees(){
   const unmatched=[];
   (STATE.employees||[]).forEach(e=>{
     const m=orgLookup(e.id);
-    if(m){ e.b2=m[0]; e.b3=m[1]; }
+    if(m){ if(m.b2)e.b2=m.b2; if(m.b3)e.b3=m.b3; }
     else { unmatched.push({id:e.id,name:e.name}); if(!e.b2)e.b2='미배정'; if(!e.b3)e.b3='미배정'; }
     e.b4 = (window.ORG_LV4 && window.ORG_LV4[String(e.id).trim()]) || '';
   });
   return unmatched;
+}
+// 팝업에 띄울 전체 미매칭 목록: (1) 직원관리엔 있으나 조직 매핑이 없는 사원 +
+// (2) 직원관리에 없고 실적에만 있는(실적-only) 사원 — 조직 매핑이 아직 없는 것만
+function getUnmatchedForPopup(){
+  const seen=new Set(); const list=[];
+  (STATE.employees||[]).forEach(e=>{
+    const id=String(e.id||''); if(!id||seen.has(id)) return;
+    if(!orgLookup(id)){ list.push({id:e.id, name:e.name||''}); seen.add(id); }
+  });
+  const empSet=new Set((STATE.employees||[]).map(e=>String(e.id)));
+  (STATE.performance||[]).forEach(p=>{
+    const id=String(p.agentId||''); if(!id||empSet.has(id)||seen.has(id)) return;
+    if(!orgLookup(id)){ list.push({id, name:''}); seen.add(id); }
+  });
+  return list;
 }
 function onOrgSadanChange(sel){
   const sd=sel.value; const tr=sel.closest('tr'); const bb=tr.querySelector('.org-bb');
@@ -687,7 +717,7 @@ function openOrgPopup(list){
   document.getElementById('org-popup-body').innerHTML = list.map(p=>`
     <tr data-id="${p.id}" style="border-bottom:1px solid rgba(51,65,85,.4);">
       <td style="padding:8px;color:#94a3b8;font-family:monospace;">${p.id}</td>
-      <td style="padding:8px;color:#e2e8f0;font-weight:700;">${p.name||'-'}</td>
+      <td style="padding:6px;"><input type="text" class="org-name" value="${String(p.name||'').replace(/"/g,'&quot;')}" placeholder="성명(선택)" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:6px;border-radius:6px;font-size:12px;width:100%;"></td>
       <td style="padding:6px;"><select class="org-sd" onchange="onOrgSadanChange(this)" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:6px;border-radius:6px;font-size:12px;width:100%;"><option value="">사업단 선택</option>${sadanOpts}</select></td>
       <td style="padding:6px;"><select class="org-bb" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:6px;border-radius:6px;font-size:12px;width:100%;"><option value="">본부 선택</option></select></td>
     </tr>`).join('');
@@ -697,17 +727,37 @@ function openOrgPopup(list){
 function closeOrgPopup(){ const m=document.getElementById('org-popup'); if(m)m.style.display='none'; }
 function saveOrgPopup(){
   const ovr=loadOrgOverrides(); let n=0, miss=0;
+  const toSync={};
   document.querySelectorAll('#org-popup-body tr').forEach(tr=>{
     const id=tr.getAttribute('data-id');
     let sd=tr.querySelector('.org-sd').value, bb=tr.querySelector('.org-bb').value;
+    const nameEl=tr.querySelector('.org-name');
+    const nm=nameEl?nameEl.value.trim():'';
     if(bb==='__new__'){ bb=(prompt('본부명 직접 입력','')||'').trim(); }
-    if(sd&&bb){ ovr[id]=[sd,bb]; n++; } else { miss++; }
+    if(sd&&bb){ const rec = nm ? {b2:sd,b3:bb,name:nm} : {b2:sd,b3:bb}; ovr[id]=rec; toSync[id]=rec; n++; } else { miss++; }
   });
   saveOrgOverrides(ovr);
-  STATE._unmatchedOrg=applyOrgMapToEmployees();
+  applyOrgMapToEmployees();
+  STATE._unmatchedOrg=getUnmatchedForPopup();
   mergeData(); renderAll();
   closeOrgPopup();
   log(`✅ 조직 매핑 저장: ${n}명 지정${miss?` (미입력 ${miss}명은 다음 업로드 시 재표시)`:''}`,'success');
+  // 서버(Apps Script)에도 저장 — 기기·브라우저 간 동기화 및 뷰어 반영용
+  syncOrgOverridesToServer(toSync);
+}
+// 조직 지정 저장분을 서버 마스터에 병합(POST). 실패해도 로컬 저장은 이미 완료된 상태.
+async function syncOrgOverridesToServer(overridesDelta){
+  if(!overridesDelta || !Object.keys(overridesDelta).length) return;
+  const { url, key } = loadAsConfig();
+  if(!url){ log('⚠ 조직 매핑: 배포 URL 미설정 — 로컬에만 저장됨. 온라인 시 재시도 필요','warn'); return; }
+  try{
+    const res = await fetch(url, { method:'POST', body: JSON.stringify({ action:'saveOrgOverrides', key, overrides: overridesDelta }) });
+    const data = await res.json();
+    if(data.ok) log(`☁️ 조직 매핑 서버 저장 완료 (서버 총 ${data.count}건)`,'success');
+    else log('⚠ 조직 매핑 서버 저장 실패: '+(data.error||'오류')+' — 로컬에만 저장됨. 온라인 시 재시도 필요','warn');
+  }catch(err){
+    log('⚠ 조직 매핑 서버 저장 실패(네트워크): '+err.message+' — 로컬에만 저장됨. 온라인 시 재시도 필요','warn');
+  }
 }
 
 // ─── CONSTANTS ───────────────────────────────────────────
@@ -852,11 +902,22 @@ function mergeData() {
     return true;
   });
   // Left Outer Join (Map 조회 → O(n+m))
+  // 직원관리에 없는(실적-only) 사번도 조직 지정(orgLookup)이 있으면 그 값을 반영 — 지정해도 무시되던 버그 수정
   STATE.merged = deduped.map(p => {
-    const emp = empMap.get(String(p.agentId)) || {
-      id: p.agentId, name:'미매칭', type:'미정', b2:'기타', b3:'기타', b4:'', joinDate:'20000101'
+    const emp = empMap.get(String(p.agentId));
+    if (emp) {
+      return { ...p, agentName: emp.name, agentType: emp.type, branch2: emp.b2, branch3: emp.b3, branch4: emp.b4, joinDate: emp.joinDate };
+    }
+    const m = orgLookup(p.agentId);
+    return {
+      ...p,
+      agentName: (m && m.name) ? m.name : '미매칭',
+      agentType: '미정',
+      branch2:   (m && m.b2) ? m.b2 : '기타',
+      branch3:   (m && m.b3) ? m.b3 : '기타',
+      branch4:   '',
+      joinDate:  '20000101'
     };
-    return { ...p, agentName: emp.name, agentType: emp.type, branch2: emp.b2, branch3: emp.b3, branch4: emp.b4, joinDate: emp.joinDate };
   });
   // 가마감(미처리) 예상 인정실적 채움 (영수금 × 보종별 마감비율)
   estimateGamagamCredit(STATE.merged);
@@ -1511,15 +1572,28 @@ function setViewMode(mode) {
   renderAll();
 }
 
-// 미매칭 설계사(실적 있으나 직원관리에 없음) 배지 갱신
+// 미매칭 설계사(실적 있으나 직원관리에 없음) 배지 갱신 — 클릭 시 조직 지정 팝업 오픈
 function updateUnmatchedBadge() {
   const el = document.getElementById('unmatched-badge');
   if (!el) return;
   const empSet = new Set((STATE.employees||[]).map(e => String(e.id)));
-  const un = new Set();
-  (STATE.merged||[]).forEach(r => { const id=String(r.agentId||''); if(id && !empSet.has(id)) un.add(id); });
-  if (un.size > 0) { el.textContent = '⚠ 미매칭 설계사 ' + un.size + '명'; el.classList.remove('hidden'); }
-  else { el.classList.add('hidden'); }
+  const seen = new Set(); const list = [];
+  (STATE.merged||[]).forEach(r => {
+    const id=String(r.agentId||'');
+    if(id && !empSet.has(id) && !seen.has(id)){
+      seen.add(id);
+      list.push({ id, name: (r.agentName && r.agentName!=='미매칭') ? r.agentName : '' });
+    }
+  });
+  if (list.length > 0) {
+    el.textContent = '⚠ 미매칭 설계사 ' + list.length + '명';
+    el.classList.remove('hidden');
+    el.style.cursor = 'pointer';
+    el.onclick = () => openOrgPopup(list);
+  } else {
+    el.classList.add('hidden');
+    el.onclick = null;
+  }
 }
 
 // 슬라이서 sticky top을 헤더 실제 높이에 맞춤 (스크롤 시 필터 가려짐 방지)
@@ -2616,10 +2690,14 @@ async function pullFromAS(silent=false) {
     const res  = await fetch(url + '?t=' + Date.now());
     const data = await res.json();
     if (!data.employees?.length) throw new Error('데이터 없음 — Sheets 직원관리 탭 확인 또는 재배포 필요');
-    STATE.employees   = data.employees;
+    STATE.employees   = data.employees; // 서버가 이미 조직 지정 마스터를 적용해 내려줌
     STATE.monthStatus = data.monthStatus || {};
     STATE.performance = (data.performance || []).map(r => ({...r, month: String(r.month||'').trim(), source: (r.source||'마감'), status: '실제데이터'}));
     STATE.config.isRealData = true;
+    // 서버 조직 지정 마스터 → 로컬(오프라인 캐시)과 병합(서버 우선) 후 재적용
+    mergeServerOrgOverrides(data.orgOverrides);
+    applyOrgMapToEmployees();
+    STATE._unmatchedOrg = getUnmatchedForPopup();
     mergeData(); checkRealData(); renderAll();
     const msg = `✅ 로드 완료 — 직원 ${data.employees.length}명 · 실적 ${data.performance?.length||0}건`;
     if (!silent) setAsStatus(msg, '#34d399');
@@ -2704,6 +2782,8 @@ async function handleFiles(files) {
   }
   // 모든 파일 처리 완료 후 한 번만 mergeData + checkRealData + renderAll
   mergeData(); checkRealData(); renderAll();
+  // 실적-only 사원까지 포함한 전체 미매칭 목록 재계산 (직원관리·건별실적 어느 쪽만 올려도 최신 상태 반영)
+  STATE._unmatchedOrg = getUnmatchedForPopup();
   log(`✅ 파일 처리 100% 완료 — 직원 ${STATE.employees.filter(e=>e.type==='재직').length}명 재직 · 실적 ${STATE.performance.filter(p=>p.status==='실제데이터').length}건`, 'success');
   if (STATE._unmatchedOrg && STATE._unmatchedOrg.length) openOrgPopup(STATE._unmatchedOrg);
 }
@@ -2735,9 +2815,9 @@ function parseEmployeeSheet(rows, fname) {
     _seen.add(e.id);
     return true;
   });
-  STATE._unmatchedOrg = applyOrgMapToEmployees();
+  applyOrgMapToEmployees();
   log(`✅ 직원관리 ${parsed.length}명 로드 완료 → 중복제거 후 재직계: ${STATE.employees.filter(e=>e.type==='재직').length}명`, 'success');
-  // renderAll은 handleFiles 완료 후 한 번만 호출
+  // renderAll·미매칭 목록 재계산은 handleFiles 완료 후 한 번만 호출
 }
 
 const cn = v => { if(!v) return 0; const s=String(v).replace(/[",]/g,'').trim(); return isNaN(s)?0:parseInt(s)||0; };
