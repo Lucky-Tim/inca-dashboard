@@ -637,7 +637,7 @@ input[type=file]{display:none;}
       <div style="font-size:11px;color:#64748b;margin-top:4px;">매핑에 없는 신규 사원번호입니다. 사업단·본부를 지정해 저장하면 다음 업로드부터 자동 적용됩니다.</div>
     </div>
     <div style="overflow:auto;padding:6px 20px;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
-      <thead><tr style="color:#64748b;text-align:left;"><th style="padding:8px;">사번</th><th style="padding:8px;">성명</th><th style="padding:8px;width:34%;">사업단</th><th style="padding:8px;width:34%;">본부</th></tr></thead>
+      <thead><tr style="color:#64748b;text-align:left;"><th style="padding:8px;">사번</th><th style="padding:8px;">성명</th><th style="padding:8px;width:32%;">사업단</th><th style="padding:8px;width:32%;">본부</th><th style="padding:8px;"></th></tr></thead>
       <tbody id="org-popup-body"></tbody>
     </table></div>
     <div style="padding:14px 20px;border-top:1px solid #1e293b;display:flex;justify-content:flex-end;gap:8px;">
@@ -661,11 +661,16 @@ input[type=file]{display:none;}
 const ORG_OVR_KEY = 'inca_org_overrides';
 function loadOrgOverrides(){ try{return JSON.parse(localStorage.getItem(ORG_OVR_KEY)||'{}');}catch(e){return {};} }
 function saveOrgOverrides(o){ try{localStorage.setItem(ORG_OVR_KEY,JSON.stringify(o));}catch(e){} }
-// 오버라이드 원시값(배열 또는 객체) → {b2,b3,name} 정규화
+// 오버라이드 원시값(배열 또는 객체) → {b2,b3,name} 정규화. {ignore:true}는 "이 사번 무시" 마커.
 function _ovrParts(v){
-  if(!v) return null;
+  if(!v || v.ignore) return null;
   if(Array.isArray(v)) return {b2:v[0]||'', b3:v[1]||'', name:''};
   return {b2:v.b2||'', b3:v.b3||'', name:v.name||''};
+}
+// 무시 지정된 사번인지 (팝업·배지에서 제외, 집계는 '기타/미매칭' 유지)
+function _isIgnoredOvr(id){
+  const v=loadOrgOverrides()[String(id||'').trim()];
+  return !!(v && v.ignore);
 }
 function orgLookup(id){
   id=String(id||'').trim();
@@ -686,7 +691,7 @@ function applyOrgMapToEmployees(){
   (STATE.employees||[]).forEach(e=>{
     const m=orgLookup(e.id);
     if(m){ if(m.b2)e.b2=m.b2; if(m.b3)e.b3=m.b3; }
-    else { unmatched.push({id:e.id,name:e.name}); if(!e.b2)e.b2='미배정'; if(!e.b3)e.b3='미배정'; }
+    else { if(!_isIgnoredOvr(e.id)) unmatched.push({id:e.id,name:e.name}); if(!e.b2)e.b2='미배정'; if(!e.b3)e.b3='미배정'; }
     e.b4 = (window.ORG_LV4 && window.ORG_LV4[String(e.id).trim()]) || '';
   });
   return unmatched;
@@ -697,12 +702,12 @@ function getUnmatchedForPopup(){
   const seen=new Set(); const list=[];
   (STATE.employees||[]).forEach(e=>{
     const id=String(e.id||''); if(!id||seen.has(id)) return;
-    if(!orgLookup(id)){ list.push({id:e.id, name:e.name||''}); seen.add(id); }
+    if(!orgLookup(id) && !_isIgnoredOvr(id)){ list.push({id:e.id, name:e.name||''}); seen.add(id); }
   });
   const empSet=new Set((STATE.employees||[]).map(e=>String(e.id)));
   (STATE.performance||[]).forEach(p=>{
     const id=String(p.agentId||''); if(!id||empSet.has(id)||seen.has(id)) return;
-    if(!orgLookup(id)){ list.push({id, name:''}); seen.add(id); }
+    if(!orgLookup(id) && !_isIgnoredOvr(id)){ list.push({id, name:''}); seen.add(id); }
   });
   return list;
 }
@@ -720,11 +725,27 @@ function openOrgPopup(list){
       <td style="padding:6px;"><input type="text" class="org-name" value="${String(p.name||'').replace(/"/g,'&quot;')}" placeholder="성명(선택)" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:6px;border-radius:6px;font-size:12px;width:100%;"></td>
       <td style="padding:6px;"><select class="org-sd" onchange="onOrgSadanChange(this)" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:6px;border-radius:6px;font-size:12px;width:100%;"><option value="">사업단 선택</option>${sadanOpts}</select></td>
       <td style="padding:6px;"><select class="org-bb" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:6px;border-radius:6px;font-size:12px;width:100%;"><option value="">본부 선택</option></select></td>
+      <td style="padding:6px;text-align:center;"><button onclick="ignoreOrgRow(this)" title="이 사번을 무시 — 팝업에 다시 표시하지 않음 (집계는 '기타/미매칭' 유지)" style="background:transparent;border:1px solid #475569;color:#94a3b8;padding:6px 10px;border-radius:6px;font-size:11px;cursor:pointer;white-space:nowrap;">무시</button></td>
     </tr>`).join('');
   document.getElementById('org-popup-count').textContent=list.length;
   m.style.display='flex';
 }
 function closeOrgPopup(){ const m=document.getElementById('org-popup'); if(m)m.style.display='none'; }
+// "무시" 버튼: 해당 사번을 {ignore:true}로 저장(서버 동기화 포함) → 팝업·배지에서 영구 제외.
+// 되돌리려면 콘솔에서 localStorage 'inca_org_overrides'의 해당 사번 삭제 후 서버에 null 전송.
+function ignoreOrgRow(btn){
+  const tr=btn.closest('tr'); const id=tr.getAttribute('data-id');
+  if(!confirm(`사번 ${id}을(를) 무시할까요?\n앞으로 이 팝업에 표시되지 않습니다. (집계에는 '기타/미매칭'으로 유지)`)) return;
+  const ovr=loadOrgOverrides(); ovr[id]={ignore:true}; saveOrgOverrides(ovr);
+  syncOrgOverridesToServer({[id]:{ignore:true}});
+  tr.remove();
+  const rest=document.querySelectorAll('#org-popup-body tr').length;
+  document.getElementById('org-popup-count').textContent=rest;
+  STATE._unmatchedOrg=getUnmatchedForPopup();
+  if(typeof updateUnmatchedBadge==='function') updateUnmatchedBadge();
+  log(`🚫 사번 ${id} 무시 처리 — 팝업에 다시 표시되지 않습니다`,'info');
+  if(!rest) closeOrgPopup();
+}
 function saveOrgPopup(){
   const ovr=loadOrgOverrides(); let n=0, miss=0;
   const toSync={};
@@ -1580,7 +1601,7 @@ function updateUnmatchedBadge() {
   const seen = new Set(); const list = [];
   (STATE.merged||[]).forEach(r => {
     const id=String(r.agentId||'');
-    if(id && !empSet.has(id) && !seen.has(id)){
+    if(id && !empSet.has(id) && !seen.has(id) && !orgLookup(id) && !_isIgnoredOvr(id)){
       seen.add(id);
       list.push({ id, name: (r.agentName && r.agentName!=='미매칭') ? r.agentName : '' });
     }
