@@ -1673,11 +1673,17 @@ function _positionSlicerBarFixed(){
   sb.style.top=Math.max(0,r.bottom)+'px';
   sb.style.left='0'; sb.style.right='0'; sb.style.width='100%';
   sb.style.zIndex='45';
+  // 접힘 애니메이션 규칙(max-height/opacity)이 어떤 경로로든 남아있어도 인라인으로 강제 표시
+  sb.style.maxHeight='none';
+  sb.style.opacity='1';
+  sb.style.paddingTop='12px';
+  sb.style.paddingBottom='12px';
 }
 function _resetSlicerBarPosition(){
   const sb=document.getElementById('slicer-bar');
   if(!sb) return;
   sb.style.position=''; sb.style.top=''; sb.style.left=''; sb.style.right=''; sb.style.width=''; sb.style.zIndex='';
+  sb.style.maxHeight=''; sb.style.opacity=''; sb.style.paddingTop=''; sb.style.paddingBottom='';
 }
 function updateSlicerSummary(){
   // 화면의 슬라이서 버튼 라벨을 그대로 요약 — 상태 객체와 어긋날 수 없는 방식
