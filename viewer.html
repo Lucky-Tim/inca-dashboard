@@ -315,11 +315,12 @@ td:first-child{text-align:left;font-weight:700;color:#1a1a1a;padding-left:13px;}
           <th id="cur-branch-th">소속사업단</th>
           <th style="text-align:left;padding-left:13px;">월납(인정/비중) 현황</th>
           <th style="text-align:center;">가동률</th>
-          <th style="text-align:center;">추세</th>
+          <th style="text-align:center;">성장세</th>
         </tr></thead>
         <tbody id="cur-branch-tbody"></tbody>
       </table>
     </div>
+    <div style="font-size:10px;color:#999;margin-top:6px;padding-left:2px;">※ 성장세 = 직전 마감월 실적 vs 그 이전 3개월 평균 (가마감 제외, 확정 데이터 기준)</div>
   </div>
 
   <!-- 월별 실적 추이 -->
@@ -766,16 +767,25 @@ function renderCurrentMonth(kpis) {
     }
   });
 
-  // MoM 기준: 직전 마감월 vs 전전 마감월 (안정된 완결 데이터끼리 비교)
-  const sortedClosed = [...(closedMonths || [])].sort().filter(m => m < latM);
-  const _prevM2 = sortedClosed[sortedClosed.length - 1];  // 전월(당월 직전)
-
-  const latCrMap  = {};
-  const prevCrMap = {};
-  agg.forEach(r => {
+  // 성장세 기준: 직전 마감월 vs 그 이전 3개월 평균 (확정 데이터끼리 비교, 단월 변동 완화)
+  // 월 필터와 무관하게 시계열에서 계산 — 표시월이 가마감이면 직전 마감월을 기준월로 사용
+  const _now = new Date();
+  const currCalM = String(_now.getFullYear()) + String(_now.getMonth() + 1).padStart(2, '0');
+  const _tRows = RAW.aggregated.filter(r => {
+    if (FILTERS.branch    !== 'all' && r.branch    !== FILTERS.branch)    return false;
+    if (FILTERS.branch3   !== 'all' && r.branch3   !== FILTERS.branch3)   return false;
+    if (FILTERS.payMethod !== 'all' && r.payMethod !== FILTERS.payMethod) return false;
+    return true;
+  });
+  const _tMonths = [...new Set(_tRows.map(r => r.month).filter(Boolean))].sort();
+  const _closed  = _tMonths.filter(m => m < currCalM);
+  const _baseM   = (latM && latM < currCalM) ? latM : _closed.filter(m => m < latM).slice(-1)[0];
+  const _prev3   = _baseM ? _closed.filter(m => m < _baseM).slice(-3) : [];
+  const _crByMB  = {};  // 'month|조직' → 인정실적 합
+  _tRows.forEach(r => {
     const b = r[_dl] || '미분류';
-    if (r.month === latM)     latCrMap[b]  = (latCrMap[b]  || 0) + r.credit;   // 당월 인정
-    if (r.month === _prevM2)  prevCrMap[b] = (prevCrMap[b] || 0) + r.credit;   // 전월 인정
+    const k = r.month + '|' + b;
+    _crByMB[k] = (_crByMB[k] || 0) + r.credit;
   });
 
   // 당월 집계
@@ -802,9 +812,11 @@ function renderCurrentMonth(kpis) {
     .map(([name, v]) => {
       // 가마감월은 인정실적 0 → 비중을 월보험료(영수금) 기준
       const share   = _vProv ? (v.premium / totalPremium * 100) : (v.credit / totalCredit * 100);
-      const latCr   = latCrMap[name]  || 0;
-      const prevCr  = prevCrMap[name] || 0;
-      const diff    = prevCr > 0 ? (latCr / prevCr - 1) * 100 : null;
+      const baseCr  = _baseM ? (_crByMB[_baseM + '|' + name] || 0) : 0;
+      const avg3    = _prev3.length
+        ? _prev3.reduce((s, m) => s + (_crByMB[m + '|' + name] || 0), 0) / _prev3.length
+        : 0;
+      const diff    = (_baseM && avg3 > 0) ? (baseCr / avg3 - 1) * 100 : null;
       const act     = latActive[name] || 0;
       const reg     = branchReg[name] || 0;
       const actRate = reg > 0 ? act / reg * 100 : 0;
