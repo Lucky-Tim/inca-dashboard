@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>동네해빙 운영OS — TA·개척</title>
+<style>
+  :root{--ink:#0E1F38;--navy:#16335B;--ice:#E9EFF8;--ice2:#D6E3F4;--gold:#E0A33E;--teal:#1F7A8C;--red:#B3261E;--blue:#1D4ED8;--green:#1F7A43;--orange:#D97A16;--gray:#5B6B7B}
+  *{box-sizing:border-box}
+  body{font-family:"맑은 고딕","Malgun Gothic",system-ui,sans-serif;margin:0;background:#F4F7FB;color:var(--ink);font-size:14px;letter-spacing:-0.2px;line-height:1.45}
+  header{background:var(--navy);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:20}
+  header h1{font-size:16px;margin:0}
+  header .sub{color:var(--ice2);font-size:11px}
+  header .status{margin-left:auto;font-size:11px;color:var(--ice2)}
+  .wrap{max-width:1500px;margin:0 auto;padding:14px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px}
+  .card{background:#fff;border:1px solid var(--ice2);border-radius:12px;padding:12px 14px;box-shadow:0 1px 3px rgba(14,31,56,.06)}
+  .card .label{font-size:11px;color:var(--gray)}
+  .card .val{font-size:24px;font-weight:800;margin-top:2px}
+  .card.hl{background:var(--navy);color:#fff}.card.hl .label{color:var(--ice2)}
+  .card .goal{font-size:10px;margin-top:2px;color:var(--gray)}
+  .bar{height:7px;background:var(--ice);border-radius:6px;overflow:hidden;margin-top:6px}.bar>i{display:block;height:100%;background:var(--gold)}
+  /* 오늘 할 일 */
+  .todo{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+  .tile{background:#fff;border:1px solid var(--ice2);border-left:5px solid var(--gray);border-radius:12px;padding:11px 13px;cursor:pointer;transition:.12s}
+  .tile:hover{background:var(--ice)}
+  .tile .t{font-size:12px;color:var(--gray);font-weight:700}
+  .tile .c{font-size:22px;font-weight:800;margin:2px 0}
+  .tile .m{font-size:11px;color:var(--gray);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tile.rc{border-left-color:var(--orange)} .tile.ur{border-left-color:var(--red)}
+  .tile.bk{border-left-color:var(--orange)} .tile.na{border-left-color:var(--blue)}
+  .toolbar{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  button{font-family:inherit;font-size:13px;border:1px solid var(--navy);background:#fff;color:var(--navy);padding:8px 12px;border-radius:9px;cursor:pointer}
+  button:hover{background:var(--ice)}button.primary{background:var(--navy);color:#fff}
+  button.gold{background:var(--gold);border-color:var(--gold);color:#3a2a05}
+  button.on{background:var(--gold);border-color:var(--gold);color:#3a2a05}
+  input[type=text],select{font-family:inherit;font-size:13px;padding:8px 9px;border:1px solid var(--ice2);border-radius:9px;background:#fff}
+  .spacer{flex:1}
+  .tablewrap{overflow-x:auto;border-radius:12px}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(14,31,56,.06);min-width:1300px}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--ice);font-size:13px;vertical-align:middle;white-space:nowrap;letter-spacing:-0.2px}
+  th{background:var(--navy);color:#fff;font-weight:600;cursor:pointer}
+  th:first-child,td:first-child{min-width:160px;white-space:normal;word-break:keep-all;position:sticky;left:0;background:#fff;box-shadow:2px 0 4px rgba(14,31,56,.05)}
+  th:first-child{background:var(--navy)}
+  tr:nth-child(even) td{background:#F8FAFD} tr:nth-child(even) td:first-child{background:#F8FAFD}
+  tr.rc td:first-child{box-shadow:inset 4px 0 0 var(--orange),2px 0 4px rgba(14,31,56,.05)}
+  td input,td select{width:100%;border:1px solid transparent;background:transparent}
+  td .fx{display:block;font-weight:700} td .ro{color:var(--gray);font-size:12px;display:block;max-width:230px;overflow:hidden;text-overflow:ellipsis}
+  td .gA{color:var(--red)} td .gB{color:var(--blue)} td .gC{color:var(--gray)}
+  td input.ed,td select.ed{background:#FFFBEF;border:1px solid #EAD9AE;border-radius:7px;padding:7px 8px;min-width:80px}
+  td input.ed:focus,td select.ed:focus{border-color:var(--gold);background:#fff;outline:none}
+  td input.ed[type=date]{min-width:140px} td select.ed{min-width:104px;font-weight:700}
+  td input.ed::placeholder{color:#BBA050}
+  .maplink{display:inline-block;padding:6px 9px;border:1px solid var(--ice2);border-radius:8px;color:var(--navy);text-decoration:none;font-size:12px}
+  .maplink:hover{background:var(--ice)}
+  .empty{padding:26px;text-align:center;color:var(--gray)}
+  .foot{font-size:11px;color:var(--gray);margin-top:12px;line-height:1.6}
+  #setup{max-width:560px;margin:60px auto;background:#fff;border:1px solid var(--ice2);border-radius:14px;padding:24px}
+  #setup input{width:100%;margin:10px 0}
+  .saving{position:fixed;bottom:16px;right:16px;background:var(--navy);color:#fff;padding:8px 14px;border-radius:20px;font-size:12px;opacity:0;transition:.2s}.saving.on{opacity:1}
+  @media (max-width:640px){
+    .wrap{padding:10px}.kpis{grid-template-columns:repeat(3,1fr);gap:7px}.card{padding:9px 10px}.card .val{font-size:19px}
+    .todo{grid-template-columns:repeat(2,1fr)}
+    .toolbar button,.toolbar select{flex:1 1 auto}.toolbar #q{flex:1 1 100%;order:5}
+    .tablewrap{overflow-x:visible}
+    table,thead,tbody,tr,td{display:block;width:100%}thead{display:none}table{min-width:0;box-shadow:none;background:transparent}
+    tr{background:#fff;border:1px solid var(--ice2);border-radius:12px;margin-bottom:10px;padding:8px 10px}
+    tr:nth-child(even) td,tr:nth-child(even) td:first-child{background:transparent}
+    td{border:none;padding:5px 0;display:flex;align-items:center;gap:8px}
+    td:first-child{position:static;box-shadow:none;font-weight:800;color:var(--navy);font-size:16px;border-bottom:1px solid var(--ice);padding-bottom:6px;margin-bottom:4px}
+    tr.rc td:first-child{box-shadow:inset 4px 0 0 var(--orange)}
+    td::before{content:attr(data-label);flex:0 0 66px;font-size:11px;color:var(--gray);font-weight:700}
+    td:first-child::before{content:"#";flex:0 0 auto}
+    td .ro{max-width:none}
+    td input.ed,td select.ed{padding:11px 10px;font-size:15px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>🏡 동네해빙 운영OS</h1><div class="sub">TA·개척 · 동선 × 해빙</div></div>
+  <div class="status" id="conn">연결 중…</div>
+</header>
+<div id="setup" style="display:none">
+  <h2>최초 설정</h2>
+  <p>TA·개척 Apps Script 웹앱 URL(.../exec)을 붙여넣으세요.</p>
+  <input type="text" id="apiInput" placeholder="https://script.google.com/macros/s/..../exec">
+  <button class="primary" onclick="saveApi()">연결</button>
+</div>
+<div class="wrap" id="app" style="display:none">
+  <div class="kpis" id="kpis"></div>
+  <div class="todo" id="todo"></div>
+  <div class="toolbar">
+    <button class="primary" onclick="load()">↻ 새로고침</button>
+    <button class="gold" onclick="report()">📨 보고</button>
+    <span class="spacer"></span>
+    <input type="text" id="q" placeholder="매장·주소·전화·점주·메모·담당 검색…" oninput="render()">
+    <select id="fDong" onchange="render()"><option value="">동네 전체</option></select>
+    <select id="fState" onchange="render()"><option value="">상태 전체</option></select>
+    <button id="btnCourse" onclick="toggleCourse()">🗺️ 코스보기</button>
+    <button id="btnRc" onclick="toggleRc()">🔁 재접촉</button>
+  </div>
+  <div class="tablewrap"><table><thead id="thead"></thead><tbody id="tb"></tbody></table></div>
+  <div class="foot" id="foot"></div>
+</div>
+<div class="saving" id="saving">저장 중…</div>
+<script>
+// ▼▼▼ 배포 후 Apps Script 웹앱 URL(.../exec)을 넣으면 모두에게 고정 ▼▼▼
+const API_URL = "https://script.google.com/macros/s/AKfycbzIOSaTKPRQtuwakCAJfpWeGFwavHfSF9Wl31SDT_jrjWi76gHYpJ1gT9oVYjH5ooTw/exec";
+// ▲▲▲ 비워두면 접속자가 최초 1회 입력(브라우저 저장) ▲▲▲
+
+let STATES=["미배정","담당배정","방문예정","방문완료","예약확정","컨설팅완료","계약진행","계약완료","사후관리","부재","보류","거절","불가"];
+const ST_COLOR={"미배정":"#EEF2F7","담당배정":"#E3ECF9","방문예정":"#DCE9FF","방문완료":"#DAF0E2","예약확정":"#FFE6C7","컨설팅완료":"#D7F0DE","계약진행":"#CDECD6","계약완료":"#BFE8CC","사후관리":"#E9EFEA","부재":"#EAEFF4","보류":"#FCE9CF","거절":"#F7DDDA","불가":"#E2E2E2"};
+const RECON=["부재","보류"];              // 재접촉 대상
+const CONTRACT=["계약진행","계약완료"];    // 계약
+const TERMINAL=["거절","불가","계약완료","사후관리"];
+
+// 컬럼: input=편집 / fixed=고정표시 / ro=원본읽기 / status·grade·phone·map=특수
+const COLS=[
+  {k:"등급",label:"등급",t:"grade"},
+  {k:"TA상태",label:"상태",t:"status"},
+  {k:"시도횟수",label:"시도",t:"fixed"},
+  {k:"다음접촉일",label:"다음접촉",t:"date"},
+  {k:"예약일",label:"예약일",t:"date"},
+  {k:"예약시간",label:"예약시간",t:"input"},
+  {k:"방문일시",label:"방문메모",t:"input"},
+  {k:"담당",label:"담당",t:"input"},
+  {k:"컨설턴트배정",label:"컨설턴트배정",t:"input"},
+  {k:"업종",label:"업종",t:"fixed"},
+  {k:"동네",label:"동네",t:"fixed"},
+  {k:"연락처",label:"연락처",t:"tel"},
+  {k:"주소",label:"주소",t:"map"},
+  {k:"메모",label:"메모",t:"input"}
+];
+
+let rows=[], sortK="번호", sortDir=1, courseMode=false, rcOnly=false;
+function apiUrl(){ return API_URL || localStorage.getItem("ta_api") || ""; }
+function esc(s){return String(s==null?"":s).replace(/"/g,"&quot;").replace(/</g,"&lt;");}
+function fmtPhone(v){ v=String(v==null?"":v).trim(); if(/^\d{9,10}$/.test(v)) return "0"+v; return v; }
+function fmtDate(v){ if(v==null||v==="")return ""; var s=String(v);
+  if(/^\d{4}-\d{2}-\d{2}T/.test(s)){var d=new Date(s); if(!isNaN(d)){var k=new Date(d.getTime()+9*3600*1000); return k.getUTCFullYear()+"-"+String(k.getUTCMonth()+1).padStart(2,"0")+"-"+String(k.getUTCDate()).padStart(2,"0");}}
+  return s.length>10?s.slice(0,10):s; }
+function today(){ var n=new Date(); return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0"); }
+
+function boot(){
+  if(!apiUrl()){ document.getElementById("setup").style.display="block"; return; }
+  document.getElementById("app").style.display="block";
+  buildHead(); load(); fillStateFilter();
+}
+function saveApi(){
+  const v=document.getElementById("apiInput").value.trim();
+  if(!/^https:\/\/script\.google\.com\/macros\/s\//.test(v)){ alert("올바른 웹앱 URL(.../exec)"); return; }
+  localStorage.setItem("ta_api", v); document.getElementById("setup").style.display="none";
+  document.getElementById("app").style.display="block"; buildHead(); load(); fillStateFilter();
+}
+function fillStateFilter(){ const s=document.getElementById("fState"); if(s.options.length>1)return; STATES.forEach(x=>{const o=document.createElement("option");o.textContent=x;s.appendChild(o);}); }
+function buildHead(){
+  const th=document.getElementById("thead");
+  th.innerHTML='<tr><th data-k="번호">매장</th>'+COLS.map(c=>'<th data-k="'+c.k+'">'+c.label+'</th>').join("")+'</tr>';
+  th.querySelectorAll("th[data-k]").forEach(el=>el.onclick=()=>{const k=el.dataset.k; if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=1;} render();});
+}
+async function load(){
+  const c=document.getElementById("conn"); c.textContent="불러오는 중…";
+  try{ const r=await fetch(apiUrl()); const j=await r.json(); if(j.states)STATES=j.states; rows=j.rows||[];
+    c.textContent="연결됨 · "+new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
+    fillDongFilter(); render();
+  }catch(e){ c.textContent="연결 실패 (URL·배포 확인)"; document.getElementById("tb").innerHTML='<tr><td class="empty">불러오기 실패 <button onclick="resetApi()">URL 재설정</button></td></tr>'; }
+}
+function resetApi(){ localStorage.removeItem("ta_api"); location.reload(); }
+function fillDongFilter(){ const s=document.getElementById("fDong"); const cur=s.value; const ds=[...new Set(rows.map(d=>d["동네"]).filter(Boolean))].sort();
+  s.innerHTML='<option value="">동네 전체</option>'+ds.map(d=>'<option>'+esc(d)+'</option>').join(""); s.value=cur; }
+
+function isRecon(d){ return RECON.includes(d["TA상태"]); }
+function isUrgent(d){ if(TERMINAL.includes(d["TA상태"]))return false; var nx=fmtDate(d["다음접촉일"]); if(nx && nx<=today())return true; return (Number(d["시도횟수"])||0)>=3; }
+function isBooked(d){ return d["TA상태"]==="예약확정"; }
+
+function kpis(){
+  const n=rows.length, cnt=s=>rows.filter(d=>d["TA상태"]===s).length;
+  const mibae=cnt("미배정"), booked=cnt("예약확정"), visited=cnt("방문완료");
+  const contract=rows.filter(d=>CONTRACT.includes(d["TA상태"])).length, done=cnt("계약완료");
+  const dead=cnt("거절")+cnt("불가");
+  const eff=n-mibae-dead, rate=eff>0?Math.round(done/eff*1000)/10:0;
+  return {n,mibae,booked,visited,contract,done,rate,eff};
+}
+function renderKPIs(){
+  const s=kpis(), g=Math.min(100,Math.round(s.rate/30*100));
+  document.getElementById("kpis").innerHTML=
+  '<div class="card hl"><div class="label">계약 전환율</div><div class="val">'+s.rate+'%</div><div class="bar"><i style="width:'+g+'%"></i></div><div class="goal" style="color:var(--ice2)">계약완료 '+s.done+' / 유효 '+s.eff+'</div></div>'+
+  card("전체",s.n)+card("미배정",s.mibae)+card("예약확정",s.booked)+card("방문완료",s.visited)+card("계약(진행+완료)",s.contract);
+}
+function card(l,v){ return '<div class="card"><div class="label">'+l+'</div><div class="val">'+v+'</div></div>'; }
+function renderTodo(){
+  const rc=rows.filter(isRecon), ur=rows.filter(isUrgent), bk=rows.filter(isBooked), na=rows.filter(d=>d["TA상태"]==="미배정");
+  const names=a=>a.slice(0,3).map(d=>d["가게명"]).join(", ")||"-";
+  document.getElementById("todo").innerHTML=
+   tile("na","오늘 배정필요(미배정)",na.length,names(na),"미배정")
+  +tile("rc","재접촉 필요(부재·보류)",rc.length,names(rc),"__rc")
+  +tile("bk","예약확정(방문대기)",bk.length,names(bk),"예약확정")
+  +tile("ur","긴급(기한초과·3회+)",ur.length,names(ur),"__ur");
+}
+function tile(cls,t,c,m,filter){ return '<div class="tile '+cls+'" onclick="quick(\''+filter+'\')"><div class="t">'+t+'</div><div class="c">'+c+'</div><div class="m">'+esc(m)+'</div></div>'; }
+function quick(f){ rcOnly=false; document.getElementById("btnRc").classList.remove("on");
+  if(f==="__rc"){ rcOnly=true; document.getElementById("btnRc").classList.add("on"); document.getElementById("fState").value=""; }
+  else if(f==="__ur"){ document.getElementById("q").value=""; window._urg=true; }
+  else { document.getElementById("fState").value=f; window._urg=false; }
+  if(f!=="__ur") window._urg=false;
+  render();
+}
+
+function cellHtml(d,c){
+  const no=d["번호"]; let v=d[c.k]==null?"":d[c.k];
+  if(c.t==="grade"){ const g=v||"C"; const cl=g==="A"?"gA":g==="B"?"gB":"gC"; return '<td data-label="등급"><span class="fx '+cl+'">'+esc(g)+'</span></td>'; }
+  if(c.t==="fixed"){ if(c.k==="시도횟수") v=(Number(v)||0)+"회"; return '<td data-label="'+c.label+'"><span class="fx" style="font-weight:600;color:var(--ink)">'+(esc(v)||"—")+'</span></td>'; }
+  if(c.t==="status"){ const opts=STATES.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join(""); return '<td data-label="상태"><select class="ed" style="background:'+(ST_COLOR[v]||"#fff")+'" onchange="up('+no+',\'TA상태\',this.value,true)">'+opts+'</select></td>'; }
+  if(c.t==="tel"){ const p=fmtPhone(v); return '<td data-label="연락처"><a class="maplink" href="tel:'+esc(p)+'">📞 '+(esc(p)||"—")+'</a></td>'; }
+  if(c.t==="map"){ const a=esc(v); const u="https://map.naver.com/p/search/"+encodeURIComponent(v||""); return '<td data-label="주소"><a class="maplink" href="'+u+'" target="_blank" rel="noopener">🗺️ 지도</a> <span class="ro" title="'+a+'">'+(a||"—")+'</span></td>'; }
+  if(c.t==="date") return '<td data-label="'+c.label+'"><input class="ed" type="date" value="'+esc(fmtDate(v))+'" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
+  return '<td data-label="'+c.label+'"><input class="ed" value="'+esc(v)+'" placeholder="입력" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
+}
+function render(){
+  renderKPIs(); renderTodo();
+  const q=document.getElementById("q").value.trim().toLowerCase();
+  const fd=document.getElementById("fDong").value, fs=document.getElementById("fState").value;
+  let rs=rows.slice();
+  if(fd) rs=rs.filter(d=>d["동네"]===fd);
+  if(fs) rs=rs.filter(d=>d["TA상태"]===fs);
+  if(rcOnly) rs=rs.filter(isRecon);
+  if(window._urg) rs=rs.filter(isUrgent);
+  if(q) rs=rs.filter(d=>((d["가게명"]||"")+(d["주소"]||"")+fmtPhone(d["연락처"])+(d["점주명"]||"")+(d["메모"]||"")+(d["담당"]||"")+fmtDate(d["예약일"])).toLowerCase().includes(q));
+  if(courseMode){ rs.sort((a,b)=>String(a["주소"]).localeCompare(String(b["주소"]),"ko")); }
+  else{ const go={A:0,B:1,C:2}; rs.sort((a,b)=>{let x=a[sortK],y=b[sortK]; if(sortK==="등급"){x=go[x];y=go[y];} if(sortK==="TA상태"){x=STATES.indexOf(x);y=STATES.indexOf(y);} if(x<y)return -1*sortDir; if(x>y)return 1*sortDir; return 0;}); }
+  const tb=document.getElementById("tb");
+  if(!rs.length){ tb.innerHTML='<tr><td class="empty">표시할 매장이 없습니다.</td></tr>'; document.getElementById("foot").textContent=""; return; }
+  tb.innerHTML=rs.map((d,i)=>{ const no=d["번호"]; const seq=courseMode?(i+1)+". ":""; const rc=isRecon(d)?" class=\"rc\"":"";
+    return '<tr'+rc+'><td data-label="#">'+seq+(esc(d["가게명"])||"(매장)")+'</td>'+COLS.map(c=>cellHtml(d,c)).join("")+'</tr>';
+  }).join("");
+  document.getElementById("foot").innerHTML= (courseMode?"🗺️ <b>코스보기</b>: 선택 동네를 주소순으로 정렬했습니다. 각 행 [지도]로 길찾기. · ":"")+"표시 "+rs.length+"곳 · 상태를 부재/보류로 바꾸면 시도횟수 자동 +1 · 주황 테두리 = 재접촉 대상";
+}
+function toggleCourse(){ courseMode=!courseMode; document.getElementById("btnCourse").classList.toggle("on",courseMode);
+  if(courseMode && !document.getElementById("fDong").value && rows.length){ /* 코스는 동네 선택 권장 */ alert("동네를 먼저 선택하면 그 동네만 코스로 정렬됩니다."); }
+  render(); }
+function toggleRc(){ rcOnly=!rcOnly; document.getElementById("btnRc").classList.toggle("on",rcOnly); render(); }
+
+let tmr; function toast(){ const s=document.getElementById("saving"); s.classList.add("on"); clearTimeout(tmr); tmr=setTimeout(()=>s.classList.remove("on"),900); }
+async function up(no, field, value, bump){
+  const row=rows.find(d=>String(d["번호"])===String(no)); if(row){ row[field]=value; if(bump&&RECON.includes(value)) row["시도횟수"]=(Number(row["시도횟수"])||0)+1; }
+  render(); toast();
+  try{ await fetch(apiUrl(),{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({no:no,field:field,value:value,bump:!!bump})}); }
+  catch(e){ document.getElementById("conn").textContent="저장 실패 — 새로고침"; }
+}
+function report(){
+  const s=kpis(), md=(new Date().getMonth()+1)+"/"+new Date().getDate();
+  const rc=rows.filter(isRecon).length, ur=rows.filter(isUrgent).length;
+  const byDong={}; rows.forEach(d=>{ const k=d["동네"]||"-"; byDong[k]=(byDong[k]||0)+1; });
+  const dline=Object.entries(byDong).map(([k,v])=>k+" "+v).join(" · ");
+  const txt="[동네해빙 운영OS 보고 "+md+"]\n"+
+  "• 전체 "+s.n+" / 미배정 "+s.mibae+"\n"+
+  "• 예약확정 "+s.booked+" · 방문완료 "+s.visited+"\n"+
+  "• 계약 진행+완료 "+s.contract+" (완료 "+s.done+")\n"+
+  "• 재접촉 필요 "+rc+" · 긴급 "+ur+"\n"+
+  "• 전환율 "+s.rate+"% (유효 "+s.eff+")\n"+
+  "• 동네별: "+dline;
+  navigator.clipboard.writeText(txt).then(()=>alert("보고 복사됨\n\n"+txt),()=>prompt("복사:",txt));
+}
+boot();
+setInterval(()=>{ if(apiUrl() && document.getElementById("app").style.display!=="none") load(); },90000);
+</script>
+</body>
+</html>
