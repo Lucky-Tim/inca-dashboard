@@ -423,8 +423,10 @@ function buildTop10(performance, employees) {
   });
 
   // agentId별: 마감6개월 총 premium/credit + 당월(latM) premium
+  // ⚠ 월납 기준 (일시납·연납 대형건이 순위를 왜곡하는 것 방지 — 뷰어 KPI·조직표와 기준 통일)
   const agentData = {};
   (performance || []).forEach(r => {
+    if ((r.payMethod || '').trim() !== '월납') return;
     const m = String(r.month || '').trim();
     const id  = String(r.agentId || '');
     if (!id) return;
@@ -498,9 +500,10 @@ function buildTop10ByMonth(performance, employees) {
     };
   });
 
-  // month → agentId → { premium, credit } 그 달 합계
+  // month → agentId → { premium, credit } 그 달 합계 (월납 기준 — buildTop10과 동일)
   const monthAgentMap = {};
   (performance || []).forEach(r => {
+    if ((r.payMethod || '').trim() !== '월납') return;
     const m  = String(r.month   || '').trim();
     const id = String(r.agentId || '');
     if (!m || !id) return;

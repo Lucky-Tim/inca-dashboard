@@ -1189,7 +1189,7 @@ function renderTop10() {
       top10 = snap.all || [];
       scopeLabel = '전체';
     }
-    monthNote = _kMonthLabel(targetMonth) + ' 실적순';
+    monthNote = _kMonthLabel(targetMonth) + ' 월납 실적순';
     usingMonthly = true;
   } else {
     // 하위호환: top10ByMonth 없거나(재저장 전) 연/월 모두 '전체' → 기존 당월 고정 동작
@@ -1203,7 +1203,7 @@ function renderTop10() {
       top10 = RAW.top10 || [];
       scopeLabel = '전체';
     }
-    monthNote = '당월 실적순';
+    monthNote = '당월 월납 실적순';
     if (!hasMonthMap) fallbackHint = ' (당월 고정 — 대시보드 재저장 필요)';
   }
 
