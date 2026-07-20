@@ -35,6 +35,9 @@ success_os_html.html
 해빙총괄_SuccessDNA_Interactive.html
 배곧50_*
 
+# ===== 장기 메모리 (토큰·인물정보 포함 — 절대 커밋 금지) =====
+_프로젝트이관/
+
 # ===== 작업용 캐시·로그·백업 =====
 _backup/
 _*.md

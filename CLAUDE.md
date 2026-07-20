@@ -1,5 +1,10 @@
 # 해빙 운영 플랫폼 — 세션 공통 규칙
 
+## 장기 메모리 (정본)
+- 프로젝트 장기 메모리는 **`_프로젝트이관/memory/`** 폴더가 정본. 세션 시작 시 `_프로젝트이관/memory/MEMORY.md` 인덱스를 읽고, 관련 항목 파일을 참조할 것 (조직구조·인물관계·비즈니스 룰·자산 위치 등 17개 파일)
+- 새로 알게 된 중요 사실은 해당 파일에 추가하고 MEMORY.md 인덱스도 갱신할 것
+- ⚠ `ref_github_token.md`에 토큰 포함 — 이 폴더는 절대 git에 커밋 금지
+
 ## 브랜드 자산 (유일 원천)
 - 로고: `design/brand/having-logo-full.png` (풀 워드마크) · `having-symbol-512.png` / `having-symbol-192.png` (심볼)
 - 색·폰트·간격 토큰: `design/tokens.json` — **모든 디자인 값은 이 파일이 유일 원천.** 파생 설명서: `design/design-system.md`
