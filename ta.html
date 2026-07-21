@@ -54,6 +54,27 @@
   .maplink{display:inline-block;padding:6px 9px;border:1px solid var(--ice2);border-radius:8px;color:var(--navy);text-decoration:none;font-size:12px}
   .maplink:hover{background:var(--ice)}
   .empty{padding:26px;text-align:center;color:var(--gray)}
+  /* 매장 2줄 블록 (서포터즈 / 컨설턴트) */
+  .list{display:flex;flex-direction:column;gap:10px}
+  .store{background:#fff;border:1px solid var(--ice2);border-left:5px solid var(--ice2);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(14,31,56,.06)}
+  .store.rc{border-left-color:var(--orange)}
+  .st-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:9px 12px;background:#F8FAFD;border-bottom:1px solid var(--ice)}
+  .st-head .nm{font-weight:800;font-size:15px;color:var(--navy)}
+  .st-head .badge{font-weight:800;font-size:12px;padding:2px 8px;border-radius:6px;background:#fff;border:1px solid var(--ice2)}
+  .st-head .badge.gA{color:var(--red)}.st-head .badge.gB{color:var(--blue)}.st-head .badge.gC{color:var(--gray)}
+  .st-head select{font-weight:700;border:1px solid var(--ice2);border-radius:8px;padding:6px 8px}
+  .st-head .meta{color:var(--gray);font-size:12px}
+  .st-head .sp{flex:1}
+  .lane{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;padding:8px 12px}
+  .lane+.lane{border-top:1px dashed var(--ice2)}
+  .lane .role{flex:0 0 96px;font-weight:800;font-size:12px;padding-bottom:7px}
+  .lane.sp .role{color:var(--teal)} .lane.cs .role{color:var(--gold)}
+  .lane label{font-size:11px;color:var(--gray);display:flex;flex-direction:column;gap:2px}
+  .lane input,.lane b{background:#FFFBEF;border:1px solid #EAD9AE;border-radius:7px;padding:7px 8px;font-family:inherit;font-size:13px}
+  .lane b{background:transparent;border:none;font-weight:700;color:var(--ink)}
+  .lane input:focus{border-color:var(--gold);background:#fff;outline:none}
+  .lane input[type=date]{min-width:140px}
+  @media (max-width:640px){ .lane .role{flex-basis:100%;padding-bottom:0} .lane label{flex:1 1 44%} .lane input{width:100%} .st-head select{flex:1 1 100%} }
   .foot{font-size:11px;color:var(--gray);margin-top:12px;line-height:1.6}
   #setup{max-width:560px;margin:60px auto;background:#fff;border:1px solid var(--ice2);border-radius:14px;padding:24px}
   #setup input{width:100%;margin:10px 0}
@@ -100,7 +121,7 @@
     <button id="btnCourse" onclick="toggleCourse()">🗺️ 코스보기</button>
     <button id="btnRc" onclick="toggleRc()">🔁 재접촉</button>
   </div>
-  <div class="tablewrap"><table><thead id="thead"></thead><tbody id="tb"></tbody></table></div>
+  <div class="list" id="list"></div>
   <div class="foot" id="foot"></div>
 </div>
 <div class="saving" id="saving">저장 중…</div>
@@ -154,17 +175,13 @@ function saveApi(){
   document.getElementById("app").style.display="block"; buildHead(); load(); fillStateFilter();
 }
 function fillStateFilter(){ const s=document.getElementById("fState"); if(s.options.length>1)return; STATES.forEach(x=>{const o=document.createElement("option");o.textContent=x;s.appendChild(o);}); }
-function buildHead(){
-  const th=document.getElementById("thead");
-  th.innerHTML='<tr><th data-k="번호">매장</th>'+COLS.map(c=>'<th data-k="'+c.k+'">'+c.label+'</th>').join("")+'</tr>';
-  th.querySelectorAll("th[data-k]").forEach(el=>el.onclick=()=>{const k=el.dataset.k; if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=1;} render();});
-}
+function buildHead(){ /* 2줄 블록 레이아웃 — 표 헤더 없음 */ }
 async function load(){
   const c=document.getElementById("conn"); c.textContent="불러오는 중…";
   try{ const r=await fetch(apiUrl()); const j=await r.json(); if(j.states)STATES=j.states; rows=j.rows||[];
     c.textContent="연결됨 · "+new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
     fillDongFilter(); render();
-  }catch(e){ c.textContent="연결 실패 (URL·배포 확인)"; document.getElementById("tb").innerHTML='<tr><td class="empty">불러오기 실패 <button onclick="resetApi()">URL 재설정</button></td></tr>'; }
+  }catch(e){ c.textContent="연결 실패 (URL·배포 확인)"; document.getElementById("list").innerHTML='<div class="empty">불러오기 실패 <button onclick="resetApi()">URL 재설정</button></div>'; }
 }
 function resetApi(){ localStorage.removeItem("ta_api"); location.reload(); }
 function fillDongFilter(){ const s=document.getElementById("fDong"); const cur=s.value; const ds=[...new Set(rows.map(d=>d["동네"]).filter(Boolean))].sort();
@@ -207,15 +224,40 @@ function quick(f){ rcOnly=false; document.getElementById("btnRc").classList.remo
   render();
 }
 
-function cellHtml(d,c){
-  const no=d["번호"]; let v=d[c.k]==null?"":d[c.k];
-  if(c.t==="grade"){ const g=v||"C"; const cl=g==="A"?"gA":g==="B"?"gB":"gC"; return '<td data-label="등급"><span class="fx '+cl+'">'+esc(g)+'</span></td>'; }
-  if(c.t==="fixed"){ if(c.k==="시도횟수") v=(Number(v)||0)+"회"; return '<td data-label="'+c.label+'"><span class="fx" style="font-weight:600;color:var(--ink)">'+(esc(v)||"—")+'</span></td>'; }
-  if(c.t==="status"){ const opts=STATES.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join(""); return '<td data-label="상태"><select class="ed" style="background:'+(ST_COLOR[v]||"#fff")+'" onchange="up('+no+',\'TA상태\',this.value,true)">'+opts+'</select></td>'; }
-  if(c.t==="tel"){ const p=fmtPhone(v); return '<td data-label="연락처"><a class="maplink" href="tel:'+esc(p)+'">📞 '+(esc(p)||"—")+'</a></td>'; }
-  if(c.t==="map"){ const a=esc(v); const u="https://map.naver.com/p/search/"+encodeURIComponent(v||""); return '<td data-label="주소"><a class="maplink" href="'+u+'" target="_blank" rel="noopener">🗺️ 지도</a> <span class="ro" title="'+a+'">'+(a||"—")+'</span></td>'; }
-  if(c.t==="date") return '<td data-label="'+c.label+'"><input class="ed" type="date" value="'+esc(fmtDate(v))+'" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
-  return '<td data-label="'+c.label+'"><input class="ed" value="'+esc(v)+'" placeholder="입력" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
+function fld(label,inner){ return '<label>'+label+inner+'</label>'; }
+function ipt(d,f,ph){ return '<input value="'+esc(d[f]==null?"":d[f])+'" placeholder="'+esc(ph||"입력")+'" onchange="up('+d["번호"]+',\''+f+'\',this.value)">'; }
+function dat(d,f){ return '<input type="date" value="'+esc(fmtDate(d[f]))+'" onchange="up('+d["번호"]+',\''+f+'\',this.value)">'; }
+function storeBlock(d,seq){
+  const no=d["번호"], g=d["등급"]||"C", gcl=g==="A"?"gA":g==="B"?"gB":"gC";
+  const rc=isRecon(d)?" rc":"";
+  const stOpts=STATES.map(s=>'<option '+(s===d["TA상태"]?"selected":"")+'>'+s+'</option>').join("");
+  const mapU="https://map.naver.com/p/search/"+encodeURIComponent(d["주소"]||"");
+  const ph=fmtPhone(d["연락처"]);
+  return '<div class="store'+rc+'">'+
+    '<div class="st-head">'+
+      '<span class="nm">'+(seq?seq+". ":"")+(esc(d["가게명"])||"(매장)")+'</span>'+
+      '<span class="badge '+gcl+'">'+esc(g)+'</span>'+
+      '<select style="background:'+(ST_COLOR[d["TA상태"]]||"#fff")+'" onchange="up('+no+',\'TA상태\',this.value,true)">'+stOpts+'</select>'+
+      '<span class="meta">'+esc(d["업종"])+' · '+esc(d["동네"])+'</span>'+
+      '<span class="sp"></span>'+
+      '<a class="maplink" href="tel:'+esc(ph)+'">📞 '+(esc(ph)||"—")+'</a>'+
+      '<a class="maplink" href="'+mapU+'" target="_blank" rel="noopener">🗺️ 지도</a>'+
+    '</div>'+
+    '<div class="lane sp">'+
+      '<span class="role">🚶 서포터즈</span>'+
+      fld("담당", ipt(d,"담당","이름"))+
+      fld("시도", "<b>"+((Number(d["시도횟수"])||0))+"회</b>")+
+      fld("다음접촉", dat(d,"다음접촉일"))+
+      fld("방문/통화 메모", ipt(d,"방문일시","메모"))+
+    '</div>'+
+    '<div class="lane cs">'+
+      '<span class="role">🤝 컨설턴트</span>'+
+      fld("배정", ipt(d,"컨설턴트배정","컨설턴트"))+
+      fld("예약일", dat(d,"예약일"))+
+      fld("예약시간", ipt(d,"예약시간","예: 14:00"))+
+      fld("상담/계약 메모", ipt(d,"메모","메모"))+
+    '</div>'+
+  '</div>';
 }
 function render(){
   renderKPIs(); renderTodo();
@@ -229,12 +271,10 @@ function render(){
   if(q) rs=rs.filter(d=>((d["가게명"]||"")+(d["주소"]||"")+fmtPhone(d["연락처"])+(d["점주명"]||"")+(d["메모"]||"")+(d["담당"]||"")+fmtDate(d["예약일"])).toLowerCase().includes(q));
   if(courseMode){ rs.sort((a,b)=>String(a["주소"]).localeCompare(String(b["주소"]),"ko")); }
   else{ const go={A:0,B:1,C:2}; rs.sort((a,b)=>{let x=a[sortK],y=b[sortK]; if(sortK==="등급"){x=go[x];y=go[y];} if(sortK==="TA상태"){x=STATES.indexOf(x);y=STATES.indexOf(y);} if(x<y)return -1*sortDir; if(x>y)return 1*sortDir; return 0;}); }
-  const tb=document.getElementById("tb");
-  if(!rs.length){ tb.innerHTML='<tr><td class="empty">표시할 매장이 없습니다.</td></tr>'; document.getElementById("foot").textContent=""; return; }
-  tb.innerHTML=rs.map((d,i)=>{ const no=d["번호"]; const seq=courseMode?(i+1)+". ":""; const rc=isRecon(d)?" class=\"rc\"":"";
-    return '<tr'+rc+'><td data-label="#">'+seq+(esc(d["가게명"])||"(매장)")+'</td>'+COLS.map(c=>cellHtml(d,c)).join("")+'</tr>';
-  }).join("");
-  document.getElementById("foot").innerHTML= (courseMode?"🗺️ <b>코스보기</b>: 선택 동네를 주소순으로 정렬했습니다. 각 행 [지도]로 길찾기. · ":"")+"표시 "+rs.length+"곳 · 상태를 부재/보류로 바꾸면 시도횟수 자동 +1 · 주황 테두리 = 재접촉 대상";
+  const el=document.getElementById("list");
+  if(!rs.length){ el.innerHTML='<div class="empty">표시할 매장이 없습니다.</div>'; document.getElementById("foot").textContent=""; return; }
+  el.innerHTML=rs.map((d,i)=>storeBlock(d,courseMode?(i+1):null)).join("");
+  document.getElementById("foot").innerHTML= (courseMode?"🗺️ <b>코스보기</b>: 선택 동네를 주소순 정렬. 각 매장 [지도]로 길찾기 · ":"")+"표시 "+rs.length+"곳 · 위=🚶서포터즈(TA)줄 / 아래=🤝컨설턴트줄 · 상태 부재·보류 = 시도횟수 자동+1, 주황 = 재접촉";
 }
 function toggleCourse(){ courseMode=!courseMode; document.getElementById("btnCourse").classList.toggle("on",courseMode);
   if(courseMode && !document.getElementById("fDong").value && rows.length){ /* 코스는 동네 선택 권장 */ alert("동네를 먼저 선택하면 그 동네만 코스로 정렬됩니다."); }
