@@ -980,10 +980,13 @@ function renderTrend(kpis) {
     monthMap[r.month].credit  += r.credit;
   });
 
+  // 전년동월 라인도 본 차트와 동일 기준으로 비교해야 함 — 납입방법 필터 포함
+  // (연도 필터만 제외: 전년 월 데이터는 연도 필터 밖에 있으므로)
   const allAggMap = {};
   RAW.aggregated.filter(r => {
-    if (FILTERS.branch  !== 'all' && r.branch  !== FILTERS.branch)  return false;
-    if (FILTERS.branch3 !== 'all' && r.branch3 !== FILTERS.branch3) return false;
+    if (FILTERS.branch    !== 'all' && r.branch    !== FILTERS.branch)    return false;
+    if (FILTERS.branch3   !== 'all' && r.branch3   !== FILTERS.branch3)   return false;
+    if (FILTERS.payMethod !== 'all' && r.payMethod !== FILTERS.payMethod) return false;
     return true;
   }).forEach(r => { allAggMap[r.month] = (allAggMap[r.month] || 0) + r.premium; });
   const yoyData = allMonths.map(m => {
