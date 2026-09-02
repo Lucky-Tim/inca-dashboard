@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>동선 서포터즈 트래커</title>
+<style>
+  :root{--ink:#0E1F38;--navy:#16335B;--navy2:#1B3A6B;--ice:#E9EFF8;--ice2:#D6E3F4;--gold:#E0A33E;--teal:#1F7A8C;--red:#B3261E;--green:#1F7A43;--gray:#5B6B7B}
+  *{box-sizing:border-box}
+  body{font-family:"맑은 고딕","Malgun Gothic",system-ui,sans-serif;margin:0;background:#F4F7FB;color:var(--ink);font-size:14px;letter-spacing:-0.2px;line-height:1.45}
+  header{background:var(--navy);color:#fff;padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  header h1{font-size:17px;margin:0}
+  header .sub{color:var(--ice2);font-size:12px}
+  header .status{margin-left:auto;font-size:12px;color:var(--ice2)}
+  header .who{font-size:12px;color:var(--ice2);background:rgba(255,255,255,.12);padding:4px 10px;border-radius:14px}
+  .wrap{max-width:1400px;margin:0 auto;padding:16px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px}
+  .card{background:#fff;border:1px solid var(--ice2);border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(14,31,56,.06)}
+  .card .label{font-size:12px;color:var(--gray)}
+  .card .val{font-size:26px;font-weight:700;margin-top:4px}
+  .card.hl{background:var(--navy);color:#fff}.card.hl .label{color:var(--ice2)}
+  .card .goal{font-size:11px;margin-top:4px;color:var(--gray)}
+  .bar{height:8px;background:var(--ice);border-radius:6px;overflow:hidden;margin-top:8px}.bar>i{display:block;height:100%;background:var(--gold)}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  button{font-family:inherit;font-size:13px;border:1px solid var(--navy);background:#fff;color:var(--navy);padding:7px 12px;border-radius:8px;cursor:pointer}
+  button:hover{background:var(--ice)}button.primary{background:var(--navy);color:#fff}
+  button.gold{background:var(--gold);border-color:var(--gold);color:#3a2a05}
+  button.on{background:var(--navy);color:#fff}
+  input[type=text],input[type=password],select{font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--ice2);border-radius:8px;background:#fff}
+  .spacer{flex:1}
+  .tablewrap{overflow-x:auto;border-radius:12px}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(14,31,56,.06);min-width:1500px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--ice);font-size:13px;vertical-align:middle;letter-spacing:-0.2px;white-space:nowrap}
+  th:first-child,td:first-child{min-width:150px;white-space:normal;word-break:keep-all}
+  th{background:var(--navy);color:#fff;font-weight:600;cursor:pointer;white-space:nowrap}
+  tr:nth-child(even) td{background:#F8FAFD}
+  tr.done td{opacity:.5}
+  tr.done td:first-child{opacity:1;color:var(--gray)}
+  td input,td select{width:100%;border:1px solid transparent;background:transparent}
+  td input:focus,td select:focus{border-color:var(--ice2);background:#fff}
+  td .ro{color:var(--gray);font-size:12px;display:block;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  td .fx{display:block;font-weight:600;color:var(--ink)}
+  td input.ed,td select.ed{background:#FFFBEF;border:1px solid #EAD9AE;border-radius:6px;padding:6px 8px;min-width:78px}
+  td select.ed{min-width:106px}
+  td input.ed[type=date]{min-width:144px}
+  td input.ed:focus,td select.ed:focus{border-color:var(--gold);background:#fff;outline:none}
+  td input.ed::placeholder{color:#BBA050;font-size:12px}
+  td .cvbtn{background:var(--gold);border-color:var(--gold);color:#3a2a05;padding:5px 9px;font-size:12px;border-radius:7px;white-space:nowrap}
+  td .cvdone{color:var(--green);font-weight:700;font-size:12px}
+  .hint{background:#FFF8E6;border:1px solid #EAD9AE;color:#6b5518;font-size:12px;padding:8px 12px;border-radius:8px;margin-bottom:10px;line-height:1.5}
+  .st{border-radius:6px;padding:4px 6px;font-weight:600}
+  .empty{padding:30px;text-align:center;color:var(--gray)}
+  .foot{font-size:11px;color:var(--gray);margin-top:14px;line-height:1.6}
+  #setup{max-width:560px;margin:60px auto;background:#fff;border:1px solid var(--ice2);border-radius:14px;padding:24px}
+  #setup h2{margin:0 0 8px;color:var(--navy)}#setup p{color:var(--gray);font-size:13px}
+  #setup input{width:100%;margin:10px 0}
+  .saving{position:fixed;bottom:16px;right:16px;background:var(--navy);color:#fff;padding:8px 14px;border-radius:20px;font-size:12px;opacity:0;transition:.2s}
+  .saving.on{opacity:1}
+  .phbtn{padding:4px 8px;font-size:11px;margin-left:4px;vertical-align:middle}
+  /* ── 로그인 오버레이 (viewer-mgr #login-ovl 패턴 · 네이비/골드 팔레트) ── */
+  #login-ovl{display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(160deg,#16335B 0%,#1B3A6B 55%,#0E1F38 100%);align-items:center;justify-content:center;padding:20px}
+  #login-ovl .box{width:342px;max-width:92vw;background:#fff;border-radius:20px;box-shadow:0 18px 50px rgba(14,31,56,.28),0 2px 8px rgba(0,0,0,.05);border:1px solid var(--ice2);overflow:hidden;animation:lgIn .4s cubic-bezier(.2,.8,.2,1)}
+  @keyframes lgIn{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+  #login-ovl .hd{padding:30px 28px 8px;text-align:center}
+  #login-ovl .hd .ttl{display:inline-flex;align-items:center;gap:6px;color:var(--navy);font-size:18px;font-weight:800;letter-spacing:-.3px}
+  #login-ovl .hd .desc{color:var(--gray);font-size:11.5px;margin-top:5px}
+  #login-ovl .bd{padding:22px 28px 24px}
+  #login-ovl .fld{position:relative;margin-bottom:12px}
+  #login-ovl .fld span{position:absolute;left:15px;top:50%;transform:translateY(-50%);font-size:14px;opacity:.4}
+  #login-ovl .fld input{width:100%;box-sizing:border-box;padding:13px 14px 13px 42px;border:1.5px solid var(--ice2);border-radius:11px;font-size:14px;background:#F8FAFD;outline:none;transition:.15s;color:var(--ink)}
+  #login-ovl .fld input:focus{border-color:var(--navy);background:#fff}
+  #login-ovl .go{width:100%;padding:14px;background:var(--navy);color:#fff;border:none;border-radius:11px;font-size:14.5px;font-weight:800;cursor:pointer;box-shadow:0 6px 16px rgba(22,51,91,.22);transition:.15s}
+  #login-ovl .go:hover{background:var(--navy2)}
+  #login-ovl .err{color:var(--red);font-size:11.5px;margin-top:12px;min-height:15px;text-align:center;font-weight:600}
+  #login-ovl .ft{padding:13px;text-align:center;border-top:1px solid var(--ice);background:#F8FAFD;font-size:10.5px;color:var(--gray)}
+  /* ── 전환 팝업 ── */
+  #cv-ovl{display:none;position:fixed;inset:0;z-index:9998;background:rgba(14,31,56,.45);align-items:center;justify-content:center;padding:20px}
+  #cv-ovl .box{width:360px;max-width:92vw;background:#fff;border:1px solid var(--ice2);border-radius:16px;padding:22px 24px;box-shadow:0 18px 50px rgba(14,31,56,.3)}
+  #cv-ovl h3{margin:0 0 6px;color:var(--navy);font-size:16px}
+  #cv-ovl p{margin:0 0 14px;font-size:12.5px;color:var(--gray);line-height:1.6}
+  #cv-ovl select{width:100%;padding:11px 12px;font-size:14px;margin-bottom:14px}
+  #cv-ovl .row{display:flex;gap:8px}#cv-ovl .row button{flex:1;padding:11px}
+  #cv-ovl .err{color:var(--red);font-size:11.5px;margin-top:10px;min-height:14px;font-weight:600;text-align:center}
+  @media (max-width:640px){
+    .wrap{padding:12px}.kpis{grid-template-columns:repeat(2,1fr);gap:8px}.card .val{font-size:22px}
+    .toolbar button{flex:1 1 auto}.toolbar #q{flex:1 1 100%;order:5}
+    .tablewrap{overflow-x:visible}
+    table,thead,tbody,tr,td{display:block;width:100%}thead{display:none}
+    table{background:transparent;box-shadow:none;min-width:0}
+    tr{background:#fff;border:1px solid var(--ice2);border-radius:12px;margin-bottom:10px;padding:8px 10px}
+    tr:nth-child(even) td{background:transparent}
+    td{border:none;padding:5px 0;display:flex;align-items:center;gap:8px}
+    td::before{content:attr(data-label);flex:0 0 86px;font-size:11px;color:var(--gray);font-weight:600}
+    td:first-child{font-weight:700;color:var(--navy);font-size:15px;border-bottom:1px solid var(--ice);padding-bottom:6px;margin-bottom:4px}
+    td:first-child::before{content:"#";flex:0 0 auto}
+    td .ro{max-width:none;white-space:normal}
+    td input,td select{padding:8px;border:1px solid var(--ice2);border-radius:8px;font-size:15px}
+    td input.ed,td select.ed{padding:10px;font-size:15px}
+    td .fx{font-size:15px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ── 로그인 ── -->
+<div id="login-ovl">
+  <div class="box">
+    <div class="hd">
+      <div class="ttl"><span style="font-size:15px;">🔒</span>서포터즈 로그인</div>
+      <div class="desc">동선 × 해빙 · 가맹점 TA 트래커</div>
+    </div>
+    <div class="bd">
+      <div class="fld"><span>👤</span><input id="lg-name" placeholder="이름" autocomplete="username"></div>
+      <div class="fld"><span>🔑</span><input id="lg-pw" type="password" placeholder="비밀번호" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button class="go" id="lg-btn" onclick="doLogin()">로그인</button>
+      <div class="err" id="lg-err"></div>
+    </div>
+    <div class="ft">⊕ 계정 문의는 운영 담당자에게</div>
+  </div>
+</div>
+
+<!-- ── 최초 설정 ── -->
+<div id="setup" style="display:none">
+  <h2>최초 설정</h2>
+  <p>구글시트 Apps Script 웹앱 URL(.../exec)을 붙여넣으세요. 한 번만 하면 이 기기에 저장됩니다.</p>
+  <input type="text" id="apiInput" placeholder="https://script.google.com/macros/s/..../exec">
+  <button class="primary" onclick="saveApi()">연결</button>
+</div>
+
+<header id="hdr" style="display:none">
+  <div><h1>🚩 동선 서포터즈 트래커</h1><div class="sub">가맹점 방문(TA) → 컨설팅 동의 → 컨설턴트 전환</div></div>
+  <div class="who" id="who"></div>
+  <div class="status" id="conn">연결 중…</div>
+</header>
+
+<div class="wrap" id="app" style="display:none">
+  <div class="kpis" id="kpis"></div>
+  <div class="toolbar">
+    <button class="primary" onclick="load()">↻ 새로고침</button>
+    <button id="btnMine" class="on" onclick="toggleMine()">👤 내 담당만</button>
+    <button class="gold" onclick="report()">📨 오늘 단톡 보고</button>
+    <button onclick="logout()">로그아웃</button>
+    <span class="spacer"></span>
+    <input type="text" id="q" placeholder="가게·점주·주소·동네 검색…" oninput="render()">
+    <select id="fTa" onchange="render()"><option value="">TA상태 전체</option></select>
+    <select id="fAgree" onchange="render()"><option value="">동의여부 전체</option></select>
+  </div>
+  <div class="hint">💡 <b>노란 칸</b>(방문일정·TA진행상태·TA결과·컨설팅동의여부·비고)만 탭해서 입력하세요. 회색 칸(가게명·점주명·연락처·업종·동네·주소)은 원천DB라 읽기전용입니다. · 컨설팅동의여부를 <b>컨설팅동의</b>로 바꾸면 담당 컨설턴트 선택 창이 뜹니다. · <b>매장사진·동의서</b>는 촬영 버튼으로 바로 찍거나 갤러리에서 선택해 올릴 수 있습니다(서명된 동의서는 현장에서 촬영).</div>
+  <div class="tablewrap">
+    <table><thead id="thead"></thead><tbody id="tb"></tbody></table>
+  </div>
+  <div class="foot">
+    TA진행상태: 대기 → 방문완료 · 부재 · 재방문예정 · 컨설팅동의여부: 미접촉 → 컨설팅동의 · 컨설팅거절 · 보류<br>
+    <b>전환완료</b> 행은 컨설턴트 트래커로 넘어간 건이라 이 화면에서는 흐리게 표시되고 편집되지 않습니다. · 데이터는 구글시트 "트래커" 탭에 실시간 공유 저장됩니다.<br>
+    ※ 표현 주의: 프리미엄 3개월 지원은 "선물·리워드"로 표현하고, 계약 조건부 혜택(계약하면 ~을 드립니다)으로 안내하지 마세요.
+  </div>
+</div>
+
+<!-- ── 컨설턴트 전환 팝업 ── -->
+<div id="cv-ovl">
+  <div class="box">
+    <h3>컨설턴트에게 전환</h3>
+    <p id="cv-desc"></p>
+    <select id="cv-sel"></select>
+    <div class="row">
+      <button onclick="closeConvert()">취소</button>
+      <button class="primary" id="cv-go" onclick="doConvert()">전환하기</button>
+    </div>
+    <div class="err" id="cv-err"></div>
+  </div>
+</div>
+
+<div class="saving" id="saving">저장 중…</div>
+
+<script>
+// ▼▼▼ 배포 후 여기에 Apps Script 웹앱 URL을 넣으면 모두에게 고정됩니다 ▼▼▼
+const API_URL = "";
+// ▲▲▲ 비워두면 접속자가 최초 1회 입력(브라우저 저장) ▲▲▲
+
+// 컬럼 구성: ro=읽기전용(원천DB) / phone=연락처 / date·status·input=편집
+// ※ 가게명은 표 첫 칸(번호+가게명)에 표시하므로 COLS에서 제외
+const COLS=[
+  {k:"담당서포터즈",label:"담당",t:"ro"},
+  {k:"점주명",label:"점주명",t:"ro"},
+  {k:"연락처",label:"연락처",t:"phone"},
+  {k:"업종",label:"업종",t:"fixed"},
+  {k:"동네",label:"동네",t:"ro"},
+  {k:"주소",label:"주소",t:"ro"},
+  {k:"방문일정",label:"방문일정",t:"date"},
+  {k:"TA진행상태",label:"TA진행상태",t:"status"},
+  {k:"TA결과",label:"TA결과",t:"input"},
+  {k:"매장사진",label:"매장사진",t:"photo"},
+  {k:"컨설팅동의여부",label:"컨설팅동의여부",t:"agree"},
+  {k:"동의서",label:"동의서",t:"photo"},
+  {k:"담당컨설턴트",label:"담당컨설턴트",t:"convert"},
+  {k:"비고",label:"비고",t:"input"}
+];
+
+let TA_STATUSES=["대기","방문완료","부재","재방문예정"];
+let AGREES=["미접촉","컨설팅동의","컨설팅거절","보류"];
+let CONSULTANTS=["김광연","정현우","하명규"];
+const TA_COLOR={"대기":"#EEF2F7","방문완료":"#DAF0E2","부재":"#EAEFF4","재방문예정":"#FFF3D6"};
+const AG_COLOR={"미접촉":"#EEF2F7","컨설팅동의":"#DAF0E2","컨설팅거절":"#F7DDDA","보류":"#FFF3D6"};
+
+let rows=[], sortK="번호", sortDir=1, mineOnly=false, SESS={name:"",pw:"",isAdmin:false}, cvNo=null;
+function apiUrl(){ return API_URL || localStorage.getItem("dongsun_sup_api") || ""; }
+
+function boot(){
+  if(!apiUrl()){ document.getElementById("setup").style.display="block"; return; }
+  showLogin();
+}
+function saveApi(){
+  const v=document.getElementById("apiInput").value.trim();
+  if(!/^https:\/\/script\.google\.com\/macros\/s\//.test(v)){ alert("올바른 웹앱 URL(.../exec)을 넣어주세요."); return; }
+  localStorage.setItem("dongsun_sup_api", v);
+  document.getElementById("setup").style.display="none";
+  showLogin();
+}
+function resetApi(){ localStorage.removeItem("dongsun_sup_api"); location.reload(); }
+
+function showLogin(){
+  document.getElementById("login-ovl").style.display="flex";
+  document.getElementById("hdr").style.display="none";
+  document.getElementById("app").style.display="none";
+}
+function logout(){ SESS={name:"",pw:""}; rows=[]; const p=document.getElementById("lg-pw"); if(p)p.value=""; showLogin(); }
+
+async function post(payload){
+  const r=await fetch(apiUrl(), {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify(payload)});
+  return await r.json();
+}
+
+async function doLogin(){
+  const name=document.getElementById("lg-name").value.trim();
+  const pw=document.getElementById("lg-pw").value.trim();
+  const err=document.getElementById("lg-err"); err.textContent="";
+  if(!name||!pw){ err.textContent="이름과 비밀번호를 입력하세요"; return; }
+  const btn=document.getElementById("lg-btn"); btn.disabled=true; btn.textContent="확인 중...";
+  try{
+    const j=await post({action:"login", name:name, pw:pw});
+    if(!j.ok) throw new Error(j.error||"로그인 실패");
+    SESS={name:name, pw:pw};
+    applyData(j);
+    document.getElementById("login-ovl").style.display="none";
+    document.getElementById("hdr").style.display="flex";
+    document.getElementById("app").style.display="block";
+    document.getElementById("who").textContent="👤 "+name+(SESS.isAdmin?" · 👑관리자":"");
+    buildHead(); fillFilters(); render();
+  }catch(e){ err.textContent="❌ "+e.message; }
+  finally{ btn.disabled=false; btn.textContent="로그인"; }
+}
+
+function applyData(j){
+  if(j.taStatuses) TA_STATUSES=j.taStatuses;
+  if(j.agrees) AGREES=j.agrees;
+  if(j.consultants && j.consultants.length) CONSULTANTS=j.consultants;
+  SESS.isAdmin = !!j.isAdmin;
+  rows=j.rows||[];
+  document.getElementById("conn").textContent="연결됨 · "+new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
+  const btnMine=document.getElementById("btnMine");
+  if(btnMine) btnMine.style.display = SESS.isAdmin ? "" : "none";
+}
+
+async function load(){
+  if(!SESS.name){ showLogin(); return; }
+  const conn=document.getElementById("conn"); conn.textContent="불러오는 중…";
+  try{
+    const j=await post({action:"login", name:SESS.name, pw:SESS.pw});
+    if(!j.ok) throw new Error(j.error||"불러오기 실패");
+    applyData(j); render();
+  }catch(e){
+    conn.textContent="연결 실패 (URL·배포 확인)";
+    document.getElementById("tb").innerHTML='<tr><td class="empty">데이터를 불러오지 못했습니다. 새로고침하거나 URL을 확인하세요. <button onclick="resetApi()">URL 재설정</button></td></tr>';
+  }
+}
+
+function toggleMine(){
+  mineOnly=!mineOnly;
+  const b=document.getElementById("btnMine");
+  b.classList.toggle("on", mineOnly);
+  b.textContent= mineOnly ? "👤 내 담당만" : "👥 전체보기";
+  render();
+}
+function fillFilters(){
+  const f1=document.getElementById("fTa"); if(f1.options.length<=1) TA_STATUSES.forEach(s=>{const o=document.createElement("option");o.textContent=s;f1.appendChild(o);});
+  const f2=document.getElementById("fAgree"); if(f2.options.length<=1) AGREES.forEach(s=>{const o=document.createElement("option");o.textContent=s;f2.appendChild(o);});
+}
+function buildHead(){
+  const th=document.getElementById("thead");
+  th.innerHTML='<tr><th data-k="번호">#  가게명</th>'+COLS.map(c=>'<th data-k="'+c.k+'">'+c.label+'</th>').join("")+'</tr>';
+  th.querySelectorAll("th[data-k]").forEach(el=>el.onclick=()=>{
+    const k=el.dataset.k; if(sortK===k) sortDir*=-1; else{sortK=k;sortDir=1;} render();
+  });
+}
+
+function esc(s){return String(s==null?"":s).replace(/"/g,"&quot;").replace(/</g,"&lt;");}
+function fmtPhone(v){ v=String(v==null?"":v).trim(); if(/^\d{9,10}$/.test(v)) return "0"+v; return v; }
+function fmtDate(v){
+  if(v==null||v==="") return "";
+  var s=String(v);
+  if(/^\d{4}-\d{2}-\d{2}T/.test(s)){ var d=new Date(s); if(!isNaN(d)){ var k=new Date(d.getTime()+9*3600*1000); return k.getUTCFullYear()+"-"+String(k.getUTCMonth()+1).padStart(2,"0")+"-"+String(k.getUTCDate()).padStart(2,"0"); } }
+  return s.length>10?s.slice(0,10):s;
+}
+function isDone(d){ return String(d["전환상태"]||"")==="전환완료"; }
+
+function stats(){
+  const rs=scoped();
+  const n=rs.length, cnt=(k,s)=>rs.filter(d=>d[k]===s).length;
+  const ta=cnt("TA진행상태","방문완료");
+  const agree=cnt("컨설팅동의여부","컨설팅동의");
+  const done=rs.filter(isDone).length;
+  const reject=cnt("컨설팅동의여부","컨설팅거절");
+  const wait=cnt("TA진행상태","대기");
+  const rate=n>0?Math.round(agree/n*1000)/10:0;
+  return {n,ta,agree,done,reject,wait,rate};
+}
+function renderKPIs(){
+  const s=stats(), g=Math.min(100,Math.round(s.rate/30*100));
+  document.getElementById("kpis").innerHTML=
+  '<div class="card hl"><div class="label">컨설팅 동의율</div><div class="val">'+s.rate+'%</div><div class="bar"><i style="width:'+g+'%"></i></div><div class="goal" style="color:var(--ice2)">목표 30%(안) · 동의 '+s.agree+' / 전체 '+s.n+'</div></div>'+
+  '<div class="card"><div class="label">담당 건수 / 대기</div><div class="val">'+s.n+'<span style="font-size:14px;color:var(--gray)"> / '+s.wait+'</span></div></div>'+
+  '<div class="card"><div class="label">TA완료(방문완료)</div><div class="val">'+s.ta+'</div></div>'+
+  '<div class="card"><div class="label">컨설팅동의</div><div class="val">'+s.agree+'</div></div>'+
+  '<div class="card"><div class="label">전환완료</div><div class="val">'+s.done+'</div></div>'+
+  '<div class="card"><div class="label">컨설팅거절</div><div class="val">'+s.reject+'</div></div>';
+}
+
+function cellHtml(d,c){
+  const no=d["번호"], v=d[c.k]==null?"":d[c.k], done=isDone(d);
+  const lock = done && !SESS.isAdmin; // 관리자는 전환완료 행도 편집 가능(단, 전환 버튼 자체는 예외)
+  if(c.k==="담당서포터즈"){
+    if(SESS.isAdmin) return '<td data-label="담당"><input class="ed" value="'+esc(v)+'" placeholder="담당자명" onchange="up('+no+',\'담당서포터즈\',this.value)"></td>';
+    return '<td data-label="담당"><span class="ro" title="'+esc(v)+'">'+(esc(v)||"—")+'</span></td>';
+  }
+  if(c.t==="ro") return '<td data-label="'+c.label+'"><span class="ro" title="'+esc(v)+'">'+(esc(v)||"—")+'</span></td>';
+  if(c.t==="fixed") return '<td data-label="'+c.label+'"><span class="fx">'+(esc(v)||"—")+'</span></td>';
+  if(c.t==="phone") return '<td data-label="연락처"><span class="fx">'+(esc(fmtPhone(v))||"—")+'</span></td>';
+  if(c.t==="convert"){
+    if(done) return '<td data-label="담당컨설턴트"><span class="cvdone">✔ 전환완료 · '+(esc(v)||"—")+'</span></td>';
+    return '<td data-label="담당컨설턴트"><button class="cvbtn" onclick="openConvert('+no+')">컨설턴트에게 전환</button></td>';
+  }
+  if(c.t==="photo"){
+    const thumb = v
+      ? '<a href="'+esc(v)+'" target="_blank" rel="noopener"><img src="'+esc(v)+'" alt="'+esc(c.label)+'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB"></a>'
+      : '<span class="ro">—</span>';
+    if(lock) return '<td data-label="'+c.label+'">'+thumb+'</td>';
+    return '<td data-label="'+c.label+'">'+thumb+
+      ' <button type="button" class="phbtn" onclick="triggerPhoto('+no+',\''+c.k+'\')">'+(v?"변경":"촬영")+'</button>'+
+      '<input type="file" accept="image/*" id="ph-'+no+'-'+c.k+'" style="display:none" onchange="onPhotoChange('+no+',\''+c.k+'\',this)"></td>';
+  }
+  if(lock){
+    var rv=(c.t==="date")?fmtDate(v):v;
+    return '<td data-label="'+c.label+'"><span class="ro" title="'+esc(rv)+'">'+(esc(rv)||"—")+'</span></td>';
+  }
+  if(c.t==="status"){
+    const opts=TA_STATUSES.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join("");
+    return '<td data-label="TA진행상태"><select class="st ed" style="background:'+(TA_COLOR[v]||"#fff")+'" onchange="up('+no+',\'TA진행상태\',this.value)">'+opts+'</select></td>';
+  }
+  if(c.t==="agree"){
+    const opts=AGREES.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join("");
+    return '<td data-label="컨설팅동의여부"><select class="st ed" style="background:'+(AG_COLOR[v]||"#fff")+'" onchange="onAgree('+no+',this.value)">'+opts+'</select></td>';
+  }
+  if(c.t==="date") return '<td data-label="방문일정"><input class="ed" type="date" value="'+esc(fmtDate(v))+'" onchange="up('+no+',\'방문일정\',this.value)"></td>';
+  return '<td data-label="'+c.label+'"><input class="ed" value="'+esc(v)+'" placeholder="입력" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
+}
+
+function scoped(){
+  return (SESS.isAdmin && mineOnly) ? rows.filter(d=>String(d["담당서포터즈"]||"").trim()===SESS.name) : rows.slice();
+}
+function render(){
+  renderKPIs();
+  const q=document.getElementById("q").value.trim().toLowerCase();
+  const f1=document.getElementById("fTa").value, f2=document.getElementById("fAgree").value;
+  let rs=scoped();
+  if(q) rs=rs.filter(d=>((d["가게명"]||"")+(d["점주명"]||"")+(d["업종"]||"")+(d["동네"]||"")+(d["주소"]||"")+(d["TA결과"]||"")+(d["비고"]||"")).toLowerCase().includes(q));
+  if(f1) rs=rs.filter(d=>d["TA진행상태"]===f1);
+  if(f2) rs=rs.filter(d=>d["컨설팅동의여부"]===f2);
+  rs.sort((a,b)=>{let x=a[sortK],y=b[sortK];
+    if(sortK==="TA진행상태"){x=TA_STATUSES.indexOf(x);y=TA_STATUSES.indexOf(y);}
+    if(sortK==="컨설팅동의여부"){x=AGREES.indexOf(x);y=AGREES.indexOf(y);}
+    if(x<y)return -1*sortDir; if(x>y)return 1*sortDir; return 0;});
+  const tb=document.getElementById("tb");
+  if(!rs.length){ tb.innerHTML='<tr><td class="empty">표시할 가맹점이 없습니다.'+(SESS.isAdmin&&mineOnly?' <button onclick="toggleMine()">전체보기</button>':'')+'</td></tr>'; return; }
+  tb.innerHTML=rs.map(d=>{
+    const no=d["번호"];
+    return '<tr class="'+(isDone(d)?"done":"")+'"><td data-label="#">'+no+'. '+(esc(d["가게명"])||"(가게)")+'</td>'+COLS.map(c=>cellHtml(d,c)).join("")+'</tr>';
+  }).join("");
+}
+
+// ── 사진 업로드(매장사진·동의서) ──
+function triggerPhoto(no, field){
+  const el=document.getElementById('ph-'+no+'-'+field); if(el) el.click();
+}
+function resizeImage(file, maxDim, quality){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=function(e){
+      const img=new Image();
+      img.onload=function(){
+        let w=img.width, h=img.height;
+        if(w>h){ if(w>maxDim){ h=Math.round(h*maxDim/w); w=maxDim; } }
+        else { if(h>maxDim){ w=Math.round(w*maxDim/h); h=maxDim; } }
+        const canvas=document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror=reject;
+      img.src=e.target.result;
+    };
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
+async function onPhotoChange(no, field, inputEl){
+  const file=inputEl.files && inputEl.files[0];
+  inputEl.value='';
+  if(!file) return;
+  toast();
+  try{
+    const dataUrl=await resizeImage(file, 1280, 0.72);
+    const base64=dataUrl.split(',')[1];
+    const j=await post({action:'photo', name:SESS.name, pw:SESS.pw, no:no, field:field, mime:'image/jpeg', filename:file.name||'photo.jpg', data:base64});
+    if(!j.ok) throw new Error(j.error||'업로드 실패');
+    const row=rows.find(d=>String(d["번호"])===String(no));
+    if(row) row[field]=j.url;
+    render(); toast();
+  }catch(e){ alert('사진 업로드 실패: '+e.message); }
+}
+
+let saveTimer;
+function toast(){ const s=document.getElementById("saving"); s.classList.add("on"); clearTimeout(saveTimer); saveTimer=setTimeout(()=>s.classList.remove("on"),900); }
+async function up(no, field, value){
+  const row=rows.find(d=>String(d["번호"])===String(no)); if(row) row[field]=value;
+  if(field==="TA진행상태"||field==="컨설팅동의여부") render();
+  toast();
+  try{
+    const j=await post({action:"update", name:SESS.name, pw:SESS.pw, no:no, field:field, value:value});
+    if(!j.ok) document.getElementById("conn").textContent="저장 실패 — "+(j.error||"");
+  }catch(e){ document.getElementById("conn").textContent="저장 실패 — 새로고침 후 재시도"; }
+}
+function onAgree(no, value){
+  up(no, "컨설팅동의여부", value);
+  if(value==="컨설팅동의") openConvert(no);
+}
+
+// ── 컨설턴트 전환 ──
+function openConvert(no){
+  const row=rows.find(d=>String(d["번호"])===String(no));
+  if(!row) return;
+  if(isDone(row)){ alert("이미 전환된 건입니다."); return; }
+  cvNo=no;
+  document.getElementById("cv-desc").innerHTML='<b>'+esc(row["가게명"]||"")+'</b> 건을 컨설팅DB로 넘깁니다.<br>담당 컨설턴트를 고르면 컨설턴트 트래커에 새 행이 생기고, 이 행은 전환완료로 잠깁니다.';
+  const sel=document.getElementById("cv-sel");
+  sel.innerHTML='<option value="">— 담당 컨설턴트 선택 —</option>'+CONSULTANTS.map(c=>'<option>'+esc(c)+'</option>').join("");
+  document.getElementById("cv-err").textContent="";
+  document.getElementById("cv-ovl").style.display="flex";
+}
+function closeConvert(){ cvNo=null; document.getElementById("cv-ovl").style.display="none"; }
+async function doConvert(){
+  const c=document.getElementById("cv-sel").value;
+  const err=document.getElementById("cv-err"); err.textContent="";
+  if(!c){ err.textContent="담당 컨설턴트를 선택하세요"; return; }
+  const btn=document.getElementById("cv-go"); btn.disabled=true; btn.textContent="전환 중...";
+  try{
+    const j=await post({action:"convert", name:SESS.name, pw:SESS.pw, no:cvNo, consultant:c});
+    if(!j.ok) throw new Error(j.error||"전환 실패");
+    const row=rows.find(d=>String(d["번호"])===String(cvNo));
+    if(row){ row["담당컨설턴트"]=c; row["전환상태"]="전환완료"; row["컨설팅동의여부"]="컨설팅동의"; }
+    closeConvert(); render(); toast();
+  }catch(e){ err.textContent="❌ "+e.message; }
+  finally{ btn.disabled=false; btn.textContent="전환하기"; }
+}
+
+function report(){
+  const s=stats(), rs=scoped(), md=(new Date().getMonth()+1)+"/"+new Date().getDate();
+  const nm=d=>d["가게명"];
+  const agreeList=rs.filter(d=>d["컨설팅동의여부"]==="컨설팅동의").map(nm).filter(Boolean);
+  const doneList=rs.filter(isDone).map(nm).filter(Boolean);
+  const txt="[동선 서포터즈 활동보고 "+md+" · "+(mineOnly?SESS.name:"전체")+"]\n"+
+  "• 담당 "+s.n+" / 대기 "+s.wait+"\n"+
+  "• TA완료 "+s.ta+" · 거절 "+s.reject+"\n"+
+  "• 컨설팅동의 "+s.agree+"곳: "+(agreeList.join(", ")||"-")+"\n"+
+  "• 전환완료 "+s.done+"곳: "+(doneList.join(", ")||"-")+"\n"+
+  "• 동의율 "+s.rate+"%";
+  navigator.clipboard.writeText(txt).then(()=>alert("보고 문구를 복사했습니다.\n\n"+txt), ()=>prompt("복사해서 붙여넣기:", txt));
+}
+
+boot();
+setInterval(()=>{ if(SESS.name && document.getElementById("app").style.display!=="none") load(); }, 60000);
+</script>
+</body>
+</html>
