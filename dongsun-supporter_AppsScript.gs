@@ -574,6 +574,10 @@ function handlePhoto_(body){
     }
   }
 
+  // 드라이브 업로드 전에 저장할 컬럼이 실제로 있는지 먼저 확인 (없으면 파일만 올리고 실패하는 것을 방지)
+  var col = t.head.indexOf(field);
+  if(col < 0) return json_({ok:false, error:'"트래커" 탭에 "'+field+'" 컬럼이 없습니다. setupTrackerSheet를 다시 실행하세요.'});
+
   var b64 = String(body.data||"");
   if(!b64) return json_({ok:false, error:"사진 데이터가 없습니다"});
   if(b64.length > 8000000) return json_({ok:false, error:"사진 용량이 너무 큽니다 — 다시 촬영해보세요"});
@@ -587,10 +591,9 @@ function handlePhoto_(body){
   var folder = photoFolder_();
   var file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  var url = "https://drive.google.com/uc?export=view&id=" + file.getId();
+  // uc?export=view 방식은 구글이 핫링크(<img>) 렌더링을 자주 막아 미리보기가 깨짐 → thumbnail 엔드포인트로 변경(안정적으로 이미지 바이트 반환)
+  var url = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1600";
 
-  var col = t.head.indexOf(field);
-  if(col < 0) return json_({ok:false, error:'"트래커" 탭에 "'+field+'" 컬럼이 없습니다. setupTrackerSheet를 다시 실행하세요.'});
   t.sh.getRange(t.row, col+1).setValue(url);
   stamp_(t.sh, t.head, t.row, name);
 
