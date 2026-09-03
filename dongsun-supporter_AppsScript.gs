@@ -38,7 +38,7 @@ var PHOTO_FIELDS = ["매장사진","동의서"];
 var PHOTO_FOLDER_NAME = "동선_서포터즈_사진";
 var ACCOUNT_HEADERS = ["이름","비번","권한"];
 
-var TA_STATUSES = ["대기","방문완료","부재","재방문예정"];
+var TA_STATUSES = ["대기","방문확정","부재","재방문예정"];
 var AGREES = ["미접촉","컨설팅동의","컨설팅거절","보류"];
 var CONVERT_STATUSES = ["","전환완료"];
 
@@ -247,6 +247,30 @@ function importDongsunSeed_20260902(){
     if(phoneCol > 0) trk.getRange(2, phoneCol, matrix.length, 1).setNumberFormat("@");
   }
   Logger.log("반영 완료: " + matrix.length + "건 (성남·장곡동 원본 탭 기준으로 트래커 탭을 새로 정리했습니다)");
+}
+
+// ── 1회성 데이터 정리: TA진행상태 "방문완료" → "방문확정" ──────────
+// 2026-09-03: 선택 옵션 이름을 "방문완료"에서 "방문확정"으로 바꾸면서, 이미 저장되어
+// 있을 수 있는 예전 값도 같이 맞춰줍니다. "트래커" 탭 TA진행상태 열만 훑어서
+// 정확히 "방문완료"인 셀만 "방문확정"으로 바꿉니다. 실행 후 지워도 무해합니다.
+function fixTaStatusLabel_20260903(){
+  var sh = trackerSheet_();
+  var lastRow = sh.getLastRow();
+  if(lastRow < 2){ Logger.log("데이터 없음"); return; }
+  var head = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(function(h){ return String(h).trim(); });
+  var col = head.indexOf("TA진행상태");
+  if(col < 0){ Logger.log('"TA진행상태" 컬럼을 찾을 수 없습니다.'); return; }
+  var range = sh.getRange(2, col+1, lastRow-1, 1);
+  var values = range.getValues();
+  var fixed = 0;
+  for(var i=0;i<values.length;i++){
+    if(String(values[i][0]).trim() === "방문완료"){
+      values[i][0] = "방문확정";
+      fixed++;
+    }
+  }
+  if(fixed > 0) range.setValues(values);
+  Logger.log("TA진행상태 '방문완료' → '방문확정' 변경: " + fixed + "건");
 }
 
 // ── 공통 유틸 ─────────────────────────────────────────────────
