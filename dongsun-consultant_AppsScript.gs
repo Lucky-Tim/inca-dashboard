@@ -38,10 +38,13 @@ var STATUSES = ["신규배정","상담중","청약완료","계약체결","종결
 var PROBS = ["10%","30%","50%","70%","90%","100%"];
 
 // ── 시트 접근 (이름 지정 = 기존 탭 무간섭) ─────────────────────
+var _ssCache_ = null;
 function ss_(){
-  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  if(!ss) throw new Error("스프레드시트를 열 수 없습니다: " + SPREADSHEET_ID);
-  return ss;
+  if(!_ssCache_){
+    _ssCache_ = SpreadsheetApp.openById(SPREADSHEET_ID);
+    if(!_ssCache_) throw new Error("스프레드시트를 열 수 없습니다: " + SPREADSHEET_ID);
+  }
+  return _ssCache_;
 }
 function trackerSheet_(){
   var sh = ss_().getSheetByName(TRACKER_SHEET);
@@ -177,19 +180,23 @@ function doGet(e){
 }
 
 function doPost(e){
-  var lock = LockService.getScriptLock();
-  lock.waitLock(20000);
   try{
     var body = JSON.parse(e.postData.contents);
     var action = String(body.action||"").trim();
 
-    if(action === "login")  return handleLogin_(body);
-    if(action === "update") return handleUpdate_(body);
-    return json_({ok:false, error:"알 수 없는 요청: "+action});
+    // 읽기 전용(login)은 락 없이 처리 — 새로고침/자동폴링이 쓰기 작업과 서로 줄서서 기다리지 않도록 함
+    if(action === "login") return handleLogin_(body);
+
+    var lock = LockService.getScriptLock();
+    lock.waitLock(20000);
+    try{
+      if(action === "update") return handleUpdate_(body);
+      return json_({ok:false, error:"알 수 없는 요청: "+action});
+    } finally {
+      lock.releaseLock();
+    }
   } catch(err){
     return json_({ok:false, error:String(err)});
-  } finally {
-    lock.releaseLock();
   }
 }
 

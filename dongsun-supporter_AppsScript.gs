@@ -48,10 +48,13 @@ var CONSULTANT_HEADERS = ["번호","담당컨설턴트","가게명","점주명",
                           "비고","수정자","수정시각"];
 
 // ── 시트 접근 (이름 지정 = 기존 탭 무간섭) ─────────────────────
+var _ssCache_ = null;
 function ss_(){
-  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  if(!ss) throw new Error("스프레드시트를 열 수 없습니다: " + SPREADSHEET_ID);
-  return ss;
+  if(!_ssCache_){
+    _ssCache_ = SpreadsheetApp.openById(SPREADSHEET_ID);
+    if(!_ssCache_) throw new Error("스프레드시트를 열 수 없습니다: " + SPREADSHEET_ID);
+  }
+  return _ssCache_;
 }
 function trackerSheet_(){
   var sh = ss_().getSheetByName(TRACKER_SHEET);
@@ -339,6 +342,9 @@ function readTracker_(){
 // 실패하면 빈 배열 → 프론트 기본값 사용
 function consultantNames_(){
   try{
+    var cache = CacheService.getScriptCache();
+    var cached = cache.get("consultantNames_v1");
+    if(cached) return JSON.parse(cached);
     var css = SpreadsheetApp.openById(CONSULTANT_SPREADSHEET_ID);
     var sh = css.getSheetByName(ACCOUNT_SHEET);
     if(!sh) return [];
@@ -349,6 +355,7 @@ function consultantNames_(){
       var n = String(rows[i]["이름"]||"").trim();
       if(n && out.indexOf(n) < 0) out.push(n);
     }
+    cache.put("consultantNames_v1", JSON.stringify(out), 300); // 5분 캐시 — 매 새로고침마다 다른 스프레드시트를 여는 비용 제거
     return out;
   }catch(e){ return []; }
 }
@@ -361,21 +368,25 @@ function doGet(e){
 }
 
 function doPost(e){
-  var lock = LockService.getScriptLock();
-  lock.waitLock(20000);
   try{
     var body = JSON.parse(e.postData.contents);
     var action = String(body.action||"").trim();
 
-    if(action === "login")   return handleLogin_(body);
-    if(action === "update")  return handleUpdate_(body);
-    if(action === "convert") return handleConvert_(body);
-    if(action === "photo")   return handlePhoto_(body);
-    return json_({ok:false, error:"알 수 없는 요청: "+action});
+    // 읽기 전용(login)은 락 없이 처리 — 새로고침/자동폴링이 쓰기 작업과 서로 줄서서 기다리지 않도록 함
+    if(action === "login") return handleLogin_(body);
+
+    var lock = LockService.getScriptLock();
+    lock.waitLock(20000);
+    try{
+      if(action === "update")  return handleUpdate_(body);
+      if(action === "convert") return handleConvert_(body);
+      if(action === "photo")   return handlePhoto_(body);
+      return json_({ok:false, error:"알 수 없는 요청: "+action});
+    } finally {
+      lock.releaseLock();
+    }
   } catch(err){
     return json_({ok:false, error:String(err)});
-  } finally {
-    lock.releaseLock();
   }
 }
 
