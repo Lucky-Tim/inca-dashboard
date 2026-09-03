@@ -14,8 +14,16 @@
  *  3) 함수 목록에서 setupAccountSheet 실행 → "계정" 탭 생성 후 시트에서 직접 이름/비번 입력
  *  4) 배포 → 새 배포 → 유형: 웹 앱 → 실행: 나 / 액세스: 모든 사용자 → 배포
  *  5) 나온 웹앱 URL(.../exec)을 dongsun-supporter.html 최초 접속 화면에 입력
+ *  6) 함수 목록에서 setupStagingSheet 실행 → "신규유입" 탭 생성 (신규 매장 리스트 반입용)
  *
  * ※ 과거 데이터 자동 이관은 하지 않습니다. 필요하면 사용자가 "트래커" 탭에 직접 복사해 넣으세요.
+ *
+ * ※ 신규 매장 계속 추가하기 — "신규유입" 탭 + 원클릭 메뉴:
+ *   새 매장 리스트가 생기면 "신규유입" 탭에 담당서포터즈까지 채워서 붙여넣고,
+ *   시트 상단 메뉴 "🎯 동선 관리 → 신규매장 트래커에 반영"을 클릭하면 됩니다.
+ *   담당서포터즈가 "계정" 탭에 없는 이름이면 팝업으로 직접 입력하거나 보류할 수 있고,
+ *   이미 "트래커"에 있는 매장(가게명+연락처 동일)은 자동으로 건너뜁니다.
+ *   처리된 행은 "신규유입" 탭에 반영완료/보류/중복-건너뜀으로 표시되어 남습니다.
  */
 
 // ── 스프레드시트 ID ───────────────────────────────────────────
@@ -646,4 +654,156 @@ function handleDeletePhoto_(body){
   stamp_(t.sh, t.head, t.row, name);
 
   return json_({ok:true, no:body.no, field:field});
+}
+
+
+// ── "신규유입" 스테이징 탭 → "트래커" 탭 원클릭 반영 ────────────────
+var STAGING_SHEET = "신규유입";
+var STAGING_HEADERS = ["처리상태","담당서포터즈","가게명","점주명","연락처","업종","동네","주소","비고"];
+var STAGING_STATUSES = ["","보류","반영완료","중복-건너뜀"];
+
+function stagingSheet_(){
+  var sh = ss_().getSheetByName(STAGING_SHEET);
+  if(!sh) throw new Error('"' + STAGING_SHEET + '" 탭이 없습니다. setupStagingSheet를 먼저 실행하세요.');
+  return sh;
+}
+
+// ── 최초 1회 실행: "신규유입" 탭 생성 ──────────────────────────
+function setupStagingSheet(){
+  var ss = ss_();
+  var sh = ss.getSheetByName(STAGING_SHEET);
+  if(!sh){
+    sh = ss.insertSheet(STAGING_SHEET);
+    Logger.log('"' + STAGING_SHEET + '" 탭을 새로 만들었습니다.');
+  } else {
+    Logger.log('"' + STAGING_SHEET + '" 탭이 이미 있습니다 — 헤더만 확인합니다(데이터 보존).');
+  }
+  sh.getRange(1,1,1,STAGING_HEADERS.length).setValues([STAGING_HEADERS]).setFontWeight("bold")
+    .setBackground("#16335B").setFontColor("#FFFFFF");
+  sh.setFrozenRows(1);
+  var last = Math.max(sh.getMaxRows()-1, 1);
+  var mk = SpreadsheetApp.newDataValidation().requireValueInList(STAGING_STATUSES, true).build();
+  sh.getRange(2, STAGING_HEADERS.indexOf("처리상태")+1, last, 1).setDataValidation(mk);
+  var phoneCol = STAGING_HEADERS.indexOf("연락처")+1;
+  sh.getRange(2, phoneCol, last, 1).setNumberFormat("@");
+  sh.getRange(1, STAGING_HEADERS.length+2).setValue(
+    "← 새 매장 리스트를 2행부터 붙여넣으세요. 담당서포터즈는 아는 만큼만 채워도 됩니다(비어있거나 " +
+    "계정에 없는 이름은 반영 시 팝업으로 물어봅니다). 처리상태는 자동으로 채워지니 직접 입력하지 마세요. " +
+    "다 채웠으면 시트 메뉴 '🎯 동선 관리 → 신규매장 트래커에 반영'을 누르세요.");
+  autoWidth_(sh, STAGING_HEADERS.length+3);
+  Logger.log("신규유입 탭 세팅 완료.");
+}
+
+// 계정 탭에 등록된 서포터즈 이름 목록(관리자 제외) — 담당서포터즈 유효성 검사용
+function supporterNames_(){
+  var rows = sheetToObjects_(accountSheet_());
+  var out = [];
+  for(var i=0;i<rows.length;i++){
+    if(String(rows[i]["권한"]||"").trim() === "관리자") continue;
+    var n = String(rows[i]["이름"]||"").trim();
+    if(n && out.indexOf(n) < 0) out.push(n);
+  }
+  return out;
+}
+
+// 시트를 열면 커스텀 메뉴를 자동으로 추가 (Apps Script 편집기 없이 시트에서 바로 실행)
+function onOpen(){
+  SpreadsheetApp.getUi()
+    .createMenu('🎯 동선 관리')
+    .addItem('신규매장 트래커에 반영', 'importStagingToTracker')
+    .addToUi();
+}
+
+// "신규유입" 탭의 미처리 행을 "트래커" 탭에 반영. 시트 메뉴로 실행(팝업 사용 위해 UI 컨텍스트 필요).
+// 담당서포터즈가 미등록 이름이면 행마다 팝업으로 물어봄 → 입력하면 그 이름으로 반영, 비워두면 "보류".
+// 가게명+연락처가 이미 트래커에 있으면 "중복-건너뜀"으로 표시하고 넘어감.
+function importStagingToTracker(){
+  var ui = SpreadsheetApp.getUi();
+  var stSh = stagingSheet_();
+  var trSh = trackerSheet_();
+
+  var stData = stSh.getDataRange().getValues();
+  if(stData.length < 2){ ui.alert("신규유입 탭에 데이터가 없습니다."); return; }
+  var stHead = stData[0].map(function(h){ return String(h).trim(); });
+  var colStatus = stHead.indexOf("처리상태");
+  var colOwner  = stHead.indexOf("담당서포터즈");
+  var colStore  = stHead.indexOf("가게명");
+  var colPhone  = stHead.indexOf("연락처");
+  if(colStatus<0 || colOwner<0 || colStore<0){
+    ui.alert('"신규유입" 탭 헤더가 올바르지 않습니다. setupStagingSheet를 다시 실행하세요.');
+    return;
+  }
+
+  // 트래커 기존 행 로드 (중복 체크 + 번호 이어쓰기용)
+  var trData = trSh.getDataRange().getValues();
+  var trHead = trData[0].map(function(h){ return String(h).trim(); });
+  var tNo = trHead.indexOf("번호"), tStore = trHead.indexOf("가게명"), tPhone = trHead.indexOf("연락처");
+  var maxNo = 0;
+  var existing = {}; // "가게명|연락처" → true
+  for(var i=1;i<trData.length;i++){
+    var r = trData[i];
+    if(String(r[tNo]).trim() !== "") maxNo = Math.max(maxNo, Number(r[tNo])||0);
+    var key = String(r[tStore]||"").trim() + "|" + String(r[tPhone]||"").trim();
+    if(key !== "|") existing[key] = true;
+  }
+
+  var known = supporterNames_();
+  var appendRows = [];
+  var added=0, held=0, dup=0;
+
+  for(var row=1; row<stData.length; row++){
+    var r = stData[row];
+    var storeName = String(r[colStore]||"").trim();
+    var status = String(r[colStatus]||"").trim();
+    if(!storeName) continue; // 빈 행
+    if(status === "반영완료" || status === "중복-건너뜀") continue; // 이미 처리됨
+
+    var owner = String(r[colOwner]||"").trim();
+    if(!owner || known.indexOf(owner) < 0){
+      var resp = ui.prompt(
+        '담당서포터즈 확인 필요',
+        '"' + storeName + '" 행의 담당서포터즈 "' + (owner||"(비어있음)") + '"이(가) 계정에 등록되어 있지 않습니다.\n' +
+        '정확한 이름을 입력하고 확인을 누르거나, 비워둔 채 확인/취소를 누르면 이 행은 보류 처리됩니다.',
+        ui.ButtonSet.OK_CANCEL);
+      var typed = resp.getResponseText ? String(resp.getResponseText()).trim() : "";
+      if(resp.getSelectedButton() !== ui.Button.OK || !typed){
+        stSh.getRange(row+1, colStatus+1).setValue("보류");
+        held++;
+        continue;
+      }
+      owner = typed;
+    }
+
+    var key = storeName + "|" + String(r[colPhone]||"").trim();
+    if(existing[key]){
+      stSh.getRange(row+1, colStatus+1).setValue("중복-건너뜀");
+      dup++;
+      continue;
+    }
+
+    maxNo++;
+    var newRow = new Array(trHead.length).fill("");
+    var set = function(k, v){ var c = trHead.indexOf(k); if(c>=0) newRow[c]=v; };
+    set("번호", maxNo);
+    set("담당서포터즈", owner);
+    set("가게명", storeName);
+    set("점주명", r[stHead.indexOf("점주명")]);
+    set("연락처", r[colPhone]);
+    set("업종", r[stHead.indexOf("업종")]);
+    set("동네", r[stHead.indexOf("동네")]);
+    set("주소", r[stHead.indexOf("주소")]);
+    set("비고", r[stHead.indexOf("비고")]);
+    set("TA진행상태", TA_STATUSES[0] || "대기");
+    set("수정자", "일괄추가");
+    set("수정시각", now_());
+    appendRows.push(newRow);
+    existing[key] = true;
+    stSh.getRange(row+1, colStatus+1).setValue("반영완료");
+    added++;
+  }
+
+  if(appendRows.length){
+    trSh.getRange(trSh.getLastRow()+1, 1, appendRows.length, trHead.length).setValues(appendRows);
+  }
+  ui.alert("반영 완료: " + added + "건 추가 / " + held + "건 보류 / " + dup + "건 중복 건너뜀");
 }
