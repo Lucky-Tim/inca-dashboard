@@ -343,11 +343,23 @@ function buildHead(){
 
 function esc(s){return String(s==null?"":s).replace(/"/g,"&quot;").replace(/</g,"&lt;");}
 function fmtPhone(v){ v=String(v==null?"":v).trim(); if(/^\d{9,10}$/.test(v)) return "0"+v; return v; }
-function fmtDate(v){
+function fmtDate(v){ // → "yyyy-MM-ddTHH:mm" (datetime-local input value용)
   if(v==null||v==="") return "";
   var s=String(v);
-  if(/^\d{4}-\d{2}-\d{2}T/.test(s)){ var d=new Date(s); if(!isNaN(d)){ var k=new Date(d.getTime()+9*3600*1000); return k.getUTCFullYear()+"-"+String(k.getUTCMonth()+1).padStart(2,"0")+"-"+String(k.getUTCDate()).padStart(2,"0"); } }
-  return s.length>10?s.slice(0,10):s;
+  var m=s.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/);
+  if(m) return m[1]+"T"+m[2];
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s+"T00:00";
+  var d=new Date(s);
+  if(!isNaN(d)){
+    var k=new Date(d.getTime()+9*3600*1000);
+    return k.getUTCFullYear()+"-"+String(k.getUTCMonth()+1).padStart(2,"0")+"-"+String(k.getUTCDate()).padStart(2,"0")+"T"+String(k.getUTCHours()).padStart(2,"0")+":"+String(k.getUTCMinutes()).padStart(2,"0");
+  }
+  return s;
+}
+function fmtDateDisp(v){ // 사람이 보기 편한 표시용 — 시간이 00:00이면 날짜만 표시
+  var s=fmtDate(v); if(!s) return "";
+  var p=s.split("T");
+  return p[1]==="00:00" ? p[0] : p[0]+" "+p[1];
 }
 function isDone(d){ return String(d["전환상태"]||"")==="전환완료"; }
 
@@ -401,7 +413,7 @@ function cellHtml(d,c){
       '<input type="file" accept="image/*" id="ph-'+no+'-'+c.k+'" style="display:none" onchange="onPhotoChange('+no+',\''+c.k+'\',this)"></td>';
   }
   if(lock){
-    var rv=(c.t==="date")?fmtDate(v):v;
+    var rv=(c.t==="date")?fmtDateDisp(v):v;
     return '<td data-label="'+c.label+'"><span class="ro" title="'+esc(rv)+'">'+(esc(rv)||"—")+'</span></td>';
   }
   if(c.t==="status"){
@@ -412,7 +424,7 @@ function cellHtml(d,c){
     const opts=AGREES.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join("");
     return '<td data-label="컨설팅동의여부"><select class="st ed" style="background:'+(AG_COLOR[v]||"#fff")+'" onchange="onAgree('+no+',this.value)">'+opts+'</select></td>';
   }
-  if(c.t==="date") return '<td data-label="방문일정"><input class="ed" type="date" value="'+esc(fmtDate(v))+'" onchange="up('+no+',\'방문일정\',this.value)"></td>';
+  if(c.t==="date") return '<td data-label="방문일정"><input class="ed" type="datetime-local" value="'+esc(fmtDate(v))+'" onchange="up('+no+',\'방문일정\',this.value)"></td>';
   return '<td data-label="'+c.label+'"><input class="ed" value="'+esc(v)+'" placeholder="입력" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
 }
 

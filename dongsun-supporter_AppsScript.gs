@@ -363,9 +363,17 @@ function sheetToObjects_(sh){
     return o;
   });
 }
-function ymd_(v){
-  if(v instanceof Date) return Utilities.formatDate(v, "Asia/Seoul", "yyyy-MM-dd");
+function ymd_(v){ // 방문일정 표시용 — 이제 시간까지 포함
+  if(v instanceof Date) return Utilities.formatDate(v, "Asia/Seoul", "yyyy-MM-dd'T'HH:mm");
   return v;
+}
+// 프론트에서 온 "yyyy-MM-ddTHH:mm" 문자열을 한국시간(UTC+9) 기준 실제 Date로 변환.
+// 스크립트 프로젝트의 타임존 설정과 무관하게 항상 정확한 시각이 저장되도록 UTC로 직접 계산.
+function parseKstDateTime_(s){
+  var m = String(s||"").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if(!m) return null;
+  var utcMs = Date.UTC(Number(m[1]), Number(m[2])-1, Number(m[3]), Number(m[4]), Number(m[5])) - 9*3600*1000;
+  return new Date(utcMs);
 }
 function now_(){ return Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd HH:mm"); }
 
@@ -523,7 +531,13 @@ function handleUpdate_(body){
 
   var col = t.head.indexOf(field);
   if(col < 0) return json_({ok:false, error:"컬럼이 없습니다: "+field});
-  t.sh.getRange(t.row, col+1).setValue(body.value);
+
+  var val = body.value;
+  if(field === "방문일정"){
+    var dt = parseKstDateTime_(val);
+    if(dt) val = dt; // 날짜+시간을 실제 Date로 저장(시트에서도 날짜로 인식되도록)
+  }
+  t.sh.getRange(t.row, col+1).setValue(val);
 
   stamp_(t.sh, t.head, t.row, auth.name);
   return json_({ok:true, no:body.no, field:field, value:body.value});
