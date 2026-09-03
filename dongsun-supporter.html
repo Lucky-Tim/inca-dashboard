@@ -145,7 +145,7 @@
     <select id="fTa" onchange="render()"><option value="">TA상태 전체</option></select>
     <select id="fAgree" onchange="render()"><option value="">동의여부 전체</option></select>
   </div>
-  <div class="hint">💡 <b>노란 칸</b>(방문일정·TA진행상태·TA결과·컨설팅동의여부·비고)만 탭해서 입력하세요. 회색 칸(가게명·점주명·연락처·업종·동네·주소)은 원천DB라 읽기전용입니다. · 컨설팅동의여부를 <b>컨설팅동의</b>로 바꾸면 담당 컨설턴트 선택 창이 뜹니다. · <b>매장사진·동의서</b>는 촬영 버튼으로 바로 찍거나 갤러리에서 선택해 올릴 수 있습니다(서명된 동의서는 현장에서 촬영).</div>
+  <div class="hint">💡 <b>노란 칸</b>(방문일정·TA진행상태·TA결과·컨설팅동의여부·비고)만 탭해서 입력하세요. 회색 칸(가게명·점주명·연락처·업종·동네·주소)은 원천DB라 읽기전용입니다. · 컨설팅동의여부를 <b>컨설팅동의</b>로 바꾸면 담당 컨설턴트 전환은 관리자가 확인 후 진행합니다. · <b>매장사진·동의서</b>는 촬영 버튼으로 바로 찍거나 갤러리에서 선택해 올릴 수 있습니다(서명된 동의서는 현장에서 촬영).</div>
   <div class="tablewrap">
     <table><thead id="thead"></thead><tbody id="tb"></tbody></table>
   </div>
@@ -337,6 +337,7 @@ function cellHtml(d,c){
   if(c.t==="phone") return '<td data-label="연락처"><span class="fx">'+(esc(fmtPhone(v))||"—")+'</span></td>';
   if(c.t==="convert"){
     if(done) return '<td data-label="담당컨설턴트"><span class="cvdone">✔ 전환완료 · '+(esc(v)||"—")+'</span></td>';
+    if(!SESS.isAdmin) return '<td data-label="담당컨설턴트"><span class="ro">관리자 전환 대기</span></td>';
     return '<td data-label="담당컨설턴트"><button class="cvbtn" onclick="openConvert('+no+')">컨설턴트에게 전환</button></td>';
   }
   if(c.t==="photo"){
@@ -441,11 +442,12 @@ async function up(no, field, value){
 }
 function onAgree(no, value){
   up(no, "컨설팅동의여부", value);
-  if(value==="컨설팅동의") openConvert(no);
+  if(value==="컨설팅동의" && SESS.isAdmin) openConvert(no);
 }
 
 // ── 컨설턴트 전환 ──
 function openConvert(no){
+  if(!SESS.isAdmin){ alert("컨설턴트 전환은 관리자만 할 수 있습니다."); return; }
   const row=rows.find(d=>String(d["번호"])===String(no));
   if(!row) return;
   if(isDone(row)){ alert("이미 전환된 건입니다."); return; }

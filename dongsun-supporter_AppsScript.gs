@@ -454,6 +454,9 @@ function stamp_(sh, head, row, name){
 function handleConvert_(body){
   var auth = auth_(body.name, body.pw);
   if(!auth) return json_({ok:false, error:"인증 실패 — 다시 로그인하세요"});
+  if(!auth.isAdmin){
+    return json_({ok:false, error:"컨설턴트 전환은 관리자만 할 수 있습니다"});
+  }
   var name = auth.name;
 
   var consultant = String(body.consultant||"").trim();
@@ -461,13 +464,6 @@ function handleConvert_(body){
 
   var t = findRow_(body.no);
   if(!t) return json_({ok:false, error:"행을 찾을 수 없습니다: "+body.no});
-
-  if(!auth.isAdmin){
-    var ownerIdx = t.head.indexOf("담당서포터즈");
-    if(ownerIdx >= 0 && String(t.values[ownerIdx]).trim() !== auth.name){
-      return json_({ok:false, error:"본인 담당 건만 전환할 수 있습니다"});
-    }
-  }
 
   var g = function(k){ var i = t.head.indexOf(k); return i>=0 ? t.values[i] : ""; };
   if(String(g("전환상태")).trim() === "전환완료"){
