@@ -21,6 +21,9 @@
   .card.hl{background:var(--navy);color:#fff}.card.hl .label{color:var(--ice2)}
   .card .goal{font-size:11px;margin-top:4px;color:var(--gray)}
   .bar{height:8px;background:var(--ice);border-radius:6px;overflow:hidden;margin-top:8px}.bar>i{display:block;height:100%;background:var(--gold)}
+  .card.wide{grid-column:1/-1}
+  .ta-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .ta-chip{font-size:12.5px;padding:5px 11px;border-radius:20px;font-weight:700;color:var(--ink)}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
   button{font-family:inherit;font-size:13px;border:1px solid var(--navy);background:#fff;color:var(--navy);padding:7px 12px;border-radius:8px;cursor:pointer}
   button:hover{background:var(--ice)}button.primary{background:var(--navy);color:#fff}
@@ -352,25 +355,25 @@ function isDone(d){ return String(d["전환상태"]||"")==="전환완료"; }
 function stats(){
   const rs=scoped();
   const n=rs.length, cnt=(k,s)=>rs.filter(d=>d[k]===s).length;
-  const ta=cnt("TA진행상태","방문확정");
   const agree=cnt("컨설팅동의여부","컨설팅동의");
   const done=rs.filter(isDone).length;
   const reject=cnt("컨설팅동의여부","컨설팅거절");
-  const taReject=cnt("TA진행상태","거절");
-  const wait=cnt("TA진행상태","대기");
+  const taBreak={}; TA_STATUSES.forEach(k=>{ taBreak[k]=cnt("TA진행상태",k); });
   const rate=n>0?Math.round(agree/n*1000)/10:0;
-  return {n,ta,agree,done,reject,taReject,wait,rate};
+  return {n,agree,done,reject,taBreak,rate};
 }
 function renderKPIs(){
   const s=stats(), g=Math.min(100,Math.round(s.rate/30*100));
+  const taChips=TA_STATUSES.map(k=>
+    '<span class="ta-chip" style="background:'+(TA_COLOR[k]||"#EEF2F7")+'">'+esc(k)+' '+(s.taBreak[k]||0)+'</span>'
+  ).join("");
   document.getElementById("kpis").innerHTML=
   '<div class="card hl"><div class="label">컨설팅 동의율</div><div class="val">'+s.rate+'%</div><div class="bar"><i style="width:'+g+'%"></i></div><div class="goal" style="color:var(--ice2)">목표 30%(안) · 동의 '+s.agree+' / 전체 '+s.n+'</div></div>'+
-  '<div class="card"><div class="label">담당 건수 / 대기</div><div class="val">'+s.n+'<span style="font-size:14px;color:var(--gray)"> / '+s.wait+'</span></div></div>'+
-  '<div class="card"><div class="label">TA완료(방문확정)</div><div class="val">'+s.ta+'</div></div>'+
-  '<div class="card"><div class="label">방문거절</div><div class="val">'+s.taReject+'</div></div>'+
+  '<div class="card"><div class="label">담당 건수</div><div class="val">'+s.n+'</div></div>'+
   '<div class="card"><div class="label">컨설팅동의</div><div class="val">'+s.agree+'</div></div>'+
   '<div class="card"><div class="label">전환완료</div><div class="val">'+s.done+'</div></div>'+
-  '<div class="card"><div class="label">컨설팅거절</div><div class="val">'+s.reject+'</div></div>';
+  '<div class="card"><div class="label">컨설팅거절</div><div class="val">'+s.reject+'</div></div>'+
+  '<div class="card wide"><div class="label">TA진행상태 현황(전체값)</div><div class="ta-chips">'+taChips+'</div></div>';
 }
 
 function cellHtml(d,c){
@@ -582,9 +585,9 @@ function report(){
   const agreeList=rs.filter(d=>d["컨설팅동의여부"]==="컨설팅동의").map(nm).filter(Boolean);
   const doneList=rs.filter(isDone).map(nm).filter(Boolean);
   const txt="[동선 서포터즈 활동보고 "+md+" · "+(mineOnly?SESS.name:"전체")+"]\n"+
-  "• 담당 "+s.n+" / 대기 "+s.wait+"\n"+
-  "• TA완료 "+s.ta+" · 거절 "+s.reject+"\n"+
-  "• 컨설팅동의 "+s.agree+"곳: "+(agreeList.join(", ")||"-")+"\n"+
+  "• 담당 "+s.n+" / 대기 "+(s.taBreak["대기"]||0)+"\n"+
+  "• TA완료(방문확정) "+(s.taBreak["방문확정"]||0)+" · 방문거절 "+(s.taBreak["거절"]||0)+"\n"+
+  "• 컨설팅동의 "+s.agree+"곳(거절 "+s.reject+"): "+(agreeList.join(", ")||"-")+"\n"+
   "• 전환완료 "+s.done+"곳: "+(doneList.join(", ")||"-")+"\n"+
   "• 동의율 "+s.rate+"%";
   navigator.clipboard.writeText(txt).then(()=>alert("보고 문구를 복사했습니다.\n\n"+txt), ()=>prompt("복사해서 붙여넣기:", txt));
