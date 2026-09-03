@@ -414,6 +414,7 @@ function cellHtml(d,c){
     return '<td data-label="컨설팅동의여부"><select class="st ed" style="background:'+(AG_COLOR[v]||"#fff")+'" onchange="onAgree('+no+',this.value)">'+opts+'</select></td>';
   }
   if(c.t==="date") return '<td data-label="방문일정"><input class="ed" type="date" value="'+esc(fmtDate(v))+'" onchange="up('+no+',\'방문일정\',this.value)"></td>';
+  if(c.k==="TA결과") return '<td data-label="TA결과"><input class="ed" value="'+esc(v)+'" placeholder="입력" onchange="onTaResult('+no+',this.value)"></td>';
   return '<td data-label="'+c.label+'"><input class="ed" value="'+esc(v)+'" placeholder="입력" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
 }
 
@@ -506,6 +507,11 @@ async function up(no, field, value){
 function onAgree(no, value){
   up(no, "컨설팅동의여부", value);
   if(value==="컨설팅동의" && SESS.isAdmin) openConvert(no);
+}
+function onTaResult(no, value){
+  up(no, "TA결과", value);
+  const trimmed=String(value||"").trim();
+  if(TA_STATUSES.includes(trimmed)) up(no, "TA진행상태", trimmed);
 }
 
 // ── 컨설턴트 전환 ──
