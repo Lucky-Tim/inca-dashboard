@@ -162,7 +162,7 @@
     <table><thead id="thead"></thead><tbody id="tb"></tbody></table>
   </div>
   <div class="foot">
-    TA진행상태: 대기 → 방문확정 · 부재 · 재방문예정 · 컨설팅동의여부: 미접촉 → 컨설팅동의 · 컨설팅거절 · 보류<br>
+    TA진행상태: 대기 → 방문확정 · 부재 · 재접촉필요 · 거절 · 컨설팅동의여부: 미접촉 → 컨설팅동의 · 컨설팅거절 · 보류<br>
     <b>전환완료</b> 행은 컨설턴트 트래커로 넘어간 건이라 이 화면에서는 흐리게 표시되고 편집되지 않습니다. · 데이터는 구글시트 "트래커" 탭에 실시간 공유 저장됩니다.<br>
     ※ 표현 주의: 프리미엄 3개월 지원은 "선물·리워드"로 표현하고, 계약 조건부 혜택(계약하면 ~을 드립니다)으로 안내하지 마세요.
   </div>
@@ -240,11 +240,11 @@ const COLS=[
   {k:"비고",label:"비고",t:"input"}
 ];
 
-let TA_STATUSES=["대기","방문확정","부재","재방문예정"];
+let TA_STATUSES=["대기","방문확정","부재","재접촉필요","거절"];
 let AGREES=["미접촉","컨설팅동의","컨설팅거절","보류"];
 let CONSULTANTS=["김광연","정현우","하명규"];
 let SUPPORTERS=[];
-const TA_COLOR={"대기":"#EEF2F7","방문확정":"#DAF0E2","부재":"#EAEFF4","재방문예정":"#FFF3D6"};
+const TA_COLOR={"대기":"#EEF2F7","방문확정":"#DAF0E2","부재":"#EAEFF4","재접촉필요":"#FFF3D6","거절":"#F7DDDA"};
 const AG_COLOR={"미접촉":"#EEF2F7","컨설팅동의":"#DAF0E2","컨설팅거절":"#F7DDDA","보류":"#FFF3D6"};
 
 let rows=[], sortK="번호", sortDir=1, mineOnly=false, SESS={name:"",pw:"",isAdmin:false}, cvNo=null;
@@ -356,9 +356,10 @@ function stats(){
   const agree=cnt("컨설팅동의여부","컨설팅동의");
   const done=rs.filter(isDone).length;
   const reject=cnt("컨설팅동의여부","컨설팅거절");
+  const taReject=cnt("TA진행상태","거절");
   const wait=cnt("TA진행상태","대기");
   const rate=n>0?Math.round(agree/n*1000)/10:0;
-  return {n,ta,agree,done,reject,wait,rate};
+  return {n,ta,agree,done,reject,taReject,wait,rate};
 }
 function renderKPIs(){
   const s=stats(), g=Math.min(100,Math.round(s.rate/30*100));
@@ -366,6 +367,7 @@ function renderKPIs(){
   '<div class="card hl"><div class="label">컨설팅 동의율</div><div class="val">'+s.rate+'%</div><div class="bar"><i style="width:'+g+'%"></i></div><div class="goal" style="color:var(--ice2)">목표 30%(안) · 동의 '+s.agree+' / 전체 '+s.n+'</div></div>'+
   '<div class="card"><div class="label">담당 건수 / 대기</div><div class="val">'+s.n+'<span style="font-size:14px;color:var(--gray)"> / '+s.wait+'</span></div></div>'+
   '<div class="card"><div class="label">TA완료(방문확정)</div><div class="val">'+s.ta+'</div></div>'+
+  '<div class="card"><div class="label">방문거절</div><div class="val">'+s.taReject+'</div></div>'+
   '<div class="card"><div class="label">컨설팅동의</div><div class="val">'+s.agree+'</div></div>'+
   '<div class="card"><div class="label">전환완료</div><div class="val">'+s.done+'</div></div>'+
   '<div class="card"><div class="label">컨설팅거절</div><div class="val">'+s.reject+'</div></div>';

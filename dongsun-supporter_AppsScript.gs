@@ -46,7 +46,7 @@ var PHOTO_FIELDS = ["매장사진","동의서"];
 var PHOTO_FOLDER_NAME = "동선_서포터즈_사진";
 var ACCOUNT_HEADERS = ["이름","비번","권한"];
 
-var TA_STATUSES = ["대기","방문확정","부재","재방문예정"];
+var TA_STATUSES = ["대기","방문확정","부재","재접촉필요","거절"];
 var AGREES = ["미접촉","컨설팅동의","컨설팅거절","보류"];
 var CONVERT_STATUSES = ["","전환완료"];
 
@@ -282,6 +282,29 @@ function fixTaStatusLabel_20260903(){
   }
   if(fixed > 0) range.setValues(values);
   Logger.log("TA진행상태 '방문완료' → '방문확정' 변경: " + fixed + "건");
+}
+
+// ── 1회성 라벨 변경: TA진행상태 "재방문예정" → "재접촉필요" (2026-09-04 옵션 개편) ──
+// 옵션 개편(재방문예정→재접촉필요로 이름 변경 + 거절 옵션 추가)으로 인해, 이미 저장된
+// "재방문예정" 값들이 새 드롭다운 목록에 없는 값이 되는 것을 방지하기 위한 1회성 정리 함수.
+function fixTaStatusLabel_20260904(){
+  var sh = trackerSheet_();
+  var lastRow = sh.getLastRow();
+  if(lastRow < 2){ Logger.log("데이터 없음"); return; }
+  var head = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(function(h){ return String(h).trim(); });
+  var col = head.indexOf("TA진행상태");
+  if(col < 0){ Logger.log('"TA진행상태" 컬럼을 찾을 수 없습니다.'); return; }
+  var range = sh.getRange(2, col+1, lastRow-1, 1);
+  var values = range.getValues();
+  var fixed = 0;
+  for(var i=0;i<values.length;i++){
+    if(String(values[i][0]).trim() === "재방문예정"){
+      values[i][0] = "재접촉필요";
+      fixed++;
+    }
+  }
+  if(fixed > 0) range.setValues(values);
+  Logger.log("TA진행상태 '재방문예정' → '재접촉필요' 변경: " + fixed + "건");
 }
 
 // ── 공통 유틸 ─────────────────────────────────────────────────
