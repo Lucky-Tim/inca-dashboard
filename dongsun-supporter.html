@@ -57,6 +57,7 @@
   .saving{position:fixed;bottom:16px;right:16px;background:var(--navy);color:#fff;padding:8px 14px;border-radius:20px;font-size:12px;opacity:0;transition:.2s}
   .saving.on{opacity:1}
   .phbtn{padding:4px 8px;font-size:11px;margin-left:4px;vertical-align:middle}
+  .delbtn{padding:4px 8px;font-size:11px;margin-left:4px;vertical-align:middle;border-color:#C0392B;color:#C0392B}
   /* ── 로그인 오버레이 (viewer-mgr #login-ovl 패턴 · 네이비/골드 팔레트) ── */
   #login-ovl{display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(160deg,#16335B 0%,#1B3A6B 55%,#0E1F38 100%);align-items:center;justify-content:center;padding:20px}
   #login-ovl .box{width:342px;max-width:92vw;background:#fff;border-radius:20px;box-shadow:0 18px 50px rgba(14,31,56,.28),0 2px 8px rgba(0,0,0,.05);border:1px solid var(--ice2);overflow:hidden;animation:lgIn .4s cubic-bezier(.2,.8,.2,1)}
@@ -345,8 +346,9 @@ function cellHtml(d,c){
       ? '<a href="'+esc(v)+'" target="_blank" rel="noopener"><img src="'+esc(v)+'" alt="'+esc(c.label)+'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB"></a>'
       : '<span class="ro">—</span>';
     if(lock) return '<td data-label="'+c.label+'">'+thumb+'</td>';
+    const delBtn = v ? ' <button type="button" class="delbtn" onclick="deletePhoto('+no+',\''+c.k+'\')">삭제</button>' : '';
     return '<td data-label="'+c.label+'">'+thumb+
-      ' <button type="button" class="phbtn" onclick="triggerPhoto('+no+',\''+c.k+'\')">'+(v?"변경":"촬영")+'</button>'+
+      ' <button type="button" class="phbtn" onclick="triggerPhoto('+no+',\''+c.k+'\')">'+(v?"변경":"촬영")+'</button>'+delBtn+
       '<input type="file" accept="image/*" id="ph-'+no+'-'+c.k+'" style="display:none" onchange="onPhotoChange('+no+',\''+c.k+'\',this)"></td>';
   }
   if(lock){
@@ -427,6 +429,17 @@ async function onPhotoChange(no, field, inputEl){
     if(row) row[field]=j.url;
     render(); toast();
   }catch(e){ alert('사진 업로드 실패: '+e.message); }
+}
+async function deletePhoto(no, field){
+  if(!confirm('사진을 삭제할까요?')) return;
+  toast();
+  try{
+    const j=await post({action:'deletePhoto', name:SESS.name, pw:SESS.pw, no:no, field:field});
+    if(!j.ok) throw new Error(j.error||'삭제 실패');
+    const row=rows.find(d=>String(d["번호"])===String(no));
+    if(row) row[field]='';
+    render(); toast();
+  }catch(e){ alert('사진 삭제 실패: '+e.message); }
 }
 
 let saveTimer;

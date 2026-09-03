@@ -378,9 +378,10 @@ function doPost(e){
     var lock = LockService.getScriptLock();
     lock.waitLock(20000);
     try{
-      if(action === "update")  return handleUpdate_(body);
-      if(action === "convert") return handleConvert_(body);
-      if(action === "photo")   return handlePhoto_(body);
+      if(action === "update")      return handleUpdate_(body);
+      if(action === "convert")     return handleConvert_(body);
+      if(action === "photo")       return handlePhoto_(body);
+      if(action === "deletePhoto") return handleDeletePhoto_(body);
       return json_({ok:false, error:"알 수 없는 요청: "+action});
     } finally {
       lock.releaseLock();
@@ -598,4 +599,51 @@ function handlePhoto_(body){
   stamp_(t.sh, t.head, t.row, name);
 
   return json_({ok:true, no:body.no, field:field, url:url});
+}
+
+// 저장된 사진 URL(uc?export=view&id=... 또는 thumbnail?id=...) 어느 형식이든 파일ID 추출
+function fileIdFromUrl_(url){
+  var m = String(url||"").match(/[?&]id=([^&]+)/);
+  return m ? m[1] : "";
+}
+
+// action:'deletePhoto' → 드라이브 파일 휴지통 이동 + 트래커 셀 값 비우기
+function handleDeletePhoto_(body){
+  var auth = auth_(body.name, body.pw);
+  if(!auth) return json_({ok:false, error:"인증 실패 — 다시 로그인하세요"});
+  var name = auth.name;
+
+  var field = String(body.field||"").trim();
+  if(PHOTO_FIELDS.indexOf(field) < 0) return json_({ok:false, error:"사진 항목이 아닙니다: "+field});
+
+  var t = findRow_(body.no);
+  if(!t) return json_({ok:false, error:"행을 찾을 수 없습니다: "+body.no});
+
+  if(!auth.isAdmin){
+    var ownerIdx = t.head.indexOf("담당서포터즈");
+    if(ownerIdx >= 0 && String(t.values[ownerIdx]).trim() !== auth.name){
+      return json_({ok:false, error:"본인 담당 건만 사진을 삭제할 수 있습니다"});
+    }
+    var csIdx = t.head.indexOf("전환상태");
+    if(csIdx >= 0 && String(t.values[csIdx]).trim() === "전환완료"){
+      return json_({ok:false, error:"이미 컨설턴트로 전환된 건이라 사진을 삭제할 수 없습니다"});
+    }
+  }
+
+  var col = t.head.indexOf(field);
+  if(col < 0) return json_({ok:false, error:'"트래커" 탭에 "'+field+'" 컬럼이 없습니다. setupTrackerSheet를 다시 실행하세요.'});
+
+  var curUrl = String(t.values[col]||"").trim();
+  if(!curUrl) return json_({ok:false, error:"삭제할 사진이 없습니다"});
+
+  var fid = fileIdFromUrl_(curUrl);
+  if(fid){
+    try{ DriveApp.getFileById(fid).setTrashed(true); }
+    catch(e){ /* 이미 삭제됐거나 접근 불가 — 셀 값은 그대로 비운다 */ }
+  }
+
+  t.sh.getRange(t.row, col+1).setValue("");
+  stamp_(t.sh, t.head, t.row, name);
+
+  return json_({ok:true, no:body.no, field:field});
 }
