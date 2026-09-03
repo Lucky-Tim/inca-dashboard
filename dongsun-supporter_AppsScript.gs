@@ -390,6 +390,7 @@ function doPost(e){
       if(action === "convert")     return handleConvert_(body);
       if(action === "photo")       return handlePhoto_(body);
       if(action === "deletePhoto") return handleDeletePhoto_(body);
+      if(action === "addStore")    return handleAddStore_(body);
       return json_({ok:false, error:"알 수 없는 요청: "+action});
     } finally {
       lock.releaseLock();
@@ -412,6 +413,7 @@ function handleLogin_(body){
     ok:true, name:auth.name, isAdmin:auth.isAdmin,
     taStatuses:TA_STATUSES, agrees:AGREES,
     consultants:consultantNames_(),
+    supporters:supporterNames_(),
     rows:rows, ts:new Date().getTime()
   });
 }
@@ -654,6 +656,56 @@ function handleDeletePhoto_(body){
   stamp_(t.sh, t.head, t.row, name);
 
   return json_({ok:true, no:body.no, field:field});
+}
+
+// action:'addStore' → 서포터즈가 현장 방문 중 새로 발견한 매장을 트래커에 즉시 등록.
+// 일반 계정은 담당서포터즈가 항상 본인으로 고정(클라이언트가 뭘 보내든 무시). 관리자는 담당자 지정/재배정 가능.
+function handleAddStore_(body){
+  var auth = auth_(body.name, body.pw);
+  if(!auth) return json_({ok:false, error:"인증 실패 — 다시 로그인하세요"});
+
+  var storeName = String(body.storeName||"").trim();
+  if(!storeName) return json_({ok:false, error:"가게명을 입력하세요"});
+
+  var owner = auth.isAdmin ? (String(body.owner||"").trim() || auth.name) : auth.name;
+  var phone = String(body.phone||"").trim();
+
+  var sh = trackerSheet_();
+  var data = sh.getDataRange().getValues();
+  var head = data[0].map(function(h){ return String(h).trim(); });
+  var colNo = head.indexOf("번호"), colStore = head.indexOf("가게명"), colPhone = head.indexOf("연락처");
+  var colOwnerHdr = head.indexOf("담당서포터즈");
+
+  var maxNo = 0;
+  for(var i=1;i<data.length;i++){
+    var r = data[i];
+    if(String(r[colNo]).trim() !== "") maxNo = Math.max(maxNo, Number(r[colNo])||0);
+    if(phone && String(r[colStore]||"").trim() === storeName && String(r[colPhone]||"").trim() === phone){
+      return json_({ok:false, error:"이미 등록된 매장입니다 (담당: " + String(r[colOwnerHdr]||"").trim() + ")"});
+    }
+  }
+
+  var newRow = new Array(head.length).fill("");
+  var set = function(k, v){ var c = head.indexOf(k); if(c>=0) newRow[c]=v; };
+  var no = maxNo + 1;
+  set("번호", no);
+  set("담당서포터즈", owner);
+  set("가게명", storeName);
+  set("점주명", String(body.ownerName||"").trim());
+  set("연락처", phone);
+  set("업종", String(body.biz||"").trim());
+  set("동네", String(body.town||"").trim());
+  set("주소", String(body.addr||"").trim());
+  set("비고", String(body.note||"").trim());
+  set("TA진행상태", TA_STATUSES[0] || "대기");
+  set("수정자", auth.name);
+  set("수정시각", now_());
+
+  sh.getRange(sh.getLastRow()+1, 1, 1, head.length).setValues([newRow]);
+
+  var obj = {};
+  for(var c=0;c<head.length;c++){ obj[head[c]] = newRow[c]; }
+  return json_({ok:true, row:obj});
 }
 
 
