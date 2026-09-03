@@ -100,7 +100,7 @@ function setupTrackerSheet(){
 function applyValidations_(sh){
   var last = Math.max(sh.getMaxRows()-1, 1);
   var mk = function(list){ return SpreadsheetApp.newDataValidation().requireValueInList(list, true).build(); };
-  sh.getRange(2, HEADERS.indexOf("TA진행상태")+1,   last, 1).setDataValidation(mk(TA_STATUSES));
+  sh.getRange(2, HEADERS.indexOf("TA결과")+1,   last, 1).setDataValidation(mk(TA_STATUSES));
   sh.getRange(2, HEADERS.indexOf("컨설팅동의여부")+1, last, 1).setDataValidation(mk(AGREES));
   sh.getRange(2, HEADERS.indexOf("전환상태")+1,     last, 1).setDataValidation(mk(CONVERT_STATUSES));
 }
@@ -305,6 +305,45 @@ function fixTaStatusLabel_20260904(){
   }
   if(fixed > 0) range.setValues(values);
   Logger.log("TA진행상태 '재방문예정' → '재접촉필요' 변경: " + fixed + "건");
+}
+
+// ── 1회성 통합: "TA진행상태" 칼럼을 없애고 "TA결과"가 그 역할(5개 고정값 드롭다운)을
+// 대신하도록 통합 (2026-09-05). 기존 TA진행상태 값을 TA결과 칸으로 옮기고, 만약 TA결과에
+// 이미 다른 메모(자유 텍스트)가 들어있었다면 데이터 손실 없이 "비고" 칸으로 옮겨 보존한 뒤
+// TA결과를 상태값으로 덮어씁니다. "TA진행상태" 칼럼 자체는 지우지 않습니다(열 순서가 밀리면
+// 다른 칼럼과 어긋날 위험이 있어 그대로 두되, 앞으로 웹앱은 이 칼럼을 더 이상 읽거나 쓰지 않음).
+function mergeTaIntoResult_20260905(){
+  var sh = trackerSheet_();
+  var lastRow = sh.getLastRow();
+  if(lastRow < 2){ Logger.log("데이터 없음"); return; }
+  var head = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(function(h){ return String(h).trim(); });
+  var colStatus = head.indexOf("TA진행상태");
+  var colResult = head.indexOf("TA결과");
+  var colNote = head.indexOf("비고");
+  if(colStatus < 0 || colResult < 0){ Logger.log("TA진행상태/TA결과 컬럼을 찾을 수 없습니다."); return; }
+  var range = sh.getRange(2, 1, lastRow-1, head.length);
+  var values = range.getValues();
+  var moved=0, kept=0, noted=0;
+  for(var i=0;i<values.length;i++){
+    var status = String(values[i][colStatus]||"").trim();
+    var result = String(values[i][colResult]||"").trim();
+    if(!status) continue; // 상태값 자체가 없던 행은 손대지 않음
+    if(!result){
+      values[i][colResult] = status;
+      moved++;
+    } else if(TA_STATUSES.indexOf(result) >= 0){
+      kept++; // 이미 정상 상태값과 일치 — 그대로 둠
+    } else {
+      if(colNote >= 0){
+        var oldNote = String(values[i][colNote]||"").trim();
+        values[i][colNote] = (oldNote ? oldNote + " / " : "") + "[구 TA결과] " + result;
+      }
+      values[i][colResult] = status;
+      noted++;
+    }
+  }
+  range.setValues(values);
+  Logger.log("TA진행상태 → TA결과 통합: 신규반영 " + moved + "건 · 이미일치 " + kept + "건 · 메모는 비고로 보존 후 덮어씀 " + noted + "건");
 }
 
 // ── 공통 유틸 ─────────────────────────────────────────────────
@@ -720,7 +759,7 @@ function handleAddStore_(body){
   set("동네", String(body.town||"").trim());
   set("주소", String(body.addr||"").trim());
   set("비고", String(body.note||"").trim());
-  set("TA진행상태", TA_STATUSES[0] || "대기");
+  set("TA결과", TA_STATUSES[0] || "대기");
   set("수정자", auth.name);
   set("수정시각", now_());
 
@@ -868,7 +907,7 @@ function importStagingToTracker(){
     set("동네", r[stHead.indexOf("동네")]);
     set("주소", r[stHead.indexOf("주소")]);
     set("비고", r[stHead.indexOf("비고")]);
-    set("TA진행상태", TA_STATUSES[0] || "대기");
+    set("TA결과", TA_STATUSES[0] || "대기");
     set("수정자", "일괄추가");
     set("수정시각", now_());
     appendRows.push(newRow);
