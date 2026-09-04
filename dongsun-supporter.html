@@ -243,6 +243,7 @@ const COLS=[
 ];
 
 let TA_STATUSES=["대기","방문확정","부재","재접촉필요","거절"];
+const PHOTO_MAX=5;
 let AGREES=["미접촉","컨설팅동의","컨설팅거절","보류"];
 let CONSULTANTS=["김광연","정현우","하명규"];
 let SUPPORTERS=[];
@@ -403,14 +404,20 @@ function cellHtml(d,c){
     return '<td data-label="담당컨설턴트"><button class="cvbtn" onclick="openConvert('+no+')">컨설턴트에게 전환</button></td>';
   }
   if(c.t==="photo"){
-    const thumb = v
-      ? '<a href="'+esc(v)+'" target="_blank" rel="noopener"><img src="'+esc(v)+'" alt="'+esc(c.label)+'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB"></a>'
-      : '<span class="ro">—</span>';
-    if(lock) return '<td data-label="'+c.label+'">'+thumb+'</td>';
-    const delBtn = v ? ' <button type="button" class="delbtn" onclick="deletePhoto('+no+',\''+c.k+'\')">삭제</button>' : '';
-    return '<td data-label="'+c.label+'">'+thumb+
-      ' <button type="button" class="phbtn" onclick="triggerPhoto('+no+',\''+c.k+'\')">'+(v?"변경":"촬영")+'</button>'+delBtn+
-      '<input type="file" accept="image/*" id="ph-'+no+'-'+c.k+'" style="display:none" onchange="onPhotoChange('+no+',\''+c.k+'\',this)"></td>';
+    const urls = String(v||"").split("|").map(s=>s.trim()).filter(Boolean);
+    const thumbs = urls.map((u,i)=>
+      '<span style="position:relative;display:inline-block;margin:2px">'+
+        '<a href="'+esc(u)+'" target="_blank" rel="noopener"><img src="'+esc(u)+'" alt="'+esc(c.label)+'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB"></a>'+
+        (lock ? '' : ' <button type="button" class="delbtn" onclick="deletePhoto('+no+',\''+c.k+'\','+i+')" style="padding:2px 6px;font-size:10px">×</button>')+
+      '</span>'
+    ).join("");
+    if(lock) return '<td data-label="'+c.label+'">'+(thumbs||'<span class="ro">—</span>')+'</td>';
+    const canAdd = urls.length < PHOTO_MAX;
+    const addBtn = canAdd
+      ? ' <button type="button" class="phbtn" onclick="triggerPhoto('+no+',\''+c.k+'\')">'+(urls.length?"추가":"촬영")+'</button>'
+      : ' <span class="ro">최대 '+PHOTO_MAX+'장</span>';
+    return '<td data-label="'+c.label+'">'+(thumbs||'<span class="ro">—</span>')+addBtn+
+      '<input type="file" accept="image/*" multiple id="ph-'+no+'-'+c.k+'" style="display:none" onchange="onPhotoChange('+no+',\''+c.k+'\',this)"></td>';
   }
   if(lock){
     var rv=(c.t==="date")?fmtDateDisp(v):v;
@@ -477,28 +484,36 @@ function resizeImage(file, maxDim, quality){
   });
 }
 async function onPhotoChange(no, field, inputEl){
-  const file=inputEl.files && inputEl.files[0];
+  const files=Array.from(inputEl.files||[]);
   inputEl.value='';
-  if(!file) return;
+  if(!files.length) return;
+  const row=rows.find(d=>String(d["번호"])===String(no));
+  const current=(row&&row[field])?String(row[field]).split("|").filter(Boolean):[];
+  const remain=PHOTO_MAX-current.length;
+  if(remain<=0){ alert("이미 "+PHOTO_MAX+"장이 등록되어 있습니다. 먼저 삭제 후 추가하세요."); return; }
+  const toUpload=files.slice(0,remain);
+  if(files.length>remain) alert(remain+"장만 추가되고 나머지는 무시됩니다(최대 "+PHOTO_MAX+"장).");
   toast();
   try{
-    const dataUrl=await resizeImage(file, 1280, 0.72);
-    const base64=dataUrl.split(',')[1];
-    const j=await post({action:'photo', name:SESS.name, pw:SESS.pw, no:no, field:field, mime:'image/jpeg', filename:file.name||'photo.jpg', data:base64});
-    if(!j.ok) throw new Error(j.error||'업로드 실패');
-    const row=rows.find(d=>String(d["번호"])===String(no));
-    if(row) row[field]=j.url;
-    render(); toast();
+    for(const file of toUpload){
+      const dataUrl=await resizeImage(file, 1280, 0.72);
+      const base64=dataUrl.split(',')[1];
+      const j=await post({action:'photo', name:SESS.name, pw:SESS.pw, no:no, field:field, mime:'image/jpeg', filename:file.name||'photo.jpg', data:base64});
+      if(!j.ok) throw new Error(j.error||'업로드 실패');
+      if(row) row[field]=j.value;
+      render();
+    }
+    toast();
   }catch(e){ alert('사진 업로드 실패: '+e.message); }
 }
-async function deletePhoto(no, field){
-  if(!confirm('사진을 삭제할까요?')) return;
+async function deletePhoto(no, field, idx){
+  if(!confirm('이 사진을 삭제할까요?')) return;
   toast();
   try{
-    const j=await post({action:'deletePhoto', name:SESS.name, pw:SESS.pw, no:no, field:field});
+    const j=await post({action:'deletePhoto', name:SESS.name, pw:SESS.pw, no:no, field:field, idx:idx});
     if(!j.ok) throw new Error(j.error||'삭제 실패');
     const row=rows.find(d=>String(d["번호"])===String(no));
-    if(row) row[field]='';
+    if(row) row[field]=j.value;
     render(); toast();
   }catch(e){ alert('사진 삭제 실패: '+e.message); }
 }

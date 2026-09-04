@@ -43,6 +43,7 @@ var HEADERS = ["번호","담당서포터즈","가게명","점주명","연락처"
                "담당컨설턴트","전환상태","전환일시","비고","수정자","수정시각",
                "매장사진","동의서"];
 var PHOTO_FIELDS = ["매장사진","동의서"];
+var PHOTO_MAX = 5; // 사진 항목당 최대 등록 장수 — 셀에 URL을 "|"로 이어붙여 저장
 var PHOTO_FOLDER_NAME = "동선_서포터즈_사진";
 var ACCOUNT_HEADERS = ["이름","비번","권한"];
 
@@ -665,6 +666,13 @@ function handlePhoto_(body){
   var col = t.head.indexOf(field);
   if(col < 0) return json_({ok:false, error:'"트래커" 탭에 "'+field+'" 컬럼이 없습니다. setupTrackerSheet를 다시 실행하세요.'});
 
+  // 기존 저장값은 "url1|url2|..." 형태(파이프 구분) — 기존 단일 URL 셀도 1개짜리 배열로 그대로 해석됨
+  var existing = String(t.values[col]||"").trim();
+  var urls = existing ? existing.split("|").map(function(s){ return s.trim(); }).filter(Boolean) : [];
+  if(urls.length >= PHOTO_MAX){
+    return json_({ok:false, error:"사진은 최대 "+PHOTO_MAX+"장까지만 등록할 수 있습니다"});
+  }
+
   var b64 = String(body.data||"");
   if(!b64) return json_({ok:false, error:"사진 데이터가 없습니다"});
   if(b64.length > 8000000) return json_({ok:false, error:"사진 용량이 너무 큽니다 — 다시 촬영해보세요"});
@@ -672,7 +680,7 @@ function handlePhoto_(body){
   var mime = String(body.mime||"image/jpeg");
   var storeName = String(t.values[t.head.indexOf("가게명")]||"").trim() || "매장";
   var stamp = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyyMMdd_HHmmss");
-  var fname = (String(body.no)+"_"+storeName+"_"+field+"_"+stamp+".jpg").replace(/[\\\/:*?"<>|]/g, "_");
+  var fname = (String(body.no)+"_"+storeName+"_"+field+"_"+stamp+"_"+(urls.length+1)+".jpg").replace(/[\\\/:*?"<>|]/g, "_");
 
   var blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, fname);
   var folder = photoFolder_();
@@ -681,10 +689,12 @@ function handlePhoto_(body){
   // uc?export=view 방식은 구글이 핫링크(<img>) 렌더링을 자주 막아 미리보기가 깨짐 → thumbnail 엔드포인트로 변경(안정적으로 이미지 바이트 반환)
   var url = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1600";
 
-  t.sh.getRange(t.row, col+1).setValue(url);
+  urls.push(url);
+  var joined = urls.join("|");
+  t.sh.getRange(t.row, col+1).setValue(joined);
   stamp_(t.sh, t.head, t.row, name);
 
-  return json_({ok:true, no:body.no, field:field, url:url});
+  return json_({ok:true, no:body.no, field:field, value:joined});
 }
 
 // 저장된 사진 URL(uc?export=view&id=... 또는 thumbnail?id=...) 어느 형식이든 파일ID 추출
@@ -719,19 +729,27 @@ function handleDeletePhoto_(body){
   var col = t.head.indexOf(field);
   if(col < 0) return json_({ok:false, error:'"트래커" 탭에 "'+field+'" 컬럼이 없습니다. setupTrackerSheet를 다시 실행하세요.'});
 
-  var curUrl = String(t.values[col]||"").trim();
-  if(!curUrl) return json_({ok:false, error:"삭제할 사진이 없습니다"});
+  var existing = String(t.values[col]||"").trim();
+  var urls = existing ? existing.split("|").map(function(s){ return s.trim(); }).filter(Boolean) : [];
 
-  var fid = fileIdFromUrl_(curUrl);
+  var idx = Number(body.idx);
+  if(isNaN(idx) || idx < 0 || idx >= urls.length){
+    return json_({ok:false, error:"삭제할 사진을 찾을 수 없습니다"});
+  }
+
+  var removedUrl = urls[idx];
+  var fid = fileIdFromUrl_(removedUrl);
   if(fid){
     try{ DriveApp.getFileById(fid).setTrashed(true); }
     catch(e){ /* 이미 삭제됐거나 접근 불가 — 셀 값은 그대로 비운다 */ }
   }
 
-  t.sh.getRange(t.row, col+1).setValue("");
+  urls.splice(idx, 1);
+  var joined = urls.join("|");
+  t.sh.getRange(t.row, col+1).setValue(joined);
   stamp_(t.sh, t.head, t.row, name);
 
-  return json_({ok:true, no:body.no, field:field});
+  return json_({ok:true, no:body.no, field:field, value:joined});
 }
 
 // action:'addStore' → 서포터즈가 현장 방문 중 새로 발견한 매장을 트래커에 즉시 등록.
