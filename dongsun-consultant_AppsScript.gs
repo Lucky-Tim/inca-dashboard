@@ -22,7 +22,7 @@
 
 // ── 스프레드시트 ID ───────────────────────────────────────────
 // 동선_컨설팅 DB 관리용
-var SPREADSHEET_ID = "1AtJ_qLMzsyRCuSAH-cGNCEhribVCt1qBY0a5GUzc9SI";
+var SPREADSHEET_ID = "1J_otYQ_gMwVskqUHoCLdJIbkTytjF13P4t1044YN2jI";
 
 // ── 신규 탭 이름 (기존 "시흥" 등과 절대 겹치지 않게) ────────────
 var TRACKER_SHEET = "트래커";
@@ -240,9 +240,10 @@ function handleUpdate_(body){
   if(!t) return json_({ok:false, error:"행을 찾을 수 없습니다: "+body.no});
 
   var field = String(body.field||"").trim();
-  var editable = ["월납보험료","컨설팅미팅1차","컨설팅미팅2_3차","클로징확률","계약현황","비고"];
+  var editable = ["월납보험료","컨설팅미팅1차","컨설팅미팅2_3차","클로징확률","계약현황",
+                  "청약여부","청약차수","청약금액","청약상품","종결사유","증빙","비고"];
   var allowed = editable.slice();
-  if(auth.isAdmin) allowed = allowed.concat(["담당컨설턴트"]);
+  if(auth.isAdmin) allowed = allowed.concat(["담당컨설턴트","AS신청상태"]);
   if(allowed.indexOf(field) < 0) return json_({ok:false, error:"편집할 수 없는 항목입니다: "+field});
 
   if(!auth.isAdmin){
@@ -255,9 +256,90 @@ function handleUpdate_(body){
   var col = t.head.indexOf(field);
   if(col < 0) return json_({ok:false, error:"컬럼이 없습니다: "+field});
   t.sh.getRange(t.row, col+1).setValue(body.value);
+  t.values[col] = body.value;
+
+  if(field === "종결사유") _applyAsLogic(t);
 
   stamp_(t.sh, t.head, t.row, auth.name);
   return json_({ok:true, no:body.no, field:field, value:body.value});
+}
+
+// 종결사유 변경 시 A/S 대상·신청기한·초기 신청상태를 서버에서 자동 계산
+function _applyAsLogic(t){
+  var g = function(k){ var i=t.head.indexOf(k); return i>=0 ? t.values[i] : ""; };
+  var setIf = function(k, v){ var i=t.head.indexOf(k); if(i>=0){ t.sh.getRange(t.row, i+1).setValue(v); t.values[i]=v; } };
+  var reason = String(g("종결사유")||"").trim();
+  if(!reason){ setIf("AS대상",""); setIf("AS신청기한",""); setIf("AS신청상태",""); return; }
+
+  var isAs = AS_TYPES.indexOf(reason) >= 0;
+  setIf("AS대상", isAs ? "A/S 대상" : "영업 사유");
+  if(!isAs){ setIf("AS신청기한",""); setIf("AS신청상태",""); return; }
+
+  var payDate = g("DB지급일");
+  if(payDate){
+    var d = (payDate instanceof Date) ? payDate : new Date(payDate);
+    if(!isNaN(d.getTime())){
+      var due = new Date(d.getTime());
+      due.setDate(due.getDate() + AS_DEADLINE_DAYS);
+      setIf("AS신청기한", Utilities.formatDate(due, "Asia/Seoul", "yyyy-MM-dd"));
+    }
+  }
+  var curStatus = String(g("AS신청상태")||"").trim();
+  if(!curStatus) setIf("AS신청상태","미신청");
+}
+
+// action:'submitAs' → 컨설턴트가 A/S 신청 (종결사유가 A/S 인정 유형 + 증빙 입력 후)
+function handleSubmitAs_(body){
+  var auth = auth_(body.name, body.pw);
+  if(!auth) return json_({ok:false, error:"인증 실패 — 다시 로그인하세요"});
+
+  var t = findRow_(body.no);
+  if(!t) return json_({ok:false, error:"행을 찾을 수 없습니다: "+body.no});
+
+  if(!auth.isAdmin){
+    var ownerIdx = t.head.indexOf("담당컨설턴트");
+    if(ownerIdx >= 0 && String(t.values[ownerIdx]).trim() !== auth.name){
+      return json_({ok:false, error:"본인 담당 건만 신청할 수 있습니다"});
+    }
+  }
+
+  var g = function(k){ var i=t.head.indexOf(k); return i>=0 ? t.values[i] : ""; };
+  var reason = String(g("종결사유")||"").trim();
+  if(AS_TYPES.indexOf(reason) < 0) return json_({ok:false, error:"종결사유가 A/S 인정 유형이 아닙니다"});
+  var proof = String(g("증빙")||"").trim();
+  if(!proof) return json_({ok:false, error:"증빙 내용을 먼저 입력하세요"});
+  var cur = String(g("AS신청상태")||"").trim();
+  if(cur === "확인중" || cur === "승인") return json_({ok:false, error:"이미 신청됐습니다 (상태: "+cur+")"});
+
+  var setIf = function(k, v){ var i=t.head.indexOf(k); if(i>=0) t.sh.getRange(t.row, i+1).setValue(v); };
+  setIf("AS신청상태", "확인중");
+  stamp_(t.sh, t.head, t.row, auth.name);
+  return json_({ok:true, no:body.no, status:"확인중"});
+}
+
+// action:'asDecide' → 관리자 전용, A/S 승인·불가능 처리(+점검메모 누적)
+function handleAsDecide_(body){
+  var auth = auth_(body.name, body.pw);
+  if(!auth) return json_({ok:false, error:"인증 실패 — 다시 로그인하세요"});
+  if(!auth.isAdmin) return json_({ok:false, error:"A/S 승인·불가 처리는 관리자만 할 수 있습니다"});
+
+  var t = findRow_(body.no);
+  if(!t) return json_({ok:false, error:"행을 찾을 수 없습니다: "+body.no});
+
+  var decision = String(body.decision||"").trim();
+  if(["승인","불가능"].indexOf(decision) < 0) return json_({ok:false, error:"승인 또는 불가능만 처리할 수 있습니다"});
+
+  var setIf = function(k, v){ var i=t.head.indexOf(k); if(i>=0) t.sh.getRange(t.row, i+1).setValue(v); };
+  setIf("AS신청상태", decision);
+  var memo = String(body.memo||"").trim();
+  var memoLine = "["+now_()+" "+auth.name+"] "+decision+(memo?(" — "+memo):"");
+  var mi = t.head.indexOf("AS점검메모");
+  if(mi >= 0){
+    var old = String(t.values[mi]||"").trim();
+    t.sh.getRange(t.row, mi+1).setValue(old ? (old+"\n"+memoLine) : memoLine);
+  }
+  stamp_(t.sh, t.head, t.row, auth.name);
+  return json_({ok:true, no:body.no, status:decision});
 }
 
 function stamp_(sh, head, row, name){

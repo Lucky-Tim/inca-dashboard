@@ -2,19 +2,25 @@
  * 동선 서포터즈 트래커 — Google Apps Script API (구글시트 백엔드)
  *
  * ⚠ 매우 중요 — 기존 탭 보호
- *   이 스크립트는 "입점매장_시흥_액션팀용" 스프레드시트의 기존 17개 탭(동네별·상태별·이력용)을
- *   절대 읽거나 쓰지 않습니다. 오직 아래 두 개의 신규 탭만 사용합니다.
- *     · "트래커" — 서포터즈 TA 진행 데이터 (구조화 컬럼)
- *     · "계정"   — 로그인용 이름/비번
- *   시트 이름으로만 명시 접근하므로 다른 탭은 건드리지 않습니다.
+ *   이 스크립트는 "입점매장_시흥_액션팀용" 스프레드시트(SPREADSHEET_ID)의 기존 17개 탭(동네별·상태별·이력용)을
+ *   절대 읽거나 쓰지 않습니다. "신규유입" 탭만 이 파일에서 씁니다.
+ *
+ * ⚠ 2026-09-04 — "트래커"/"계정" 탭을 별도 비공개 스프레드시트로 분리
+ *   "입점매장_시흥_액션팀용" 파일이 여러 팀원에게 개별 공유돼 있어서, 그 안에 있던
+ *   "트래커"(운영 데이터)·"계정"(평문 비밀번호) 탭까지 같이 노출되는 문제가 있었습니다.
+ *   그래서 이 두 탭은 TRACKER_SPREADSHEET_ID가 가리키는 별도의 비공개 스프레드시트로 옮겼습니다.
+ *   접근 함수: "트래커"/"계정"은 privateSs_(), 그 외(신규유입·원본 17개 탭)는 ss_() — 절대 섞어 쓰지 말 것.
+ *     · "트래커" — 서포터즈 TA 진행 데이터 (구조화 컬럼) — TRACKER_SPREADSHEET_ID
+ *     · "계정"   — 로그인용 이름/비번 — TRACKER_SPREADSHEET_ID
+ *     · "신규유입" — 신규 매장 리스트 반입용 — SPREADSHEET_ID(기존 액션팀 파일, 그대로 유지)
  *
  * 사용법:
- *  1) 아래 SPREADSHEET_ID / CONSULTANT_SPREADSHEET_ID 확인 (이미 채워져 있음)
- *  2) 함수 목록에서 setupTrackerSheet 실행 → "트래커" 탭 생성(빈 상태, 헤더만)
- *  3) 함수 목록에서 setupAccountSheet 실행 → "계정" 탭 생성 후 시트에서 직접 이름/비번 입력
+ *  1) 아래 SPREADSHEET_ID / TRACKER_SPREADSHEET_ID / CONSULTANT_SPREADSHEET_ID 확인 (이미 채워져 있음)
+ *  2) 함수 목록에서 setupTrackerSheet 실행 → TRACKER_SPREADSHEET_ID 파일에 "트래커" 탭 생성(빈 상태, 헤더만)
+ *  3) 함수 목록에서 setupAccountSheet 실행 → TRACKER_SPREADSHEET_ID 파일에 "계정" 탭 생성 후 직접 이름/비번 입력
  *  4) 배포 → 새 배포 → 유형: 웹 앱 → 실행: 나 / 액세스: 모든 사용자 → 배포
  *  5) 나온 웹앱 URL(.../exec)을 dongsun-supporter.html 최초 접속 화면에 입력
- *  6) 함수 목록에서 setupStagingSheet 실행 → "신규유입" 탭 생성 (신규 매장 리스트 반입용)
+ *  6) 함수 목록에서 setupStagingSheet 실행 → "신규유입" 탭 생성 (신규 매장 리스트 반입용, 기존 액션팀 파일에 유지)
  *
  * ※ 과거 데이터 자동 이관은 하지 않습니다. 필요하면 사용자가 "트래커" 탭에 직접 복사해 넣으세요.
  *
@@ -30,7 +36,9 @@
 // 입점매장_시흥_액션팀용 (원천DB · 서포터즈 TA)
 var SPREADSHEET_ID = "1ewvEx1GdEzhVsIdbymxevSGbdusimLNcW0PQEvqQamw";
 // 동선_컨설팅 DB 관리용 (전환 대상 · 컨설턴트 트래커)
-var CONSULTANT_SPREADSHEET_ID = "1AtJ_qLMzsyRCuSAH-cGNCEhribVCt1qBY0a5GUzc9SI";
+var CONSULTANT_SPREADSHEET_ID = "1J_otYQ_gMwVskqUHoCLdJIbkTytjF13P4t1044YN2jI";
+// 동선_서포터즈_트래커_비공개 ("트래커"·"계정" 탭 전용 — 2026-09-04 분리, 소수 관리자에게만 공유)
+var TRACKER_SPREADSHEET_ID = "1Y-ibLphY6WWgrN6GKA1IhRm2jDED1JcHHKixprVfJVk";
 
 // ── 신규 탭 이름 (기존 탭과 절대 겹치지 않게) ──────────────────
 var TRACKER_SHEET = "트래커";
@@ -65,13 +73,22 @@ function ss_(){
   }
   return _ssCache_;
 }
+// "트래커"·"계정" 전용 비공개 스프레드시트 — ss_()와 절대 혼용하지 말 것
+var _privateSsCache_ = null;
+function privateSs_(){
+  if(!_privateSsCache_){
+    _privateSsCache_ = SpreadsheetApp.openById(TRACKER_SPREADSHEET_ID);
+    if(!_privateSsCache_) throw new Error("비공개 스프레드시트를 열 수 없습니다: " + TRACKER_SPREADSHEET_ID);
+  }
+  return _privateSsCache_;
+}
 function trackerSheet_(){
-  var sh = ss_().getSheetByName(TRACKER_SHEET);
+  var sh = privateSs_().getSheetByName(TRACKER_SHEET);
   if(!sh) throw new Error('"' + TRACKER_SHEET + '" 탭이 없습니다. setupTrackerSheet를 먼저 실행하세요.');
   return sh;
 }
 function accountSheet_(){
-  var sh = ss_().getSheetByName(ACCOUNT_SHEET);
+  var sh = privateSs_().getSheetByName(ACCOUNT_SHEET);
   if(!sh) throw new Error('"' + ACCOUNT_SHEET + '" 탭이 없습니다. setupAccountSheet를 먼저 실행하세요.');
   return sh;
 }
@@ -79,7 +96,7 @@ function accountSheet_(){
 // ── 최초 1회 실행: "트래커" 탭 생성 ────────────────────────────
 // 이미 있으면 헤더만 확인하고 데이터는 절대 건드리지 않습니다.
 function setupTrackerSheet(){
-  var ss = ss_();
+  var ss = privateSs_();
   var sh = ss.getSheetByName(TRACKER_SHEET);
   if(!sh){
     sh = ss.insertSheet(TRACKER_SHEET);
@@ -111,7 +128,7 @@ function autoWidth_(sh, n){
 
 // ── 최초 1회 실행: "계정" 탭 생성 ──────────────────────────────
 function setupAccountSheet(){
-  var ss = ss_();
+  var ss = privateSs_();
   var sh = ss.getSheetByName(ACCOUNT_SHEET);
   if(!sh){
     sh = ss.insertSheet(ACCOUNT_SHEET);
@@ -600,6 +617,7 @@ function handleConvert_(body){
     "동네": g("동네"),
     "주소": g("주소"),
     "출처서포터즈": g("담당서포터즈") || name,
+    "DB지급일": now_().slice(0,10), // 전환(=DB 지급) 시점 — 컨설턴트 쪽 A/S 신청기한 계산 기준
     "월납보험료": "",
     "컨설팅미팅1차": "",
     "컨설팅미팅2_3차": "",

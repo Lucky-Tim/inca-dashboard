@@ -133,12 +133,13 @@
     <select id="fStatus" onchange="render()"><option value="">계약현황 전체</option></select>
     <select id="fProb" onchange="render()"><option value="">클로징확률 전체</option></select>
   </div>
-  <div class="hint">💡 <b>노란 칸</b>(월납보험료·미팅1차·미팅2/3차·클로징확률·계약현황·비고)만 탭해서 입력하세요. 회색 칸(가게명·점주명·연락처·업종·동네·주소·출처서포터즈)은 서포터즈 트래커에서 넘어온 값이라 읽기전용입니다. · 미팅 칸은 일정·결과를 자유롭게 적으면 됩니다.</div>
+  <div class="hint">💡 <b>노란 칸</b>(월납보험료·미팅1차·미팅2/3차·클로징확률·계약현황·청약여부/차수/금액/상품·종결사유·증빙·비고)만 탭해서 입력하세요. 회색 칸(가게명·점주명·연락처·업종·동네·주소·출처서포터즈·DB지급일)은 서포터즈 트래커에서 넘어온 값이라 읽기전용입니다. · <b>계약현황을 "종결·실패"로 바꾸고 종결사유를 고르면</b> A/S 대상 여부·신청기한이 자동으로 계산됩니다 — A/S 인정 유형이면 증빙을 채운 뒤 "A/S 신청" 버튼을 누르세요.</div>
   <div class="tablewrap">
     <table><thead id="thead"></thead><tbody id="tb"></tbody></table>
   </div>
   <div class="foot">
     계약현황: 신규배정 → 상담중 → 청약완료 → 계약체결 · 종결·실패 · 평균 클로징확률은 종결·실패 건을 제외하고 계산합니다.<br>
+    A/S 신청기한 = DB지급일 + 9일(지급일 포함 10일). A/S 인정 10종 vs 영업 사유 7종은 종결사유 드롭다운에 함께 있고, 인정 유형만 A/S 대상으로 자동 표시됩니다.<br>
     데이터는 구글시트 "트래커" 탭에 실시간 공유 저장되며, 기존 "시흥" 탭 등 원본 자료는 이 화면에서 읽지도 쓰지도 않습니다.<br>
     ※ 표현 주의: 프리미엄 3개월 지원은 "선물·리워드"로 표현하고, 계약 조건부 혜택(계약하면 ~을 드립니다)으로 안내하지 마세요.
   </div>
@@ -161,16 +162,30 @@ const COLS=[
   {k:"동네",label:"동네",t:"ro"},
   {k:"주소",label:"주소",t:"ro"},
   {k:"출처서포터즈",label:"출처서포터즈",t:"ro"},
+  {k:"DB지급일",label:"DB지급일",t:"ro"},
   {k:"월납보험료",label:"월납보험료",t:"input"},
   {k:"컨설팅미팅1차",label:"컨설팅미팅1차",t:"wide"},
   {k:"컨설팅미팅2_3차",label:"컨설팅미팅2/3차",t:"wide"},
   {k:"클로징확률",label:"클로징확률",t:"prob"},
   {k:"계약현황",label:"계약현황",t:"status"},
+  {k:"청약여부",label:"청약여부",t:"yn"},
+  {k:"청약차수",label:"청약차수",t:"input"},
+  {k:"청약금액",label:"청약금액(만원)",t:"input"},
+  {k:"청약상품",label:"청약상품",t:"input"},
+  {k:"종결사유",label:"종결사유",t:"closereason"},
+  {k:"AS대상",label:"A/S 대상",t:"asbadge"},
+  {k:"AS신청기한",label:"A/S 기한",t:"asdue"},
+  {k:"AS신청상태",label:"A/S 상태",t:"asstatus"},
+  {k:"증빙",label:"증빙",t:"wide"},
   {k:"비고",label:"비고",t:"input"}
 ];
 
 let STATUSES=["신규배정","상담중","청약완료","계약체결","종결·실패"];
 let PROBS=["10%","30%","50%","70%","90%","100%"];
+let CLOSE_REASONS=["장기 부재","연령 기준 외","설계 불가(중대질환)","외국인","직계가족 설계사","단박 거절","보험료 0원/완납","3개월 내 보험가입","폐업","대표 아님(명의 불일치)","지인 설계사","갱신형 유지","관심 없음","가족 반대","타 GA 이관","장기 보류","기타"];
+let AS_TYPES=["장기 부재","연령 기준 외","설계 불가(중대질환)","외국인","직계가족 설계사","단박 거절","보험료 0원/완납","3개월 내 보험가입","폐업","대표 아님(명의 불일치)"];
+let AS_APPLY_STATUSES=["미신청","확인중","승인","불가능"];
+let APPLY_YN=["Y","N"];
 const ST_COLOR={"신규배정":"#EEF2F7","상담중":"#DDEFF3","청약완료":"#FFF3D6","계약체결":"#C7E9D3","종결·실패":"#F0E4E3"};
 
 let rows=[], sortK="번호", sortDir=1, mineOnly=false, SESS={name:"",pw:"",isAdmin:false};
@@ -224,6 +239,10 @@ async function doLogin(){
 function applyData(j){
   if(j.statuses) STATUSES=j.statuses;
   if(j.probs) PROBS=j.probs;
+  if(j.closeReasons) CLOSE_REASONS=j.closeReasons;
+  if(j.asTypes) AS_TYPES=j.asTypes;
+  if(j.applyStatuses) AS_APPLY_STATUSES=j.applyStatuses;
+  if(j.applyYN) APPLY_YN=j.applyYN;
   SESS.isAdmin = !!j.isAdmin;
   rows=j.rows||[];
   document.getElementById("conn").textContent="연결됨 · "+new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
@@ -277,7 +296,10 @@ function stats(){
   const avg = c>0 ? Math.round(sum/c*10)/10 : 0;
   const eff = n-fail;
   const rate = eff>0 ? Math.round(gyeyak/eff*1000)/10 : 0;
-  return {n,sinkyu,sangdam,cheongyak,gyeyak,fail,avg,rate};
+  const asElig=rs.filter(d=>d["AS대상"]==="A/S 대상").length;
+  const asReq=rs.filter(d=>["확인중","승인","불가능"].indexOf(d["AS신청상태"])>=0).length;
+  const asOk=rs.filter(d=>d["AS신청상태"]==="승인").length;
+  return {n,sinkyu,sangdam,cheongyak,gyeyak,fail,avg,rate,asElig,asReq,asOk};
 }
 function renderKPIs(){
   const s=stats(), g=Math.min(100,Math.round(s.rate/30*100));
@@ -287,8 +309,11 @@ function renderKPIs(){
   '<div class="card"><div class="label">상담중</div><div class="val">'+s.sangdam+'</div></div>'+
   '<div class="card"><div class="label">청약 / 계약체결</div><div class="val">'+s.cheongyak+'<span style="font-size:14px;color:var(--gray)"> / '+s.gyeyak+'</span></div></div>'+
   '<div class="card"><div class="label">평균 클로징확률</div><div class="val">'+s.avg+'%</div><div class="goal">진행 건 기준(종결·실패 제외)</div></div>'+
-  '<div class="card"><div class="label">종결·실패</div><div class="val">'+s.fail+'</div></div>';
+  '<div class="card"><div class="label">종결·실패</div><div class="val">'+s.fail+'</div></div>'+
+  '<div class="card"><div class="label">A/S 대상 / 신청 / 승인</div><div class="val">'+s.asElig+'<span style="font-size:14px;color:var(--gray)"> / '+s.asReq+' / '+s.asOk+'</span></div></div>';
 }
+
+function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 
 function cellHtml(d,c){
   const no=d["번호"], v=d[c.k]==null?"":d[c.k];
@@ -308,6 +333,38 @@ function cellHtml(d,c){
     return '<td data-label="클로징확률"><select class="ed" onchange="up('+no+',\'클로징확률\',this.value)">'+opts+'</select></td>';
   }
   if(c.t==="wide") return '<td data-label="'+c.label+'"><input class="ed wide" value="'+esc(v)+'" placeholder="일정·결과 자유 기술" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
+  if(c.t==="yn"){
+    const opts='<option value="" '+(v===""?"selected":"")+'>—</option>'+APPLY_YN.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join("");
+    return '<td data-label="청약여부"><select class="ed" onchange="up('+no+',\'청약여부\',this.value)">'+opts+'</select></td>';
+  }
+  if(c.t==="closereason"){
+    const opts='<option value="" '+(v===""?"selected":"")+'>—</option>'+CLOSE_REASONS.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join("");
+    return '<td data-label="종결사유"><select class="ed" onchange="up('+no+',\'종결사유\',this.value)">'+opts+'</select></td>';
+  }
+  if(c.t==="asbadge"){
+    if(!v) return '<td data-label="A/S 대상"><span class="ro">—</span></td>';
+    const bg = v==="A/S 대상" ? "#FBE3E0" : "#EEF2F7";
+    const fg = v==="A/S 대상" ? "#8a2b22" : "#5B6B7B";
+    return '<td data-label="A/S 대상"><span class="st" style="background:'+bg+';color:'+fg+'">'+esc(v)+'</span></td>';
+  }
+  if(c.t==="asdue"){
+    if(!v) return '<td data-label="A/S 기한"><span class="ro">—</span></td>';
+    const st=String(d["AS신청상태"]||"");
+    const overdue = (st!=="승인"&&st!=="확인중") && v < todayStr();
+    return '<td data-label="A/S 기한"><span class="ro" style="'+(overdue?"color:var(--red);font-weight:700":"")+'">'+esc(v)+(overdue?" (기한초과)":"")+'</span></td>';
+  }
+  if(c.t==="asstatus"){
+    const memo=esc(d["AS점검메모"]||"");
+    if(SESS.isAdmin){
+      const sel='<option value="" '+(v===""?"selected":"")+'>—</option>'+AS_APPLY_STATUSES.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join("");
+      const btns = (v==="확인중") ? ' <button style="padding:2px 6px;font-size:11px" onclick="asDecide('+no+',\'승인\')">승인</button><button style="padding:2px 6px;font-size:11px" onclick="asDecide('+no+',\'불가능\')">불가</button>' : "";
+      return '<td data-label="A/S 상태" title="'+memo+'"><select class="ed" onchange="up('+no+',\'AS신청상태\',this.value)">'+sel+'</select>'+btns+'</td>';
+    }
+    const asOk = d["AS대상"]==="A/S 대상";
+    const canSubmit = asOk && (v===""||v==="미신청") && String(d["증빙"]||"").trim();
+    const extra = canSubmit ? ' <button style="padding:2px 6px;font-size:11px" onclick="submitAs('+no+')">A/S 신청</button>' : "";
+    return '<td data-label="A/S 상태" title="'+memo+'"><span class="ro">'+(esc(v)||"—")+'</span>'+extra+'</td>';
+  }
   return '<td data-label="'+c.label+'"><input class="ed" value="'+esc(v)+'" placeholder="입력" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
 }
 
@@ -342,8 +399,28 @@ async function up(no, field, value){
   toast();
   try{
     const j=await post({action:"update", name:SESS.name, pw:SESS.pw, no:no, field:field, value:value});
-    if(!j.ok) document.getElementById("conn").textContent="저장 실패 — "+(j.error||"");
+    if(!j.ok){ document.getElementById("conn").textContent="저장 실패 — "+(j.error||""); return; }
+    if(field==="종결사유"||field==="AS신청상태"){ await load(); }
   }catch(e){ document.getElementById("conn").textContent="저장 실패 — 새로고침 후 재시도"; }
+}
+
+async function submitAs(no){
+  toast();
+  try{
+    const j=await post({action:"submitAs", name:SESS.name, pw:SESS.pw, no:no});
+    if(!j.ok){ alert("A/S 신청 실패: "+(j.error||"")); return; }
+    await load();
+  }catch(e){ alert("A/S 신청 실패 — 새로고침 후 재시도"); }
+}
+
+async function asDecide(no, decision){
+  const memo=prompt((decision==="승인"?"승인":"불가능")+" 처리 메모(선택, 비워도 됨):","")||"";
+  toast();
+  try{
+    const j=await post({action:"asDecide", name:SESS.name, pw:SESS.pw, no:no, decision:decision, memo:memo});
+    if(!j.ok){ alert("처리 실패: "+(j.error||"")); return; }
+    await load();
+  }catch(e){ alert("처리 실패 — 새로고침 후 재시도"); }
 }
 
 function report(){
