@@ -31,11 +31,26 @@ var ACCOUNT_SHEET = "계정";
 // 서포터즈 백엔드(dongsun-supporter_AppsScript.gs)의 CONSULTANT_HEADERS와 동일하게 유지할 것
 var HEADERS = ["번호","담당컨설턴트","가게명","점주명","연락처","업종","동네","주소","출처서포터즈",
                "월납보험료","컨설팅미팅1차","컨설팅미팅2_3차","클로징확률","계약현황",
-               "비고","수정자","수정시각"];
+               "비고","수정자","수정시각",
+               // 2026-09-07 추가: 기존 17개 컬럼 뒤에만 추가(순서·기존 컬럼 불변) — 실제 시트에 반영하려면 setupTrackerSheet 재실행
+               "청약여부","청약차수","청약금액","청약상품","종결사유",
+               "AS대상","AS신청기한","AS신청상태","증빙","AS점검메모","DB지급일"];
 var ACCOUNT_HEADERS = ["이름","비번","권한"];
 
 var STATUSES = ["신규배정","상담중","청약완료","계약체결","종결·실패"];
 var PROBS = ["10%","30%","50%","70%","90%","100%"];
+
+// 종결사유 드롭다운(프론트 CLOSE_REASONS와 동일하게 유지)
+var CLOSE_REASONS = ["장기 부재","연령 기준 외","설계 불가(중대질환)","외국인","직계가족 설계사","단박 거절","보험료 0원/완납","3개월 내 보험가입","폐업","대표 아님(명의 불일치)","지인 설계사","갱신형 유지","관심 없음","가족 반대","타 GA 이관","장기 보류","기타"];
+// A/S 인정 유형(프론트 AS_TYPES와 동일하게 유지) — _applyAsLogic/handleSubmitAs_에서 사용. 기존엔 정의가 누락돼 있었음(2026-09-07 수정).
+var AS_TYPES = ["장기 부재","연령 기준 외","설계 불가(중대질환)","외국인","직계가족 설계사","단박 거절","보험료 0원/완납","3개월 내 보험가입","폐업","대표 아님(명의 불일치)"];
+var AS_APPLY_STATUSES = ["미신청","확인중","승인","불가능"];
+var AS_DEADLINE_DAYS = 9; // A/S 신청기한 = DB지급일 + 9일(지급일 포함 10일). 기존엔 정의가 누락돼 있었음(2026-09-07 수정).
+
+// 증빙 파일 업로드(A/S 증빙) — 서포터즈 트래커의 사진 업로드 패턴과 동일(구글드라이브 저장 + URL을 "|"로 이어붙여 저장)
+var PHOTO_FIELDS = ["증빙"];
+var PHOTO_MAX = 5;
+var PHOTO_FOLDER_NAME = "동선_컨설턴트_증빙";
 
 // ── 시트 접근 (이름 지정 = 기존 탭 무간섭) ─────────────────────
 var _ssCache_ = null;
@@ -175,7 +190,9 @@ function readTracker_(){
 // ── doGet / doPost ────────────────────────────────────────────
 function doGet(e){
   return json_({ ok:true, service:"dongsun-consultant",
-                 statuses:STATUSES, probs:PROBS, ts:new Date().getTime(),
+                 statuses:STATUSES, probs:PROBS,
+                 closeReasons:CLOSE_REASONS, asTypes:AS_TYPES, applyStatuses:AS_APPLY_STATUSES,
+                 ts:new Date().getTime(),
                  hint:"로그인은 POST {action:'login', name, pw}" });
 }
 
@@ -190,7 +207,11 @@ function doPost(e){
     var lock = LockService.getScriptLock();
     lock.waitLock(20000);
     try{
-      if(action === "update") return handleUpdate_(body);
+      if(action === "update")      return handleUpdate_(body);
+      if(action === "submitAs")    return handleSubmitAs_(body);
+      if(action === "asDecide")    return handleAsDecide_(body);
+      if(action === "photo")       return handlePhoto_(body);
+      if(action === "deletePhoto") return handleDeletePhoto_(body);
       return json_({ok:false, error:"알 수 없는 요청: "+action});
     } finally {
       lock.releaseLock();
@@ -212,6 +233,7 @@ function handleLogin_(body){
   return json_({
     ok:true, name:auth.name, isAdmin:auth.isAdmin,
     statuses:STATUSES, probs:PROBS,
+    closeReasons:CLOSE_REASONS, asTypes:AS_TYPES, applyStatuses:AS_APPLY_STATUSES,
     rows:rows, ts:new Date().getTime()
   });
 }
@@ -241,7 +263,8 @@ function handleUpdate_(body){
 
   var field = String(body.field||"").trim();
   var editable = ["월납보험료","컨설팅미팅1차","컨설팅미팅2_3차","클로징확률","계약현황",
-                  "청약여부","청약차수","청약금액","청약상품","종결사유","증빙","비고"];
+                  "청약여부","청약차수","청약금액","청약상품","종결사유","비고"];
+  // 증빙은 action:'photo'/'deletePhoto'로만 관리(자유텍스트 update로 덮어쓰지 않음)
   var allowed = editable.slice();
   if(auth.isAdmin) allowed = allowed.concat(["담당컨설턴트","AS신청상태"]);
   if(allowed.indexOf(field) < 0) return json_({ok:false, error:"편집할 수 없는 항목입니다: "+field});
@@ -340,6 +363,133 @@ function handleAsDecide_(body){
   }
   stamp_(t.sh, t.head, t.row, auth.name);
   return json_({ok:true, no:body.no, status:decision});
+}
+
+// ── 증빙 파일 업로드(A/S 증빙) — 구글드라이브에 저장 후 트래커 셀에는 URL만 기록(서포터즈 트래커와 동일 패턴) ──
+function photoFolder_(){
+  var props = PropertiesService.getScriptProperties();
+  var fid = props.getProperty('PHOTO_FOLDER_ID');
+  if(fid){
+    try{ return DriveApp.getFolderById(fid); }catch(e){ /* 폴더가 삭제됐으면 재생성 */ }
+  }
+  var it = DriveApp.getFoldersByName(PHOTO_FOLDER_NAME);
+  var folder = it.hasNext() ? it.next() : DriveApp.createFolder(PHOTO_FOLDER_NAME);
+  props.setProperty('PHOTO_FOLDER_ID', folder.getId());
+  return folder;
+}
+
+// action:'photo' → base64 이미지를 드라이브에 저장하고 링크를 트래커 셀(증빙)에 기록
+function handlePhoto_(body){
+  var auth = auth_(body.name, body.pw);
+  if(!auth) return json_({ok:false, error:"인증 실패 — 다시 로그인하세요"});
+  var name = auth.name;
+
+  var field = String(body.field||"").trim();
+  if(PHOTO_FIELDS.indexOf(field) < 0) return json_({ok:false, error:"사진 항목이 아닙니다: "+field});
+
+  var t = findRow_(body.no);
+  if(!t) return json_({ok:false, error:"행을 찾을 수 없습니다: "+body.no});
+
+  if(!auth.isAdmin){
+    var ownerIdx = t.head.indexOf("담당컨설턴트");
+    if(ownerIdx >= 0 && String(t.values[ownerIdx]).trim() !== auth.name){
+      return json_({ok:false, error:"본인 담당 건만 증빙을 등록할 수 있습니다"});
+    }
+    var asIdx = t.head.indexOf("AS신청상태");
+    var asSt = asIdx >= 0 ? String(t.values[asIdx]).trim() : "";
+    if(asSt === "승인" || asSt === "불가능"){
+      return json_({ok:false, error:"이미 처리된 A/S 건이라 증빙을 바꿀 수 없습니다"});
+    }
+  }
+
+  // 드라이브 업로드 전에 저장할 컬럼이 실제로 있는지 먼저 확인 (없으면 파일만 올리고 실패하는 것을 방지)
+  var col = t.head.indexOf(field);
+  if(col < 0) return json_({ok:false, error:'"트래커" 탭에 "'+field+'" 컬럼이 없습니다. setupTrackerSheet를 다시 실행하세요.'});
+
+  // 기존 저장값은 "url1|url2|..." 형태(파이프 구분)
+  var existing = String(t.values[col]||"").trim();
+  var urls = existing ? existing.split("|").map(function(s){ return s.trim(); }).filter(Boolean) : [];
+  if(urls.length >= PHOTO_MAX){
+    return json_({ok:false, error:"증빙은 최대 "+PHOTO_MAX+"장까지만 등록할 수 있습니다"});
+  }
+
+  var b64 = String(body.data||"");
+  if(!b64) return json_({ok:false, error:"사진 데이터가 없습니다"});
+  if(b64.length > 8000000) return json_({ok:false, error:"사진 용량이 너무 큽니다 — 다시 촬영해보세요"});
+
+  var mime = String(body.mime||"image/jpeg");
+  var storeName = String(t.values[t.head.indexOf("가게명")]||"").trim() || "매장";
+  var stamp = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyyMMdd_HHmmss");
+  var fname = (String(body.no)+"_"+storeName+"_"+field+"_"+stamp+"_"+(urls.length+1)+".jpg").replace(/[\\\/:*?"<>|]/g, "_");
+
+  var blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, fname);
+  var folder = photoFolder_();
+  var file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  var url = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1600";
+
+  urls.push(url);
+  var joined = urls.join("|");
+  t.sh.getRange(t.row, col+1).setValue(joined);
+  stamp_(t.sh, t.head, t.row, name);
+
+  return json_({ok:true, no:body.no, field:field, value:joined});
+}
+
+// 저장된 사진 URL에서 드라이브 파일ID 추출
+function fileIdFromUrl_(url){
+  var m = String(url||"").match(/[?&]id=([^&]+)/);
+  return m ? m[1] : "";
+}
+
+// action:'deletePhoto' → 드라이브 파일 휴지통 이동 + 트래커 셀 값에서 제거
+function handleDeletePhoto_(body){
+  var auth = auth_(body.name, body.pw);
+  if(!auth) return json_({ok:false, error:"인증 실패 — 다시 로그인하세요"});
+  var name = auth.name;
+
+  var field = String(body.field||"").trim();
+  if(PHOTO_FIELDS.indexOf(field) < 0) return json_({ok:false, error:"사진 항목이 아닙니다: "+field});
+
+  var t = findRow_(body.no);
+  if(!t) return json_({ok:false, error:"행을 찾을 수 없습니다: "+body.no});
+
+  if(!auth.isAdmin){
+    var ownerIdx = t.head.indexOf("담당컨설턴트");
+    if(ownerIdx >= 0 && String(t.values[ownerIdx]).trim() !== auth.name){
+      return json_({ok:false, error:"본인 담당 건만 증빙을 삭제할 수 있습니다"});
+    }
+    var asIdx = t.head.indexOf("AS신청상태");
+    var asSt = asIdx >= 0 ? String(t.values[asIdx]).trim() : "";
+    if(asSt === "승인" || asSt === "불가능"){
+      return json_({ok:false, error:"이미 처리된 A/S 건이라 증빙을 삭제할 수 없습니다"});
+    }
+  }
+
+  var col = t.head.indexOf(field);
+  if(col < 0) return json_({ok:false, error:'"트래커" 탭에 "'+field+'" 컬럼이 없습니다. setupTrackerSheet를 다시 실행하세요.'});
+
+  var existing = String(t.values[col]||"").trim();
+  var urls = existing ? existing.split("|").map(function(s){ return s.trim(); }).filter(Boolean) : [];
+
+  var idx = Number(body.idx);
+  if(isNaN(idx) || idx < 0 || idx >= urls.length){
+    return json_({ok:false, error:"삭제할 사진을 찾을 수 없습니다"});
+  }
+
+  var removedUrl = urls[idx];
+  var fid = fileIdFromUrl_(removedUrl);
+  if(fid){
+    try{ DriveApp.getFileById(fid).setTrashed(true); }
+    catch(e){ /* 이미 삭제됐거나 접근 불가 — 셀 값은 그대로 비운다 */ }
+  }
+
+  urls.splice(idx, 1);
+  var joined = urls.join("|");
+  t.sh.getRange(t.row, col+1).setValue(joined);
+  stamp_(t.sh, t.head, t.row, name);
+
+  return json_({ok:true, no:body.no, field:field, value:joined});
 }
 
 function stamp_(sh, head, row, name){
