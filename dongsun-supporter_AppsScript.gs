@@ -42,7 +42,8 @@ var HEADERS = ["번호","담당서포터즈","가게명","점주명","연락처"
                "방문일정","TA진행상태","TA결과","컨설팅동의여부",
                "담당컨설턴트","전환상태","전환일시","비고","수정자","수정시각",
                "매장사진","동의서",
-               "컨설팅동의일시"]; // 2026-09-07 추가: 컨설팅동의여부가 "컨설팅동의"로 바뀐 시점(DB지급일 계산 기준 — 전환일시와는 별개)
+               "컨설팅동의일시", // 2026-09-07 추가: 컨설팅동의여부가 "컨설팅동의"로 바뀐 시점(DB지급일 계산 기준 — 전환일시와는 별개)
+               "기존설계사관계","월납보험료수준","3대질환진단여부"]; // 2026-09-07(2차) 추가: 동의서 등록 전 사전체크 3항목 — action:'precheck'로 저장, handleConvert_가 컨설턴트 트래커로 1회 복사
 var PHOTO_FIELDS = ["매장사진","동의서"];
 var PHOTO_MAX = 5; // 사진 항목당 최대 등록 장수 — 셀에 URL을 "|"로 이어붙여 저장
 var PHOTO_FOLDER_NAME = "동선_서포터즈_사진";
@@ -50,6 +51,9 @@ var ACCOUNT_HEADERS = ["이름","비번","권한"];
 
 var TA_STATUSES = ["대기","방문확정","부재","재접촉필요","거절"];
 var AGREES = ["미접촉","컨설팅동의","컨설팅거절","보류"];
+// 2026-09-07(2차) 추가: 동의서 등록 전 사전체크 팝업(action:'precheck') 옵션 — 프론트가 로그인 응답으로 받아 그림
+var RELATION_TYPES = ["본인","부모","자녀","배우자","없음"];
+var PREMIUM_LEVELS = ["10만 원 미만","10만 원","20만 원","30만 원","40만 원","50만 원 이상","기타(잘 모르겠음/본인이 납부안함)"];
 var CONVERT_STATUSES = ["","전환완료"];
 
 // 컨설턴트 트래커(수신 측) 헤더 — 컨설턴트 백엔드와 동일하게 유지할 것
@@ -455,7 +459,8 @@ function consultantNames_(){
 // ── doGet / doPost ────────────────────────────────────────────
 function doGet(e){
   return json_({ ok:true, service:"dongsun-supporter",
-                 taStatuses:TA_STATUSES, agrees:AGREES, ts:new Date().getTime(),
+                 taStatuses:TA_STATUSES, agrees:AGREES,
+                 relationTypes:RELATION_TYPES, premiumLevels:PREMIUM_LEVELS, ts:new Date().getTime(),
                  hint:"로그인은 POST {action:'login', name, pw}" });
 }
 
@@ -471,6 +476,7 @@ function doPost(e){
     lock.waitLock(20000);
     try{
       if(action === "update")      return handleUpdate_(body);
+      if(action === "precheck")    return handlePreCheck_(body);
       if(action === "convert")     return handleConvert_(body);
       if(action === "photo")       return handlePhoto_(body);
       if(action === "deletePhoto") return handleDeletePhoto_(body);
@@ -496,6 +502,7 @@ function handleLogin_(body){
   return json_({
     ok:true, name:auth.name, isAdmin:auth.isAdmin,
     taStatuses:TA_STATUSES, agrees:AGREES,
+    relationTypes:RELATION_TYPES, premiumLevels:PREMIUM_LEVELS,
     consultants:consultantNames_(),
     supporters:supporterNames_(),
     rows:rows, ts:new Date().getTime()
@@ -561,6 +568,47 @@ function handleUpdate_(body){
 
   stamp_(t.sh, t.head, t.row, auth.name);
   return json_({ok:true, no:body.no, field:field, value:body.value});
+}
+
+// action:'precheck' → 동의서 등록 전 사전체크 3항목(기존설계사관계·월납보험료수준·3대질환진단여부)을 한 번에 저장
+// (2026-09-07 추가) 동의서 사진을 올리기 전에 프론트에서 이 3항목이 비어있으면 팝업으로 먼저 받아서 이 액션으로 저장하고,
+// 저장 성공 후에만 사진 선택창을 엶. handleConvert_가 컨설턴트 전환 시점에 이 값들을 컨설턴트 트래커로 1회 복사함.
+function handlePreCheck_(body){
+  var auth = auth_(body.name, body.pw);
+  if(!auth) return json_({ok:false, error:"인증 실패 — 다시 로그인하세요"});
+
+  var t = findRow_(body.no);
+  if(!t) return json_({ok:false, error:"행을 찾을 수 없습니다: "+body.no});
+
+  if(!auth.isAdmin){
+    var ownerIdx = t.head.indexOf("담당서포터즈");
+    if(ownerIdx >= 0 && String(t.values[ownerIdx]).trim() !== auth.name){
+      return json_({ok:false, error:"본인 담당 건만 입력할 수 있습니다"});
+    }
+    var csIdx = t.head.indexOf("전환상태");
+    if(csIdx >= 0 && String(t.values[csIdx]).trim() === "전환완료"){
+      return json_({ok:false, error:"이미 컨설턴트로 전환된 건이라 수정할 수 없습니다"});
+    }
+  }
+
+  var relation = String(body.relation||"").trim();
+  var premium = String(body.premium||"").trim();
+  var disease = String(body.disease||"").trim(); // "아니오" 또는 "예"
+  var diseaseDetail = String(body.diseaseDetail||"").trim();
+
+  if(RELATION_TYPES.indexOf(relation) < 0) return json_({ok:false, error:"기존 보험설계사 관계를 선택하세요"});
+  if(PREMIUM_LEVELS.indexOf(premium) < 0) return json_({ok:false, error:"월평균 보험료 수준을 선택하세요"});
+  if(disease !== "아니오" && disease !== "예") return json_({ok:false, error:"3대 질환 진단 여부를 선택하세요"});
+
+  var diseaseVal = (disease === "예") ? ("예: " + (diseaseDetail || "상세 미입력")) : "아니오";
+
+  var setIf = function(k, v){ var i = t.head.indexOf(k); if(i>=0) t.sh.getRange(t.row, i+1).setValue(v); };
+  setIf("기존설계사관계", relation);
+  setIf("월납보험료수준", premium);
+  setIf("3대질환진단여부", diseaseVal);
+  stamp_(t.sh, t.head, t.row, auth.name);
+
+  return json_({ok:true, no:body.no, "기존설계사관계":relation, "월납보험료수준":premium, "3대질환진단여부":diseaseVal});
 }
 
 function stamp_(sh, head, row, name){
@@ -630,6 +678,9 @@ function handleConvert_(body){
     "주소": g("주소"),
     "출처서포터즈": g("담당서포터즈") || name,
     "DB지급일": Utilities.formatDate(addBusinessDays_(agreedDate, 1), "Asia/Seoul", "yyyy-MM-dd"), // 컨설팅동의 시점 + 1영업일(주말 제외) — 컨설턴트 쪽 A/S 신청기한 계산 기준
+    "기존설계사관계": g("기존설계사관계"), // 2026-09-07(2차): 동의서 등록 전 사전체크(action:'precheck') 결과, 전환 시점에 1회 복사
+    "월납보험료수준": g("월납보험료수준"),
+    "3대질환진단여부": g("3대질환진단여부"),
     "월납보험료": "",
     "컨설팅미팅1차": "",
     "컨설팅미팅2_3차": "",
