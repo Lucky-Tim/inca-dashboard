@@ -628,7 +628,7 @@ function backfillPreCheckFromOriginalSheet_20260907(){
     return;
   }
 
-  var osh = ss_().getSheetByName(ORIGINAL_SHEET_NAME);
+  var osh = findSheetByNameLoose_(ss_(), ORIGINAL_SHEET_NAME);
   if(!osh){ Logger.log('"' + ORIGINAL_SHEET_NAME + '" 탭을 찾을 수 없습니다.'); return; }
   var odata = osh.getDataRange().getValues();
   var ohead = odata[0].map(function(h){ return String(h).trim(); });
@@ -695,6 +695,114 @@ function backfillPreCheckFromOriginalSheet_20260907(){
              (ambiguous.length ? (": " + ambiguous.join(" / ")) : "") + ".");
 }
 
+// ── 동기화 (2026-09-07): "2026.09" 탭(자유서식 공유시트, 팀이 계속 병행해서 쓰는 원본)의
+// 1차/2차/3차 컨설팅 현황·일정을 컨설턴트 "트래커"의 컨설팅미팅1차/컨설팅미팅2_3차 컬럼으로 반영.
+// (서포터즈 쪽 syncFromSharedSheet_20260907과 같은 "공유시트가 원본" 동기화 작업의 컨설턴트 쪽 부분 —
+// 자세한 배경/결정사항은 컨설턴트_트래커_설계안_v1.md 11절, 서포터즈_트래커_개발이력.md 9절 참고)
+//   "1차 현황" + "1차 컨설팅 일정" → 컨설팅미팅1차 (예: "확정 · 9/7(월) 14시")
+//   "2차 현황" + "2차 컨설팅 일정", "3차 현황" + "3차 컨설팅 일정" → 컨설팅미팅2_3차
+//     (2차·3차 각각 "현황 · 일정" 형태로 합친 뒤, 둘 다 있으면 " / "로 이어붙임 — 예: "2차: 확정 · 9/10(목) / 3차: 대기")
+// 이 두 컬럼은 컨설턴트가 트래커 화면에서 직접 자유롭게 수정하는 편집 가능 필드라서(자동배정 필드인
+// 담당서포터즈 등과 성격이 다름), 여기서는 값이 달라도 덮어쓰지 않고 **트래커 쪽이 비어있을 때만** 채움
+// (비파괴). "🎉 청약" 컬럼은 자유서식이라 청약여부/청약차수/청약금액/청약상품으로 안전하게 자동 파싱하기
+// 어려워 사용자 확인 후 이번 동기화 대상에서 제외함 — 필요시 트래커 UI에서 컨설턴트가 직접 입력.
+function syncMeetingScheduleFromSharedSheet_20260907(){
+  var ORIGINAL_SHEET_NAME = "2026.09";
+  var normPhone = function(v){
+    var s = String(v||"").replace(/\D/g, "");
+    if(s.indexOf("0") === 0) s = s.substring(1);
+    return s;
+  };
+  var combine = function(status, sched){
+    status = String(status||"").trim();
+    sched = String(sched||"").trim();
+    if(status && sched) return status + " · " + sched;
+    return status || sched || "";
+  };
+
+  var osh = findSheetByNameLoose_(ss_(), ORIGINAL_SHEET_NAME);
+  if(!osh){ Logger.log('"' + ORIGINAL_SHEET_NAME + '" 탭을 찾을 수 없습니다.'); return; }
+  var odata = osh.getDataRange().getValues();
+  var ohead = odata[0].map(function(h){ return String(h).trim(); });
+  var oColName = ohead.indexOf("매장명");
+  var oColPhone = ohead.indexOf("점주 연락처");
+  var oCol1Status = ohead.indexOf("1차 현황");
+  var oCol1Sched = ohead.indexOf("1차 컨설팅 일정");
+  var oCol2Status = ohead.indexOf("2차 현황");
+  var oCol2Sched = ohead.indexOf("2차 컨설팅 일정");
+  var oCol3Status = ohead.indexOf("3차 현황");
+  var oCol3Sched = ohead.indexOf("3차 컨설팅 일정");
+  if(oColName<0 || oColPhone<0){
+    Logger.log('"' + ORIGINAL_SHEET_NAME + '" 탭에서 "매장명"/"점주 연락처" 컬럼을 찾을 수 없습니다.');
+    return;
+  }
+
+  var srcMap = {};
+  for(var i=1;i<odata.length;i++){
+    var orow = odata[i];
+    var name = String(orow[oColName]||"").trim();
+    if(!name || name==="ex)") continue;
+    var key = name + "|" + normPhone(orow[oColPhone]);
+    var part1 = combine(oCol1Status>=0?orow[oCol1Status]:"", oCol1Sched>=0?orow[oCol1Sched]:"");
+    var part2 = combine(oCol2Status>=0?orow[oCol2Status]:"", oCol2Sched>=0?orow[oCol2Sched]:"");
+    var part3 = combine(oCol3Status>=0?orow[oCol3Status]:"", oCol3Sched>=0?orow[oCol3Sched]:"");
+    var parts23 = [];
+    if(part2) parts23.push("2차: " + part2);
+    if(part3) parts23.push("3차: " + part3);
+    srcMap[key] = { meeting1: part1, meeting23: parts23.join(" / ") };
+  }
+
+  var sh = trackerSheet_();
+  var data = sh.getDataRange().getValues();
+  var head = data[0].map(function(h){ return String(h).trim(); });
+  var colStore = head.indexOf("가게명");
+  var colPhone = head.indexOf("연락처");
+  var colM1 = head.indexOf("컨설팅미팅1차");
+  var colM23 = head.indexOf("컨설팅미팅2_3차");
+  if(colStore<0 || colPhone<0 || colM1<0 || colM23<0){
+    Logger.log("트래커 탭 필수 컬럼(가게명/연락처/컨설팅미팅1차/컨설팅미팅2_3차)이 없습니다.");
+    return;
+  }
+
+  var filled1=0, filled23=0, skippedNoMatch=0;
+  for(var r=1;r<data.length;r++){
+    var storeName = String(data[r][colStore]||"").trim();
+    if(!storeName) continue;
+    var key2 = storeName + "|" + normPhone(data[r][colPhone]);
+    var src = srcMap[key2];
+    if(!src){ skippedNoMatch++; continue; }
+    var rowNum = r+1;
+
+    if(src.meeting1 && !String(data[r][colM1]||"").trim()){
+      sh.getRange(rowNum, colM1+1).setValue(src.meeting1);
+      filled1++;
+    }
+    if(src.meeting23 && !String(data[r][colM23]||"").trim()){
+      sh.getRange(rowNum, colM23+1).setValue(src.meeting23);
+      filled23++;
+    }
+  }
+
+  Logger.log(
+    "컨설팅미팅 일정 동기화 완료 — 컨설팅미팅1차 신규채움 " + filled1 + "건, " +
+    "컨설팅미팅2_3차 신규채움 " + filled23 + "건, " +
+    "매칭 실패 " + skippedNoMatch + "건. (이미 값이 있던 행은 비파괴 원칙에 따라 건드리지 않음)"
+  );
+}
+
+// 유니코드 정규화 차이(NFC/NFD)로 인해 getSheetByName이 육안상 동일한 이름의 탭을
+// 못 찾는 문제를 방지하기 위한 느슨한 탭 찾기(정규화+trim 후 비교). 특히 한글이 섞인
+// 탭 이름(다른 사람이 다른 환경에서 만든 "공유시트" 등)에서 이런 불일치가 생길 수 있음
+// (2026-09-07, syncFromSharedSheet_20260907이 "탭을 찾을 수 없습니다" 오류를 낸 것을 보고 추가).
+function findSheetByNameLoose_(ss, name){
+  var target = String(name).normalize("NFC").trim();
+  var sheets = ss.getSheets();
+  for(var i=0;i<sheets.length;i++){
+    var actual = sheets[i].getName().normalize("NFC").trim();
+    if(actual === target) return sheets[i];
+  }
+  return null;
+}
 function stamp_(sh, head, row, name){
   var uc = head.indexOf("수정자");   if(uc >= 0) sh.getRange(row, uc+1).setValue(name);
   var tc = head.indexOf("수정시각"); if(tc >= 0) sh.getRange(row, tc+1).setValue(now_());

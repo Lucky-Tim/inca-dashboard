@@ -49,7 +49,7 @@ var PHOTO_MAX = 5; // 사진 항목당 최대 등록 장수 — 셀에 URL을 "|
 var PHOTO_FOLDER_NAME = "동선_서포터즈_사진";
 var ACCOUNT_HEADERS = ["이름","비번","권한"];
 
-var TA_STATUSES = ["대기","방문확정","부재","재접촉필요","거절"];
+var TA_STATUSES = ["대기","방문확정","부재","재접촉필요","거절","보류"];
 var AGREES = ["미접촉","컨설팅동의","컨설팅거절","보류"];
 // 2026-09-07(3차) 추가: 동의서 등록 전 사전체크 팝업(action:'precheck') 항목 정의 — 프론트가 로그인 응답(precheckFields)으로
 // 받아서 팝업을 통째로 동적 렌더링함. 항목을 추가하려면 위 HEADERS에 컬럼명을 추가하고 아래 배열에 정의 하나만 더 넣으면
@@ -82,6 +82,19 @@ function ss_(){
     if(!_ssCache_) throw new Error("스프레드시트를 열 수 없습니다: " + SPREADSHEET_ID);
   }
   return _ssCache_;
+}
+// 유니코드 정규화 차이(NFC/NFD)로 인해 getSheetByName이 육안상 동일한 이름의 탭을
+// 못 찾는 문제를 방지하기 위한 느슨한 탭 찾기(정규화+trim 후 비교). 특히 한글이 섞인
+// 탭 이름(다른 사람이 다른 환경에서 만든 "공유시트" 등)에서 이런 불일치가 생길 수 있음
+// (2026-09-07, syncFromSharedSheet_20260907이 "탭을 찾을 수 없습니다" 오류를 낸 것을 보고 추가).
+function findSheetByNameLoose_(ss, name){
+  var target = String(name).normalize("NFC").trim();
+  var sheets = ss.getSheets();
+  for(var i=0;i<sheets.length;i++){
+    var actual = sheets[i].getName().normalize("NFC").trim();
+    if(actual === target) return sheets[i];
+  }
+  return null;
 }
 function trackerSheet_(){
   var sh = ss_().getSheetByName(TRACKER_SHEET);
@@ -365,7 +378,157 @@ function mergeTaIntoResult_20260905(){
   Logger.log("TA진행상태 → TA결과 통합: 신규반영 " + moved + "건 · 이미일치 " + kept + "건 · 메모는 비고로 보존 후 덮어씀 " + noted + "건");
 }
 
-// ── 공통 유틸 ─────────────────────────────────────────────────
+// ── 동기화 (2026-09-07): "공유시트"("(6)장곡장현능곡연성군자 장곡동 122_2022~26" 탭, 팀이 병행해서
+// 계속 수동으로 쓰고 있는 자유서식 원본)를 "트래커" 탭으로 반영. 공유시트가 원본(authoritative)이라는
+// 전제 하에, 아래 5개 필드는 값이 다르면 공유시트 값으로 덮어씀(비고만 예외 — 비파괴):
+//   "TA 진행"   → 담당서포터즈 (담당자 배정 필드라 값이 바뀌면 매번 로그에 남김)
+//   "TA 결과"   → TA결과       (아래 매핑표로 정규화. 매핑에 없는 값은 짐작하지 않고 로그만 남기고 건너뜀)
+//   "방문일정"  → 방문일정     (같은 스프레드시트 내 Date 값이라 시간대 변환 없이 그대로 복사)
+//   "동의 여부" → 컨설팅동의여부 (매핑표로 정규화. 새로 "컨설팅동의"가 되는데 컨설팅동의일시가 비어있으면
+//                                지금 시각으로 채움 — handleUpdate_의 기존 동작과 동일한 규칙)
+//   "비고"     → 비고          (트래커 쪽 비고가 비어있을 때만 채움 — 기존 메모를 덮어쓰지 않음)
+// 매칭 키: 가게명 + 점주 연락처(숫자만, 맨 앞 0 제거). 이후 시간 간격을 두고 재실행해도 안전하도록
+// 이미 같은 값이면 건드리지 않고, 실제로 값이 바뀐 건수만 집계함.
+function syncFromSharedSheet_20260907(){
+  var SHARED_SHEET_NAME = "(6)장곡장현능곡연성군자 장곡동 122_2022~26";
+  var normPhone = function(v){
+    var s = String(v||"").replace(/\D/g, "");
+    if(s.indexOf("0") === 0) s = s.substring(1);
+    return s;
+  };
+  var TA_RESULT_MAP = { "대기":"대기", "방문 확정":"방문확정", "부재":"부재", "재연락필요":"재접촉필요", "거절":"거절", "보류":"보류" };
+  var AGREE_MAP = { "동의":"컨설팅동의", "거절":"컨설팅거절", "보류":"보류" };
+
+  var osh = findSheetByNameLoose_(ss_(), SHARED_SHEET_NAME);
+  if(!osh){ Logger.log('"' + SHARED_SHEET_NAME + '" 탭을 찾을 수 없습니다.'); return; }
+  var odata = osh.getDataRange().getValues();
+  var ohead = odata[0].map(function(h){ return String(h).trim(); });
+  var oColOwner = ohead.indexOf("TA 진행");
+  var oColResult = ohead.indexOf("TA 결과");
+  var oColNote = ohead.indexOf("비고");
+  var oColVisit = ohead.indexOf("방문일정");
+  var oColAgree = ohead.indexOf("동의 여부");
+  var oColName = ohead.indexOf("가게명");
+  var oColPhone = ohead.indexOf("점주 연락처");
+  if(oColName<0 || oColPhone<0){
+    Logger.log('"' + SHARED_SHEET_NAME + '" 탭에서 "가게명"/"점주 연락처" 컬럼을 찾을 수 없습니다.');
+    return;
+  }
+
+  var srcMap = {};
+  for(var i=1;i<odata.length;i++){
+    var orow = odata[i];
+    var name = String(orow[oColName]||"").trim();
+    if(!name) continue;
+    var key = name + "|" + normPhone(orow[oColPhone]);
+    srcMap[key] = {
+      owner: oColOwner>=0 ? String(orow[oColOwner]||"").trim() : "",
+      result: oColResult>=0 ? String(orow[oColResult]||"").trim() : "",
+      note: oColNote>=0 ? String(orow[oColNote]||"").trim() : "",
+      visit: oColVisit>=0 ? orow[oColVisit] : "",
+      agree: oColAgree>=0 ? String(orow[oColAgree]||"").trim() : ""
+    };
+  }
+
+  var sh = trackerSheet_();
+  var data = sh.getDataRange().getValues();
+  var head = data[0].map(function(h){ return String(h).trim(); });
+  var colStore = head.indexOf("가게명");
+  var colPhone = head.indexOf("연락처");
+  var colOwner = head.indexOf("담당서포터즈");
+  var colResult = head.indexOf("TA결과");
+  var colVisit = head.indexOf("방문일정");
+  var colAgree = head.indexOf("컨설팅동의여부");
+  var colAgreedAt = head.indexOf("컨설팅동의일시");
+  var colNote = head.indexOf("비고");
+  if(colStore<0 || colPhone<0 || colOwner<0 || colResult<0 || colVisit<0 || colAgree<0 || colNote<0){
+    Logger.log("트래커 탭 필수 컬럼(가게명/연락처/담당서포터즈/TA결과/방문일정/컨설팅동의여부/비고)이 없습니다.");
+    return;
+  }
+
+  var ownerChanges = [], resultUpdated=0, visitUpdated=0, agreeUpdated=0, noteFilled=0;
+  var skippedNoMatch=0, ambiguousResult=[], ambiguousAgree=[];
+
+  for(var r=1;r<data.length;r++){
+    var storeName = String(data[r][colStore]||"").trim();
+    if(!storeName) continue;
+    var key2 = storeName + "|" + normPhone(data[r][colPhone]);
+    var src = srcMap[key2];
+    if(!src){ skippedNoMatch++; continue; }
+    var rowNum = r+1;
+
+    // 담당서포터즈 ← TA 진행 (값이 있고 다르면 덮어쓰고 로그)
+    if(src.owner){
+      var curOwner = String(data[r][colOwner]||"").trim();
+      if(curOwner !== src.owner){
+        sh.getRange(rowNum, colOwner+1).setValue(src.owner);
+        ownerChanges.push(storeName + ": '" + curOwner + "' → '" + src.owner + "'");
+      }
+    }
+
+    // TA결과 ← TA 결과 (매핑표로 정규화)
+    if(src.result){
+      var mappedResult = TA_RESULT_MAP[src.result];
+      if(mappedResult){
+        var curResult = String(data[r][colResult]||"").trim();
+        if(curResult !== mappedResult){
+          sh.getRange(rowNum, colResult+1).setValue(mappedResult);
+          resultUpdated++;
+        }
+      } else {
+        ambiguousResult.push(storeName + " (TA 결과='" + src.result + "')");
+      }
+    }
+
+    // 방문일정 ← 방문일정 (같은 스프레드시트 내 Date라 그대로 복사)
+    if(src.visit){
+      var curVisit = data[r][colVisit];
+      var curVisitMs = (curVisit instanceof Date) ? curVisit.getTime() : null;
+      var srcVisitMs = (src.visit instanceof Date) ? src.visit.getTime() : null;
+      if(srcVisitMs !== null && srcVisitMs !== curVisitMs){
+        sh.getRange(rowNum, colVisit+1).setValue(src.visit);
+        visitUpdated++;
+      }
+    }
+
+    // 컨설팅동의여부 ← 동의 여부 (매핑표로 정규화 + 신규 동의 시 컨설팅동의일시 채움)
+    if(src.agree){
+      var mappedAgree = AGREE_MAP[src.agree];
+      if(mappedAgree){
+        var curAgree = String(data[r][colAgree]||"").trim();
+        if(curAgree !== mappedAgree){
+          sh.getRange(rowNum, colAgree+1).setValue(mappedAgree);
+          agreeUpdated++;
+          if(mappedAgree === "컨설팅동의" && colAgreedAt>=0 && !String(data[r][colAgreedAt]||"").trim()){
+            sh.getRange(rowNum, colAgreedAt+1).setValue(now_());
+          }
+        }
+      } else {
+        ambiguousAgree.push(storeName + " (동의 여부='" + src.agree + "')");
+      }
+    }
+
+    // 비고 ← 비고 (트래커 쪽이 비어있을 때만 채움 — 비파괴)
+    if(src.note && !String(data[r][colNote]||"").trim()){
+      sh.getRange(rowNum, colNote+1).setValue(src.note);
+      noteFilled++;
+    }
+  }
+
+  Logger.log(
+    "공유시트→트래커 동기화 완료 — " +
+    "담당서포터즈 변경 " + ownerChanges.length + "건" + (ownerChanges.length ? (" [" + ownerChanges.join(" / ") + "]") : "") + ", " +
+    "TA결과 갱신 " + resultUpdated + "건, " +
+    "방문일정 갱신 " + visitUpdated + "건, " +
+    "컨설팅동의여부 갱신 " + agreeUpdated + "건, " +
+    "비고 신규채움 " + noteFilled + "건, " +
+    "매칭 실패 " + skippedNoMatch + "건, " +
+    "TA결과 매핑 애매(건너뜀) " + ambiguousResult.length + "건" + (ambiguousResult.length ? (": " + ambiguousResult.join(" / ")) : "") + ", " +
+    "동의여부 매핑 애매(건너뜀) " + ambiguousAgree.length + "건" + (ambiguousAgree.length ? (": " + ambiguousAgree.join(" / ")) : "") + "."
+  );
+}
+
+// ── 공통 유틸 ───────────────────────────────────────────────
 function json_(obj){
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
