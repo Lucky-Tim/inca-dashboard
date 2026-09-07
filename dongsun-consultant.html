@@ -128,6 +128,7 @@
   <div class="toolbar">
     <button class="primary" onclick="load()">↻ 새로고침</button>
     <button id="btnMine" class="on" onclick="toggleMine()">👤 내 담당만</button>
+    <button id="btnDist" onclick="sortByDistance()">📍 가까운 순</button>
     <button class="gold" onclick="report()">📨 오늘 단톡 보고</button>
     <button onclick="logout()">로그아웃</button>
     <span class="spacer"></span>
@@ -135,7 +136,7 @@
     <select id="fStatus" onchange="render()"><option value="">계약현황 전체</option></select>
     <select id="fProb" onchange="render()"><option value="">클로징확률 전체</option></select>
   </div>
-  <div class="hint">💡 <b>노란 칸</b>(월납보험료·미팅1차·미팅2/3차·클로징확률·계약현황·청약여부/차수/금액/상품·종결사유·증빙·비고)만 탭해서 입력하세요. 회색 칸(가게명·점주명·연락처·업종·동네·주소·출처서포터즈·DB지급일)은 서포터즈 트래커에서 넘어온 값이라 읽기전용입니다. · <b>계약현황을 "종결·실패"로 바꾸고 종결사유를 고르면</b> A/S 대상 여부·신청기한이 자동으로 계산됩니다 — A/S 인정 유형이면 증빙 사진을 등록한 뒤 "A/S 신청" 버튼을 누르세요.</div>
+  <div class="hint">💡 <b>노란 칸</b>(월납보험료·미팅1차·미팅2/3차·클로징확률·계약현황·청약여부/차수/금액/상품·종결사유·증빙·비고)만 탭해서 입력하세요. 회색 칸(가게명·점주명·연락처·업종·동네·주소·출처서포터즈·DB지급일)은 서포터즈 트래커에서 넘어온 값이라 읽기전용입니다. · <b>계약현황을 "종결·실패"로 바꾸고 종결사유를 고르면</b> A/S 대상 여부·신청기한이 자동으로 계산됩니다 — A/S 인정 유형이면 증빙 사진을 등록한 뒤 "A/S 신청" 버튼을 누르세요. · <b>📍 가까운 순</b> 버튼(또는 "거리" 칸 클릭)을 누르면 위치 권한 허용 후 지금 계신 곳에서 가까운 매장 순으로 정렬됩니다(좌표가 있는 매장만 거리가 표시돼요).</div>
   <div class="tablewrap">
     <table><thead id="thead"></thead><tbody id="tb"></tbody></table>
   </div>
@@ -163,6 +164,7 @@ const COLS=[
   {k:"업종",label:"업종",t:"fixed"},
   {k:"동네",label:"동네",t:"ro"},
   {k:"주소",label:"주소",t:"ro"},
+  {k:"_distKm",label:"거리",t:"dist"},
   {k:"출처서포터즈",label:"출처서포터즈",t:"ro"},
   {k:"기존설계사관계",label:"기존설계사관계",t:"ro"},
   {k:"월납보험료수준",label:"월평균보험료 수준",t:"ro"},
@@ -286,13 +288,44 @@ function buildHead(){
   const th=document.getElementById("thead");
   th.innerHTML='<tr><th data-k="번호">#  가게명</th>'+COLS.map(c=>'<th data-k="'+c.k+'">'+c.label+'</th>').join("")+'</tr>';
   th.querySelectorAll("th[data-k]").forEach(el=>el.onclick=()=>{
-    const k=el.dataset.k; if(sortK===k) sortDir*=-1; else{sortK=k;sortDir=1;} render();
+    const k=el.dataset.k;
+    if(k==="_distKm"){ if(sortK==="_distKm"){ sortDir*=-1; render(); } else { sortByDistance(); } return; }
+    if(sortK===k) sortDir*=-1; else{sortK=k;sortDir=1;} render();
   });
 }
 
 function esc(s){return String(s==null?"":s).replace(/"/g,"&quot;").replace(/</g,"&lt;");}
 function fmtPhone(v){ v=String(v==null?"":v).trim(); if(/^\d{9,10}$/.test(v)) return "0"+v; return v; }
 function probNum(v){ var m=String(v==null?"":v).match(/\d+/); return m?parseInt(m[0],10):null; }
+function haversineKm(lat1,lon1,lat2,lon2){
+  const R=6371;
+  const dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function sortByDistance(){
+  if(!navigator.geolocation){ alert("이 브라우저는 위치 정보를 지원하지 않습니다."); return; }
+  const btn=document.getElementById("btnDist");
+  const orig=btn.textContent;
+  btn.disabled=true; btn.textContent="위치 확인 중…";
+  navigator.geolocation.getCurrentPosition(function(pos){
+    const lat0=pos.coords.latitude, lng0=pos.coords.longitude;
+    rows.forEach(function(d){
+      const lat=parseFloat(d["위도"]), lng=parseFloat(d["경도"]);
+      d["_distKm"]=(isFinite(lat)&&isFinite(lng)) ? haversineKm(lat0,lng0,lat,lng) : null;
+    });
+    sortK="_distKm"; sortDir=1;
+    btn.disabled=false; btn.textContent=orig;
+    render();
+  }, function(err){
+    btn.disabled=false; btn.textContent=orig;
+    let msg="위치 정보를 가져오지 못했습니다.";
+    if(err.code===1) msg="위치 정보 접근이 거부됐습니다 — 브라우저(또는 폰) 설정에서 이 사이트의 위치 권한을 허용해주세요.";
+    else if(err.code===2) msg="현재 위치를 확인할 수 없습니다.";
+    else if(err.code===3) msg="위치 확인이 시간 초과됐습니다 — 다시 시도해주세요.";
+    alert(msg);
+  }, {enableHighAccuracy:true, timeout:10000, maximumAge:60000});
+}
 
 function stats(){
   const rs=scoped();
@@ -325,6 +358,11 @@ function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.get
 
 function cellHtml(d,c){
   const no=d["번호"], v=d[c.k]==null?"":d[c.k];
+  if(c.k==="_distKm"){
+    const dv=d["_distKm"];
+    const label=(dv==null)?"—":(dv<1?Math.round(dv*1000)+"m":dv.toFixed(1)+"km");
+    return '<td data-label="거리"><span class="ro">'+label+'</span></td>';
+  }
   if(c.k==="담당컨설턴트"){
     if(SESS.isAdmin) return '<td data-label="담당"><input class="ed" value="'+esc(v)+'" placeholder="담당자명" onchange="up('+no+',\'담당컨설턴트\',this.value)"></td>';
     return '<td data-label="담당"><span class="ro" title="'+esc(v)+'">'+(esc(v)||"—")+'</span></td>';
@@ -408,6 +446,7 @@ function render(){
   rs.sort((a,b)=>{let x=a[sortK],y=b[sortK];
     if(sortK==="계약현황"){x=STATUSES.indexOf(x);y=STATUSES.indexOf(y);}
     if(sortK==="클로징확률"){x=probNum(x);y=probNum(y);}
+    if(sortK==="_distKm"){x=(x==null?Infinity:x); y=(y==null?Infinity:y);}
     if(x<y)return -1*sortDir; if(x>y)return 1*sortDir; return 0;});
   const tb=document.getElementById("tb");
   if(!rs.length){ tb.innerHTML='<tr><td class="empty">표시할 컨설팅DB가 없습니다.'+(SESS.isAdmin&&mineOnly?' <button onclick="toggleMine()">전체보기</button>':'')+'</td></tr>'; return; }

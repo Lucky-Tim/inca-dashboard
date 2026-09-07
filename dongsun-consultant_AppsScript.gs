@@ -23,6 +23,8 @@
 // ── 스프레드시트 ID ───────────────────────────────────────────
 // 동선_컨설팅 DB 관리용
 var SPREADSHEET_ID = "1J_otYQ_gMwVskqUHoCLdJIbkTytjF13P4t1044YN2jI";
+// 서포터즈 원본 스프레드시트(읽기 전용 참조 — 위도/경도 소급 채우기용, 2026-09-07(5차) 추가)
+var SUPPORTER_SPREADSHEET_ID = "1ewvEx1GdEzhVsIdbymxevSGbdusimLNcW0PQEvqQamw";
 
 // ── 신규 탭 이름 (기존 "시흥" 등과 절대 겹치지 않게) ────────────
 var TRACKER_SHEET = "트래커";
@@ -37,7 +39,9 @@ var HEADERS = ["번호","담당컨설턴트","가게명","점주명","연락처"
                "AS대상","AS신청기한","AS신청상태","증빙","AS점검메모","DB지급일",
                // 2026-09-07(3차) 추가: 서포터즈의 동의서 등록 전 사전체크 항목 — 전환 시점에 1회 복사되어 옴(읽기전용), setupTrackerSheet 재실행 필요.
                // 서포터즈 쪽 PRECHECK_FIELDS와 컬럼명을 맞춰야 함(항목이 늘면 여기도 같이 추가)
-               "기존설계사관계","월납보험료수준","연령대","성별","3대질환진단여부"];
+               "기존설계사관계","월납보험료수준","연령대","성별","3대질환진단여부",
+               // 2026-09-07(5차) 추가: 서포터즈에서 지오코딩한 좌표("가까운 순" 정렬용) — 전환 시점에 1회 복사(읽기전용), 기존 행은 backfillLatLngFromSupporter_20260907()으로 소급
+               "위도","경도"];
 var ACCOUNT_HEADERS = ["이름","비번","권한"];
 
 var STATUSES = ["신규배정","상담중","청약완료","계약체결","종결·실패"];
@@ -794,6 +798,61 @@ function syncMeetingScheduleFromSharedSheet_20260907(){
 // 못 찾는 문제를 방지하기 위한 느슨한 탭 찾기(정규화+trim 후 비교). 특히 한글이 섞인
 // 탭 이름(다른 사람이 다른 환경에서 만든 "공유시트" 등)에서 이런 불일치가 생길 수 있음
 // (2026-09-07, syncFromSharedSheet_20260907이 "탭을 찾을 수 없습니다" 오류를 낸 것을 보고 추가).
+// 일회성 마이그레이션(2026-09-07, 5차): 서포터즈 트래커에 있는 위도/경도를 가게명+연락처로 매칭해
+// 이 트래커의 비어있는 위도/경도 칸에만 채움(비파괴). 앞으로 새로 전환되는 건은 handleConvert_가 자동 복사하므로
+// 이 함수는 이미 전환완료된 기존 행에 대해서만 필요.
+function backfillLatLngFromSupporter_20260907(){
+  var normPhone = function(v){
+    var s = String(v||"").replace(/\D/g, "");
+    if(s.indexOf("0") === 0) s = s.substring(1);
+    return s;
+  };
+  var sss = SpreadsheetApp.openById(SUPPORTER_SPREADSHEET_ID);
+  var ssh = sss.getSheetByName("트래커");
+  if(!ssh){ Logger.log('서포터즈 스프레드시트에서 "트래커" 탭을 찾을 수 없습니다.'); return; }
+  var sdata = ssh.getDataRange().getValues();
+  var shead = sdata[0].map(function(h){ return String(h).trim(); });
+  var sColStore = shead.indexOf("가게명"), sColPhone = shead.indexOf("연락처"),
+      sColLat = shead.indexOf("위도"), sColLng = shead.indexOf("경도");
+  if(sColStore<0 || sColPhone<0 || sColLat<0 || sColLng<0){
+    Logger.log("서포터즈 트래커에서 가게명/연락처/위도/경도 컬럼을 찾을 수 없습니다.");
+    return;
+  }
+  var srcMap = {};
+  for(var i=1;i<sdata.length;i++){
+    var srow = sdata[i];
+    var name = String(srow[sColStore]||"").trim();
+    if(!name) continue;
+    srcMap[name + "|" + normPhone(srow[sColPhone])] = { lat: srow[sColLat], lng: srow[sColLng] };
+  }
+
+  var sh = trackerSheet_();
+  var data = sh.getDataRange().getValues();
+  var head = data[0].map(function(h){ return String(h).trim(); });
+  var colStore = head.indexOf("가게명"), colPhone = head.indexOf("연락처"),
+      colLat = head.indexOf("위도"), colLng = head.indexOf("경도");
+  if(colStore<0 || colPhone<0 || colLat<0 || colLng<0){
+    Logger.log("컨설턴트 트래커에서 가게명/연락처/위도/경도 컬럼을 찾을 수 없습니다. setupTrackerSheet를 재실행하세요.");
+    return;
+  }
+
+  var updated=0, skippedHasValue=0, skippedNoMatch=0;
+  for(var r=1;r<data.length;r++){
+    var storeName = String(data[r][colStore]||"").trim();
+    if(!storeName) continue;
+    if(String(data[r][colLat]||"").trim() && String(data[r][colLng]||"").trim()){ skippedHasValue++; continue; }
+    var src = srcMap[storeName + "|" + normPhone(data[r][colPhone])];
+    if(!src || src.lat==="" || src.lng===""){ skippedNoMatch++; continue; }
+    sh.getRange(r+1, colLat+1).setValue(src.lat);
+    sh.getRange(r+1, colLng+1).setValue(src.lng);
+    updated++;
+  }
+  Logger.log(
+    "서포터즈 좌표 소급 채우기 완료 — 갱신 " + updated + "건, 이미 값 있어서 건너뜀 " + skippedHasValue + "건, " +
+    "매칭 실패/좌표없음 " + skippedNoMatch + "건."
+  );
+}
+
 function findSheetByNameLoose_(ss, name){
   var target = String(name).normalize("NFC").trim();
   var sheets = ss.getSheets();

@@ -43,7 +43,8 @@ var HEADERS = ["번호","담당서포터즈","가게명","점주명","연락처"
                "담당컨설턴트","전환상태","전환일시","비고","수정자","수정시각",
                "매장사진","동의서",
                "컨설팅동의일시", // 2026-09-07 추가: 컨설팅동의여부가 "컨설팅동의"로 바뀐 시점(DB지급일 계산 기준 — 전환일시와는 별개)
-               "기존설계사관계","월납보험료수준","연령대","성별","3대질환진단여부"]; // 2026-09-07(3차) 추가: 동의서 등록 전 사전체크 항목(PRECHECK_FIELDS 참고) — action:'precheck'로 저장, handleConvert_가 컨설턴트 트래커로 1회 복사. 항목을 늘릴 때는 여기 컬럼 추가 + 아래 PRECHECK_FIELDS에 정의만 추가하면 됨(비파괴, 항상 뒤에 추가)
+               "기존설계사관계","월납보험료수준","연령대","성별","3대질환진단여부", // 2026-09-07(3차) 추가: 동의서 등록 전 사전체크 항목(PRECHECK_FIELDS 참고) — action:'precheck'로 저장, handleConvert_가 컨설턴트 트래커로 1회 복사. 항목을 늘릴 때는 여기 컬럼 추가 + 아래 PRECHECK_FIELDS에 정의만 추가하면 됨(비파괴, 항상 뒤에 추가)
+               "위도","경도"]; // 2026-09-07(5차) 추가: 주소 지오코딩 결과 좌표("가까운 순" 정렬 기능용) — handleAddStore_/importStagingToTracker에서 신규 등록 시 자동 채움, 기존 행은 backfillLatLngFromAddress_20260907()으로 소급. handleConvert_가 컨설턴트 트래커로 1회 복사.
 var PHOTO_FIELDS = ["매장사진","동의서"];
 var PHOTO_MAX = 5; // 사진 항목당 최대 등록 장수 — 셀에 URL을 "|"로 이어붙여 저장
 var PHOTO_FOLDER_NAME = "동선_서포터즈_사진";
@@ -138,6 +139,25 @@ function applyValidations_(sh){
 }
 function autoWidth_(sh, n){
   try{ sh.autoResizeColumns(1, n); }catch(e){}
+}
+
+// 주소 → {lat,lng} 지오코딩 (Apps Script 내장 Maps 서비스 — 별도 API 키/과금 설정 없이 기본 무료 쿼터 내에서 동작.
+// 실패하거나(주소 형식이 이상하거나 매칭 안 됨) 쿼터 초과 시 null 반환 — 호출부에서 null이면 위도/경도를 비워둠(에러로 막지 않음).
+// 2026-09-07(5차) "가까운 순" 정렬 기능 추가 시 도입.
+function geocodeAddress_(address){
+  var addr = String(address||"").trim();
+  if(!addr) return null;
+  try{
+    var geocoder = Maps.newGeocoder().setRegion("kr");
+    var resp = geocoder.geocode(addr);
+    if(resp && resp.status === "OK" && resp.results && resp.results.length){
+      var loc = resp.results[0].geometry.location;
+      return { lat: loc.lat, lng: loc.lng };
+    }
+  }catch(e){
+    Logger.log("지오코딩 실패: \"" + addr + "\" — " + e);
+  }
+  return null;
 }
 
 // ── 최초 1회 실행: "계정" 탭 생성 ──────────────────────────────
@@ -855,6 +875,8 @@ function handleConvert_(body){
     "업종": g("업종"),
     "동네": g("동네"),
     "주소": g("주소"),
+    "위도": g("위도"),
+    "경도": g("경도"),
     "출처서포터즈": g("담당서포터즈") || name,
     "DB지급일": Utilities.formatDate(addBusinessDays_(agreedDate, 1), "Asia/Seoul", "yyyy-MM-dd"), // 컨설팅동의 시점 + 1영업일(주말 제외) — 컨설턴트 쪽 A/S 신청기한 계산 기준
     "월납보험료": "",
@@ -1049,7 +1071,10 @@ function handleAddStore_(body){
   set("연락처", phone);
   set("업종", String(body.biz||"").trim());
   set("동네", String(body.town||"").trim());
-  set("주소", String(body.addr||"").trim());
+  var addStoreAddr_ = String(body.addr||"").trim();
+  set("주소", addStoreAddr_);
+  var addStoreGeo_ = geocodeAddress_(addStoreAddr_);
+  if(addStoreGeo_){ set("위도", addStoreGeo_.lat); set("경도", addStoreGeo_.lng); }
   set("비고", String(body.note||"").trim());
   set("TA결과", TA_STATUSES[0] || "대기");
   set("수정자", auth.name);
@@ -1060,6 +1085,42 @@ function handleAddStore_(body){
   var obj = {};
   for(var c=0;c<head.length;c++){ obj[head[c]] = newRow[c]; }
   return json_({ok:true, row:obj});
+}
+
+// ── 일회성 마이그레이션(2026-09-07, 5차): 기존 행 중 위도/경도가 비어있는데 주소가 있는 행을
+// 지오코딩해서 소급 채움("가까운 순" 정렬 기능이 기존 데이터에도 적용되도록). 이미 값이 있으면 건드리지 않음(비파괴).
+function backfillLatLngFromAddress_20260907(){
+  var sh = trackerSheet_();
+  var data = sh.getDataRange().getValues();
+  var head = data[0].map(function(h){ return String(h).trim(); });
+  var colAddr = head.indexOf("주소"), colLat = head.indexOf("위도"), colLng = head.indexOf("경도"), colStore = head.indexOf("가게명");
+  if(colAddr<0 || colLat<0 || colLng<0){
+    Logger.log("주소/위도/경도 컬럼을 찾을 수 없습니다. setupTrackerSheet를 재실행하세요.");
+    return;
+  }
+  var updated=0, skippedHasValue=0, skippedNoAddr=0, failed=[];
+  for(var i=1;i<data.length;i++){
+    var row = data[i];
+    var store = String(row[colStore]||"").trim();
+    if(!store) continue;
+    if(String(row[colLat]||"").trim() && String(row[colLng]||"").trim()){ skippedHasValue++; continue; }
+    var addr = String(row[colAddr]||"").trim();
+    if(!addr){ skippedNoAddr++; continue; }
+    var geo = geocodeAddress_(addr);
+    if(geo){
+      sh.getRange(i+1, colLat+1).setValue(geo.lat);
+      sh.getRange(i+1, colLng+1).setValue(geo.lng);
+      updated++;
+    } else {
+      failed.push(store + "(" + addr + ")");
+    }
+    Utilities.sleep(200); // 지오코딩 연속 호출 과부하 방지
+  }
+  Logger.log(
+    "주소→좌표 소급 채우기 완료 — 갱신 " + updated + "건, 이미 값 있어서 건너뜀 " + skippedHasValue + "건, " +
+    "주소 없어서 건너뜀 " + skippedNoAddr + "건, 지오코딩 실패 " + failed.length + "건" +
+    (failed.length ? (": " + failed.join(" / ")) : "") + "."
+  );
 }
 
 
@@ -1197,7 +1258,10 @@ function importStagingToTracker(){
     set("연락처", r[colPhone]);
     set("업종", r[stHead.indexOf("업종")]);
     set("동네", r[stHead.indexOf("동네")]);
-    set("주소", r[stHead.indexOf("주소")]);
+    var stagingAddr_ = r[stHead.indexOf("주소")];
+    set("주소", stagingAddr_);
+    var stagingGeo_ = geocodeAddress_(stagingAddr_);
+    if(stagingGeo_){ set("위도", stagingGeo_.lat); set("경도", stagingGeo_.lng); Utilities.sleep(150); }
     set("비고", r[stHead.indexOf("비고")]);
     set("TA결과", TA_STATUSES[0] || "대기");
     set("수정자", "일괄추가");
