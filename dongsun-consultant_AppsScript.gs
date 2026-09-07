@@ -91,6 +91,13 @@ function setupTrackerSheet(){
   // 연락처 열은 텍스트 서식 → 앞자리 0 보존
   var phoneCol = HEADERS.indexOf("연락처")+1;
   sh.getRange(2, phoneCol, Math.max(sh.getMaxRows()-1,1), 1).setNumberFormat("@");
+  // 2026-09-07 추가: DB지급일·AS신청기한은 "yyyy-MM-dd" 문자열로 써넣는데, 서식이 "자동"이면
+  // 구글시트가 이를 진짜 날짜 셀로 자동 변환해버려서 API가 다시 읽을 때 Date 객체(→ISO 문자열)로
+  // 튀어나오는 문제가 있었음 — 텍스트 서식으로 고정해 항상 문자열로 저장·조회되게 함
+  ["DB지급일","AS신청기한"].forEach(function(colName){
+    var idx = HEADERS.indexOf(colName)+1;
+    if(idx > 0) sh.getRange(2, idx, Math.max(sh.getMaxRows()-1,1), 1).setNumberFormat("@");
+  });
   applyValidations_(sh);
   autoWidth_(sh, HEADERS.length);
   Logger.log("트래커 탭 헤더 세팅 완료 (" + HEADERS.length + "열). 데이터는 비어 있는 상태로 시작합니다.");
@@ -555,6 +562,34 @@ function backfillDbJigeupilFromAgreeDate_20260907(){
     updated++;
   }
   Logger.log("DB지급일 소급 채우기(v2, 컨설팅동의일시 기준) 완료 — 갱신 "+updated+"건, 이미 값 있어서 건너뜀 "+skippedHasValue+"건, 매칭 실패 "+skippedNoMatch+"건.");
+}
+
+// ── 일회성 마이그레이션 (2026-09-07, v3): DB지급일/AS신청기한이 구글시트에 의해 자동으로
+// 날짜(Date) 타입 셀로 바뀐 것을 "yyyy-MM-dd" 순수 텍스트로 되돌림.
+// 실행 전제: 위 setupTrackerSheet를 먼저 재실행해서 두 열이 텍스트 서식(@)으로 고정돼 있어야 함
+// (안 그러면 다시 써넣는 순간 시트가 또 날짜로 자동 변환해버림).
+function fixDateColumnsToText_20260907(){
+  var sh = trackerSheet_();
+  var data = sh.getDataRange().getValues();
+  var head = data[0].map(function(h){ return String(h).trim(); });
+  var targets = ["DB지급일","AS신청기한"];
+  var fixed = 0, already = 0;
+  targets.forEach(function(colName){
+    var col = head.indexOf(colName);
+    if(col < 0) return;
+    for(var r=1; r<data.length; r++){
+      var v = data[r][col];
+      if(v instanceof Date){
+        var s = Utilities.formatDate(v, "Asia/Seoul", "yyyy-MM-dd");
+        sh.getRange(r+1, col+1).setValue(s);
+        fixed++;
+      } else if(v){
+        already++;
+      }
+    }
+  });
+  Logger.log("DB지급일/AS신청기한 텍스트 변환 완료 — 날짜타입→텍스트 변환 "+fixed+"건, 이미 텍스트였던 값 "+already+"건. "+
+             "(먼저 setupTrackerSheet를 재실행해서 두 열이 텍스트 서식으로 고정돼 있어야 재발하지 않습니다)");
 }
 
 function stamp_(sh, head, row, name){
