@@ -41,7 +41,8 @@ var CONSULTANT_TRACKER_SHEET = "트래커";
 var HEADERS = ["번호","담당서포터즈","가게명","점주명","연락처","업종","동네","주소",
                "방문일정","TA진행상태","TA결과","컨설팅동의여부",
                "담당컨설턴트","전환상태","전환일시","비고","수정자","수정시각",
-               "매장사진","동의서"];
+               "매장사진","동의서",
+               "컨설팅동의일시"]; // 2026-09-07 추가: 컨설팅동의여부가 "컨설팅동의"로 바뀐 시점(DB지급일 계산 기준 — 전환일시와는 별개)
 var PHOTO_FIELDS = ["매장사진","동의서"];
 var PHOTO_MAX = 5; // 사진 항목당 최대 등록 장수 — 셀에 URL을 "|"로 이어붙여 저장
 var PHOTO_FOLDER_NAME = "동선_서포터즈_사진";
@@ -378,6 +379,18 @@ function parseKstDateTime_(s){
 }
 function now_(){ return Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd HH:mm"); }
 
+// 영업일 계산(주말만 제외, 공휴일은 고려하지 않음) — DB지급일 = 생성(전환) 시점 + n영업일
+function addBusinessDays_(date, n){
+  var d = new Date(date.getTime());
+  var added = 0;
+  while(added < n){
+    d.setDate(d.getDate() + 1);
+    var dow = parseInt(Utilities.formatDate(d, "Asia/Seoul", "u"), 10); // 1=월 ... 6=토, 7=일
+    if(dow < 6) added++;
+  }
+  return d;
+}
+
 // 계정 탭 대조 (Code.js handleManagerLogin 패턴)
 // 반환: {name, isAdmin} 또는 null. isAdmin은 "계정" 탭 C열(권한)이 "관리자"일 때만 true.
 function auth_(name, pw){
@@ -540,6 +553,12 @@ function handleUpdate_(body){
   }
   t.sh.getRange(t.row, col+1).setValue(val);
 
+  // 컨설팅동의여부가 "컨설팅동의"로 바뀌는 시점을 별도 컬럼에 기록 — DB지급일 계산 기준(전환일시와는 별개 이벤트)
+  if(field === "컨설팅동의여부" && String(val).trim() === "컨설팅동의"){
+    var agreeColIdx = t.head.indexOf("컨설팅동의일시");
+    if(agreeColIdx >= 0) t.sh.getRange(t.row, agreeColIdx+1).setValue(now_());
+  }
+
   stamp_(t.sh, t.head, t.row, auth.name);
   return json_({ok:true, no:body.no, field:field, value:body.value});
 }
@@ -568,6 +587,16 @@ function handleConvert_(body){
   if(String(g("전환상태")).trim() === "전환완료"){
     return json_({ok:false, error:"이미 전환된 건입니다"});
   }
+
+  // DB지급일 계산 기준 시점 확보: "컨설팅동의" 시점이 원칙. 별도 동의 이벤트 없이(전환 버튼으로) 바로
+  // 전환하는 경우엔 컨설팅동의일시가 비어있으므로, 지금을 동의 시점으로 기록해서 기준으로 삼음.
+  var agreeColIdx2 = t.head.indexOf("컨설팅동의일시");
+  var agreedRaw = agreeColIdx2 >= 0 ? t.values[agreeColIdx2] : "";
+  if(!agreedRaw){
+    agreedRaw = now_();
+    if(agreeColIdx2 >= 0) t.sh.getRange(t.row, agreeColIdx2+1).setValue(agreedRaw);
+  }
+  var agreedDate = (agreedRaw instanceof Date) ? agreedRaw : new Date(agreedRaw);
 
   // 1) 컨설턴트 스프레드시트 "트래커" 탭에 새 행 추가
   var css = SpreadsheetApp.openById(CONSULTANT_SPREADSHEET_ID);
@@ -600,7 +629,7 @@ function handleConvert_(body){
     "동네": g("동네"),
     "주소": g("주소"),
     "출처서포터즈": g("담당서포터즈") || name,
-    "DB지급일": now_().slice(0,10), // 전환(=DB 지급) 시점 — 컨설턴트 쪽 A/S 신청기한 계산 기준
+    "DB지급일": Utilities.formatDate(addBusinessDays_(agreedDate, 1), "Asia/Seoul", "yyyy-MM-dd"), // 컨설팅동의 시점 + 1영업일(주말 제외) — 컨설턴트 쪽 A/S 신청기한 계산 기준
     "월납보험료": "",
     "컨설팅미팅1차": "",
     "컨설팅미팅2_3차": "",
