@@ -492,6 +492,69 @@ function handleDeletePhoto_(body){
   return json_({ok:true, no:body.no, field:field, value:joined});
 }
 
+// ── 일회성 마이그레이션 (2026-09-07, v2): 사용자가 서포터즈 시트에 직접 채워넣은 "컨설팅동의일시"로 DB지급일 소급 채우기 ──
+// 실행 전제: 컨설턴트 트래커의 setupTrackerSheet가 이미 실행되어 "DB지급일" 컬럼이 있어야 함(완료됨).
+// 서포터즈 스프레드시트("트래커" 탭)에서 가게명+연락처로 매칭해 "컨설팅동의일시"를 찾고,
+// DB지급일 = 컨설팅동의일시 + 1영업일(주말 제외)로 계산해 채움. 이미 값이 있는 행은 건드리지 않음(비파괴).
+function backfillDbJigeupilFromAgreeDate_20260907(){
+  var SUPPORTER_SPREADSHEET_ID = "1ewvEx1GdEzhVsIdbymxevSGbdusimLNcW0PQEvqQamw";
+  var addBiz = function(date, n){
+    var d = new Date(date.getTime());
+    var added = 0;
+    while(added < n){
+      d.setDate(d.getDate() + 1);
+      var dow = parseInt(Utilities.formatDate(d, "Asia/Seoul", "u"), 10); // 1=월 ... 6=토, 7=일
+      if(dow < 6) added++;
+    }
+    return d;
+  };
+
+  var sh = trackerSheet_();
+  var data = sh.getDataRange().getValues();
+  var head = data[0].map(function(h){ return String(h).trim(); });
+  var colDbpay = head.indexOf("DB지급일");
+  if(colDbpay < 0){
+    Logger.log('"DB지급일" 컬럼이 없습니다. setupTrackerSheet를 먼저 실행한 뒤 다시 실행하세요.');
+    return;
+  }
+  var colStore = head.indexOf("가게명");
+  var colPhone = head.indexOf("연락처");
+
+  var ssup = SpreadsheetApp.openById(SUPPORTER_SPREADSHEET_ID);
+  var shSup = ssup.getSheetByName("트래커");
+  var supData = shSup.getDataRange().getValues();
+  var supHead = supData[0].map(function(h){ return String(h).trim(); });
+  var sColStore = supHead.indexOf("가게명");
+  var sColPhone = supHead.indexOf("연락처");
+  var sColAgreedAt = supHead.indexOf("컨설팅동의일시");
+  if(sColAgreedAt < 0){
+    Logger.log('서포터즈 시트에 "컨설팅동의일시" 컬럼이 없습니다.');
+    return;
+  }
+
+  var agreeMap = {};
+  for(var i=1;i<supData.length;i++){
+    var row = supData[i];
+    var at = row[sColAgreedAt];
+    if(!at) continue;
+    var key = String(row[sColStore]||"").trim() + "|" + String(row[sColPhone]||"").trim();
+    agreeMap[key] = (at instanceof Date) ? at : new Date(at);
+  }
+
+  var updated = 0, skippedHasValue = 0, skippedNoMatch = 0;
+  for(var r=1;r<data.length;r++){
+    var existing = String(data[r][colDbpay]||"").trim();
+    if(existing){ skippedHasValue++; continue; }
+    var key2 = String(data[r][colStore]||"").trim() + "|" + String(data[r][colPhone]||"").trim();
+    var agreedAt = agreeMap[key2];
+    if(!agreedAt){ skippedNoMatch++; continue; }
+    var dbDate = addBiz(agreedAt, 1);
+    sh.getRange(r+1, colDbpay+1).setValue(Utilities.formatDate(dbDate, "Asia/Seoul", "yyyy-MM-dd"));
+    updated++;
+  }
+  Logger.log("DB지급일 소급 채우기(v2, 컨설팅동의일시 기준) 완료 — 갱신 "+updated+"건, 이미 값 있어서 건너뜀 "+skippedHasValue+"건, 매칭 실패 "+skippedNoMatch+"건.");
+}
+
 function stamp_(sh, head, row, name){
   var uc = head.indexOf("수정자");   if(uc >= 0) sh.getRange(row, uc+1).setValue(name);
   var tc = head.indexOf("수정시각"); if(tc >= 0) sh.getRange(row, tc+1).setValue(now_());
