@@ -104,7 +104,6 @@
   #pc-ovl .pcOpts{display:flex;flex-wrap:wrap;gap:8px}
   #pc-ovl .pcOpt{display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;color:var(--navy);background:#F8FAFD;border:1.5px solid var(--ice2);border-radius:10px;padding:8px 10px;cursor:pointer;margin:0}
   #pc-ovl .pcOpt input{margin:0}
-  #pc-ovl #pc-detail-wrap{margin-top:10px}
   #pc-ovl input[type=text]{width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid var(--ice2);border-radius:10px;font-size:14px;background:#F8FAFD;outline:none;font-family:inherit}
   #pc-ovl .row{display:flex;gap:8px;margin-top:16px}#pc-ovl .row button{flex:1;padding:11px}
   #pc-ovl .err{color:var(--red);font-size:11.5px;margin-top:10px;min-height:14px;font-weight:600;text-align:center}
@@ -230,23 +229,12 @@
   </div>
 </div>
 
-<!-- ── 동의서 등록 전 사전체크 팝업(2026-09-07 추가) ── -->
+<!-- ── 동의서 등록 전 사전체크 팝업(2026-09-07(3차): PRECHECK_FIELDS로 항목을 동적 렌더링 — 항목이 늘어나도 이 마크업은 그대로) ── -->
 <div id="pc-ovl">
   <div class="box">
     <h3>✅ 컨설팅 방문 전 사전체크 사항</h3>
-    <p>사장님의 소중한 매장을 위해 맞춤 리스크 진단 전문 컨설턴트를 배정합니다. 동의서를 등록하기 전에 아래 3가지를 확인해주세요. 답변은 담당 컨설턴트에게 그대로 전달됩니다.</p>
-    <label class="pcLabel">기존 보험설계사 관계 *</label>
-    <div class="pcOpts" id="pc-relation-wrap"></div>
-    <label class="pcLabel">현재 납입 중이신 월평균 보험료 수준은 어떻게 되시나요? *</label>
-    <div class="pcOpts" id="pc-premium-wrap"></div>
-    <label class="pcLabel">주요 3대 질환(암, 뇌혈관, 심장질환) 진단을 받으신 적 있으신가요? *</label>
-    <div class="pcOpts">
-      <label class="pcOpt"><input type="radio" name="pc-disease" value="아니오" onchange="onPcDiseaseChange(this.value)"> 아니오 (없음)</label>
-      <label class="pcOpt"><input type="radio" name="pc-disease" value="예" onchange="onPcDiseaseChange(this.value)"> 예 (진단 이력 있음)</label>
-    </div>
-    <div id="pc-detail-wrap" style="display:none">
-      <input type="text" id="pc-detail" placeholder="진단명 등 상세 내용(선택)">
-    </div>
+    <p>사장님의 소중한 매장을 위해 맞춤 리스크 진단 전문 컨설턴트를 배정합니다. 동의서를 등록하기 전에 아래 항목을 확인해주세요. 답변은 담당 컨설턴트에게 그대로 전달됩니다.</p>
+    <div id="pc-fields"></div>
     <div class="row">
       <button onclick="closePreCheck()">취소</button>
       <button class="primary" id="pc-go" onclick="doPreCheck()">저장하고 계속</button>
@@ -283,8 +271,13 @@ const COLS=[
 let TA_STATUSES=["대기","방문확정","부재","재접촉필요","거절"];
 const PHOTO_MAX=5;
 let AGREES=["미접촉","컨설팅동의","컨설팅거절","보류"];
-let RELATION_TYPES=["본인","부모","자녀","배우자","없음"];
-let PREMIUM_LEVELS=["10만 원 미만","10만 원","20만 원","30만 원","40만 원","50만 원 이상","기타(잘 모르겠음/본인이 납부안함)"];
+let PRECHECK_FIELDS=[
+  {key:"기존설계사관계",question:"기존 보험설계사 관계",type:"select",options:["본인","부모","자녀","배우자","없음"]},
+  {key:"월납보험료수준",question:"현재 납입 중이신 월평균 보험료 수준은 어떻게 되시나요?",type:"select",options:["10만 원 미만","10만 원","20만 원","30만 원","40만 원","50만 원 이상","기타(잘 모르겠음/본인이 납부안함)"]},
+  {key:"연령대",question:"연령대",type:"select",options:["10대","20대","30대","40대","50대","60대","70대 이상"]},
+  {key:"성별",question:"성별",type:"select",options:["남성","여성"]},
+  {key:"3대질환진단여부",question:"주요 3대 질환(암, 뇌혈관, 심장질환) 진단을 받으신 적 있으신가요?",type:"select_detail",options:["아니오","예"],detailOn:"예"}
+];
 let CONSULTANTS=["김광연","정현우","하명규"];
 let SUPPORTERS=[];
 const TA_COLOR={"대기":"#EEF2F7","방문확정":"#DAF0E2","부재":"#EAEFF4","재접촉필요":"#FFF3D6","거절":"#F7DDDA"};
@@ -341,8 +334,7 @@ async function doLogin(){
 function applyData(j){
   if(j.taStatuses) TA_STATUSES=j.taStatuses;
   if(j.agrees) AGREES=j.agrees;
-  if(j.relationTypes) RELATION_TYPES=j.relationTypes;
-  if(j.premiumLevels) PREMIUM_LEVELS=j.premiumLevels;
+  if(j.precheckFields && j.precheckFields.length) PRECHECK_FIELDS=j.precheckFields;
   if(j.consultants && j.consultants.length) CONSULTANTS=j.consultants;
   if(j.supporters && j.supporters.length) SUPPORTERS=j.supporters;
   SESS.isAdmin = !!j.isAdmin;
@@ -504,52 +496,58 @@ function render(){
 function triggerPhoto(no, field){
   if(field==="동의서"){
     const row=rows.find(d=>String(d["번호"])===String(no));
-    const need = !row || !row["기존설계사관계"] || !row["월납보험료수준"] || !row["3대질환진단여부"];
+    const need = !row || PRECHECK_FIELDS.some(f=>!row[f.key]);
     if(need){ openPreCheck(no); return; }
   }
   const el=document.getElementById('ph-'+no+'-'+field); if(el) el.click();
 }
 
-// ── 동의서 등록 전 사전체크(2026-09-07 추가) ──
-function buildRadioOptions(containerId, name, options){
-  document.getElementById(containerId).innerHTML = options.map(o=>
-    '<label class="pcOpt"><input type="radio" name="'+name+'" value="'+esc(o)+'"> '+esc(o)+'</label>'
-  ).join("");
+// ── 동의서 등록 전 사전체크(2026-09-07(3차): PRECHECK_FIELDS 기반 범용 렌더링/저장 — 항목 추가는 서버의 PRECHECK_FIELDS만 늘리면 됨) ──
+function renderPreCheckFields(){
+  document.getElementById("pc-fields").innerHTML = PRECHECK_FIELDS.map(f=>{
+    const optsHtml = f.options.map(o=>
+      '<label class="pcOpt"><input type="radio" name="pc-'+f.key+'" value="'+esc(o)+'"'+
+      (f.type==="select_detail" ? ' onchange="onPcFieldChange(\''+f.key+'\',this.value)"' : '')+
+      '> '+esc(o)+'</label>'
+    ).join("");
+    const detailHtml = (f.type==="select_detail")
+      ? '<div id="pc-detail-wrap-'+f.key+'" style="display:none;margin-top:6px"><input type="text" id="pc-detail-'+f.key+'" placeholder="상세 내용(선택)"></div>'
+      : '';
+    return '<label class="pcLabel">'+esc(f.question||f.key)+' *</label><div class="pcOpts">'+optsHtml+'</div>'+detailHtml;
+  }).join("");
+}
+function onPcFieldChange(key, value){
+  const f=PRECHECK_FIELDS.find(x=>x.key===key);
+  if(!f || f.type!=="select_detail") return;
+  const dw=document.getElementById("pc-detail-wrap-"+key);
+  if(dw) dw.style.display = (value===f.detailOn) ? "" : "none";
 }
 function openPreCheck(no){
   pcNo=no;
-  buildRadioOptions("pc-relation-wrap","pc-relation",RELATION_TYPES);
-  buildRadioOptions("pc-premium-wrap","pc-premium",PREMIUM_LEVELS);
-  document.querySelectorAll('input[name="pc-disease"]').forEach(r=>r.checked=false);
-  document.getElementById("pc-detail").value="";
-  document.getElementById("pc-detail-wrap").style.display="none";
+  renderPreCheckFields();
   document.getElementById("pc-err").textContent="";
   document.getElementById("pc-ovl").style.display="flex";
 }
 function closePreCheck(){ pcNo=null; document.getElementById("pc-ovl").style.display="none"; }
-function onPcDiseaseChange(v){
-  document.getElementById("pc-detail-wrap").style.display = (v==="예") ? "" : "none";
-}
 async function doPreCheck(){
   const err=document.getElementById("pc-err"); err.textContent="";
-  const relation=(document.querySelector('input[name="pc-relation"]:checked')||{}).value;
-  const premium=(document.querySelector('input[name="pc-premium"]:checked')||{}).value;
-  const disease=(document.querySelector('input[name="pc-disease"]:checked')||{}).value;
-  if(!relation){ err.textContent="기존 보험설계사 관계를 선택하세요"; return; }
-  if(!premium){ err.textContent="월평균 보험료 수준을 선택하세요"; return; }
-  if(!disease){ err.textContent="3대 질환 진단 여부를 선택하세요"; return; }
-  const detail = disease==="예" ? document.getElementById("pc-detail").value.trim() : "";
+  const answers={};
+  for(const f of PRECHECK_FIELDS){
+    const sel=document.querySelector('input[name="pc-'+f.key+'"]:checked');
+    if(!sel){ err.textContent=(f.question||f.key)+"을(를) 선택하세요"; return; }
+    answers[f.key]=sel.value;
+    if(f.type==="select_detail" && sel.value===f.detailOn){
+      const d=document.getElementById("pc-detail-"+f.key);
+      answers[f.key+"Detail"]= d ? d.value.trim() : "";
+    }
+  }
   const btn=document.getElementById("pc-go"); btn.disabled=true; btn.textContent="저장 중...";
   try{
-    const j=await post({action:"precheck", name:SESS.name, pw:SESS.pw, no:pcNo, relation:relation, premium:premium, disease:disease, diseaseDetail:detail});
+    const j=await post({action:"precheck", name:SESS.name, pw:SESS.pw, no:pcNo, answers:answers});
     if(!j.ok) throw new Error(j.error||"저장 실패");
     const no=pcNo;
     const row=rows.find(d=>String(d["번호"])===String(no));
-    if(row){
-      row["기존설계사관계"]=j["기존설계사관계"] || relation;
-      row["월납보험료수준"]=j["월납보험료수준"] || premium;
-      row["3대질환진단여부"]=j["3대질환진단여부"] || (disease==="예" ? ("예: "+(detail||"상세 미입력")) : "아니오");
-    }
+    if(row && j.values){ Object.keys(j.values).forEach(k=>{ row[k]=j.values[k]; }); }
     closePreCheck();
     render();
     toast();

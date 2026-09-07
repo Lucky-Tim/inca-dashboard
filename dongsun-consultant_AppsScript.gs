@@ -35,8 +35,9 @@ var HEADERS = ["번호","담당컨설턴트","가게명","점주명","연락처"
                // 2026-09-07 추가: 기존 17개 컬럼 뒤에만 추가(순서·기존 컬럼 불변) — 실제 시트에 반영하려면 setupTrackerSheet 재실행
                "청약여부","청약차수","청약금액","청약상품","종결사유",
                "AS대상","AS신청기한","AS신청상태","증빙","AS점검메모","DB지급일",
-               // 2026-09-07(2차) 추가: 서포터즈의 동의서 등록 전 사전체크 3항목 — 전환 시점에 1회 복사되어 옴(읽기전용), setupTrackerSheet 재실행 필요
-               "기존설계사관계","월납보험료수준","3대질환진단여부"];
+               // 2026-09-07(3차) 추가: 서포터즈의 동의서 등록 전 사전체크 항목 — 전환 시점에 1회 복사되어 옴(읽기전용), setupTrackerSheet 재실행 필요.
+               // 서포터즈 쪽 PRECHECK_FIELDS와 컬럼명을 맞춰야 함(항목이 늘면 여기도 같이 추가)
+               "기존설계사관계","월납보험료수준","연령대","성별","3대질환진단여부"];
 var ACCOUNT_HEADERS = ["이름","비번","권한"];
 
 var STATUSES = ["신규배정","상담중","청약완료","계약체결","종결·실패"];
@@ -590,6 +591,108 @@ function fixDateColumnsToText_20260907(){
   });
   Logger.log("DB지급일/AS신청기한 텍스트 변환 완료 — 날짜타입→텍스트 변환 "+fixed+"건, 이미 텍스트였던 값 "+already+"건. "+
              "(먼저 setupTrackerSheet를 재실행해서 두 열이 텍스트 서식으로 고정돼 있어야 재발하지 않습니다)");
+}
+
+// ── 일회성 마이그레이션 (2026-09-07, v5): "2026.09" 원본 탭(자유서식)에 이미 기록돼 있던
+// 담당설계사/월납보험료/연령대·성별/중대질환 값으로 사전체크 5항목을 소급 채움(서포터즈 PRECHECK_FIELDS와 동일한 5개 컬럼).
+// 매장명 + 점주 연락처(숫자만 비교)로 매칭. 이 5개 컬럼 중 하나라도 이미 값이 있는 행은 건드리지 않음(비파괴 — 그룹 단위로 취급).
+// 원본 자유서식 값이 아래 매핑표에 없는 애매한 값이면 짐작해서 채우지 않고 로그로만 남김.
+// (v4에서 PREMIUM_LEVELS를 참조했는데 이 파일엔 정의돼 있지 않아 실행 시 오류가 났을 버그도 이번에 같이 고침 — 아래처럼 이 함수 안에서 직접 옵션표를 정의함)
+function backfillPreCheckFromOriginalSheet_20260907(){
+  var ORIGINAL_SHEET_NAME = "2026.09";
+  var normPhone = function(v){
+    var s = String(v||"").replace(/\D/g, "");
+    if(s.indexOf("0") === 0) s = s.substring(1);
+    return s;
+  };
+  // 원본 자유서식 값 → 서포터즈 PRECHECK_FIELDS 옵션 매핑표. 여기 없는 값은 애매하다고 보고 건너뜀(로그만 남김).
+  var RELATION_MAP = { "담당자 없음":"없음", "없음":"없음", "본인":"본인", "부모":"부모", "자녀":"자녀", "배우자":"배우자" };
+  var PREMIUM_OPTIONS = ["10만 원 미만","10만 원","20만 원","30만 원","40만 원","50만 원 이상","기타(잘 모르겠음/본인이 납부안함)"];
+  var premiumMap = {};
+  PREMIUM_OPTIONS.forEach(function(p){ premiumMap[p.replace(/\s/g,"")] = p; });
+  var AGE_OPTIONS = ["10대","20대","30대","40대","50대","60대","70대 이상"];
+  var GENDER_OPTIONS = ["남성","여성"];
+
+  var sh = trackerSheet_();
+  var data = sh.getDataRange().getValues();
+  var head = data[0].map(function(h){ return String(h).trim(); });
+  var colRel = head.indexOf("기존설계사관계");
+  var colPrem = head.indexOf("월납보험료수준");
+  var colAge = head.indexOf("연령대");
+  var colGender = head.indexOf("성별");
+  var colDis = head.indexOf("3대질환진단여부");
+  var colStore = head.indexOf("가게명");
+  var colPhone = head.indexOf("연락처");
+  if(colRel<0 || colPrem<0 || colDis<0 || colAge<0 || colGender<0){
+    Logger.log("사전체크 컬럼(기존설계사관계/월납보험료수준/연령대/성별/3대질환진단여부)이 없습니다. setupTrackerSheet를 먼저 실행하세요.");
+    return;
+  }
+
+  var osh = ss_().getSheetByName(ORIGINAL_SHEET_NAME);
+  if(!osh){ Logger.log('"' + ORIGINAL_SHEET_NAME + '" 탭을 찾을 수 없습니다.'); return; }
+  var odata = osh.getDataRange().getValues();
+  var ohead = odata[0].map(function(h){ return String(h).trim(); });
+  var oColName = ohead.indexOf("매장명");
+  var oColPhone = ohead.indexOf("점주 연락처");
+  var oColRel = ohead.indexOf("담당설계사");
+  var oColPrem = ohead.indexOf("월납보험료");
+  var oColAgeGender = ohead.indexOf("연령대 / 성별");
+  var oColDis = ohead.indexOf("중대질환");
+  if(oColName<0 || oColPhone<0){
+    Logger.log('"' + ORIGINAL_SHEET_NAME + '" 탭에서 "매장명"/"점주 연락처" 컬럼을 찾을 수 없습니다.');
+    return;
+  }
+
+  var srcMap = {};
+  for(var i=1;i<odata.length;i++){
+    var orow = odata[i];
+    var name = String(orow[oColName]||"").trim();
+    if(!name || name==="ex)") continue; // 예시행 제외
+    var key = name + "|" + normPhone(orow[oColPhone]);
+    var ageGenderRaw = oColAgeGender>=0 ? String(orow[oColAgeGender]||"").trim() : ""; // 예: "30대 / 남성"
+    var ageGenderParts = ageGenderRaw.split("/").map(function(s){ return s.trim(); });
+    srcMap[key] = {
+      relation: String(orow[oColRel]||"").trim(),
+      premium: String(orow[oColPrem]||"").trim(),
+      age: ageGenderParts[0] || "",
+      gender: ageGenderParts[1] || "",
+      disease: String(orow[oColDis]||"").trim()
+    };
+  }
+
+  var updated=0, skippedHasValue=0, skippedNoMatch=0, ambiguous=[];
+  for(var r=1;r<data.length;r++){
+    var hasAny = String(data[r][colRel]||"").trim() || String(data[r][colPrem]||"").trim() ||
+                 String(data[r][colAge]||"").trim() || String(data[r][colGender]||"").trim() ||
+                 String(data[r][colDis]||"").trim();
+    if(hasAny){ skippedHasValue++; continue; }
+    var storeName = String(data[r][colStore]||"").trim();
+    var key2 = storeName + "|" + normPhone(data[r][colPhone]);
+    var src = srcMap[key2];
+    if(!src){ skippedNoMatch++; continue; }
+
+    var relVal = RELATION_MAP[src.relation];
+    var premVal = premiumMap[src.premium.replace(/\s/g,"")];
+    var ageVal = AGE_OPTIONS.indexOf(src.age) >= 0 ? src.age : "";
+    var genderVal = GENDER_OPTIONS.indexOf(src.gender) >= 0 ? src.gender : "";
+    var disVal = "";
+    if(src.disease === "없음") disVal = "아니오";
+    else if(src.disease === "있음") disVal = "예: 상세 미입력(원본 시트에 세부 진단명 없음)";
+
+    if(!relVal || !premVal || !ageVal || !genderVal || !disVal){
+      ambiguous.push(storeName + " (담당설계사='"+src.relation+"', 월납보험료='"+src.premium+"', 연령대/성별='"+(src.age+"/"+src.gender)+"', 중대질환='"+src.disease+"')");
+      continue;
+    }
+
+    sh.getRange(r+1, colRel+1).setValue(relVal);
+    sh.getRange(r+1, colPrem+1).setValue(premVal);
+    sh.getRange(r+1, colAge+1).setValue(ageVal);
+    sh.getRange(r+1, colGender+1).setValue(genderVal);
+    sh.getRange(r+1, colDis+1).setValue(disVal);
+    updated++;
+  }
+  Logger.log("사전체크 5항목 소급 채우기 완료 — 갱신 "+updated+"건, 이미 값 있어서 건너뜀 "+skippedHasValue+"건, 매칭 실패 "+skippedNoMatch+"건, 매핑 애매해서 건너뜀 "+ambiguous.length+"건" +
+             (ambiguous.length ? (": " + ambiguous.join(" / ")) : "") + ".");
 }
 
 function stamp_(sh, head, row, name){
