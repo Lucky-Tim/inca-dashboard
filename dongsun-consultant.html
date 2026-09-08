@@ -629,7 +629,16 @@ async function asDecide(no, decision){
 function report(){
   const s=stats(), rs=scoped(), md=(new Date().getMonth()+1)+"/"+new Date().getDate();
   const line=st=>rs.filter(d=>d["계약현황"]===st).map(d=>d["가게명"]).filter(Boolean);
-  const txt="[동선 컨설팅 활동보고 "+md+" · "+(whoFilter||"전체")+"]\n"+
+  // 2026-09-08 추가: "오늘 업데이트된 건" — 오늘 수정시각이 찍힌 행을 현재 계약현황 기준으로 묶어서 보여줌
+  const p2=n=>String(n).padStart(2,"0");
+  const today=new Date(), todayStr=today.getFullYear()+"-"+p2(today.getMonth()+1)+"-"+p2(today.getDate());
+  const todayRows=rs.filter(d=>String(d["수정시각"]||"").slice(0,10)===todayStr);
+  const byStatus={};
+  todayRows.forEach(d=>{ const st=d["계약현황"]||"(상태 미상)"; (byStatus[st]=byStatus[st]||[]).push(d["가게명"]); });
+  const todayTxt=todayRows.length ? Object.keys(byStatus).map(st=>"• "+st+" "+byStatus[st].length+"곳: "+(byStatus[st].filter(Boolean).join(", ")||"-")).join("\n") : "오늘 업데이트된 건 없음";
+  const txt="[동선 컨설팅 활동보고 "+md+" · "+(whoFilter||"전체")+"]\n\n"+
+  "📌 오늘 업데이트 ("+todayRows.length+"건)\n"+todayTxt+"\n\n"+
+  "📊 전체 현황\n"+
   "• 배정 "+s.n+" / 신규배정 "+s.sinkyu+"\n"+
   "• 상담중 "+s.sangdam+"곳: "+(line("상담중").join(", ")||"-")+"\n"+
   "• 청약완료 "+s.cheongyak+"곳: "+(line("청약완료").join(", ")||"-")+"\n"+

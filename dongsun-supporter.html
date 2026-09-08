@@ -818,7 +818,17 @@ function report(){
   const nm=d=>d["가게명"];
   const agreeList=rs.filter(d=>d["컨설팅동의여부"]==="컨설팅동의").map(nm).filter(Boolean);
   const doneList=rs.filter(isDone).map(nm).filter(Boolean);
-  const txt="[동선 서포터즈 활동보고 "+md+" · "+(whoFilter||"전체")+"]\n"+
+  // 2026-09-08 추가: "오늘 업데이트된 건" — 오늘 수정시각이 찍힌 행을 현재 상태(전환완료>컨설팅동의/거절>TA결과 순) 기준으로 묶어서 보여줌
+  const p2=n=>String(n).padStart(2,"0");
+  const today=new Date(), todayStr=today.getFullYear()+"-"+p2(today.getMonth()+1)+"-"+p2(today.getDate());
+  const todayRows=rs.filter(d=>String(d["수정시각"]||"").slice(0,10)===todayStr);
+  const statusOf=d=>{ if(isDone(d)) return "전환완료"; const ag=d["컨설팅동의여부"]; if(ag==="컨설팅동의") return "컨설팅동의"; if(ag==="컨설팅거절") return "컨설팅거절"; return d["TA결과"]||"대기"; };
+  const byStatus={};
+  todayRows.forEach(d=>{ const st=statusOf(d); (byStatus[st]=byStatus[st]||[]).push(nm(d)); });
+  const todayTxt=todayRows.length ? Object.keys(byStatus).map(st=>"• "+st+" "+byStatus[st].length+"곳: "+(byStatus[st].filter(Boolean).join(", ")||"-")).join("\n") : "오늘 업데이트된 건 없음";
+  const txt="[동선 서포터즈 활동보고 "+md+" · "+(whoFilter||"전체")+"]\n\n"+
+  "📌 오늘 업데이트 ("+todayRows.length+"건)\n"+todayTxt+"\n\n"+
+  "📊 전체 현황\n"+
   "• 담당 "+s.n+" / 대기 "+(s.taBreak["대기"]||0)+"\n"+
   "• TA완료(방문확정) "+(s.taBreak["방문확정"]||0)+" · 방문거절 "+(s.taBreak["거절"]||0)+"\n"+
   "• 컨설팅동의 "+s.agree+"곳(거절 "+s.reject+"): "+(agreeList.join(", ")||"-")+"\n"+
