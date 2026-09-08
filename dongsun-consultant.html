@@ -54,6 +54,17 @@
   #setup input{width:100%;margin:10px 0}
   .saving{position:fixed;bottom:16px;right:16px;background:var(--navy);color:#fff;padding:8px 14px;border-radius:20px;font-size:12px;opacity:0;transition:.2s}
   .saving.on{opacity:1}
+  /* ── 배정 대기(팀) 팝업 (2026-09-08 추가: 영업관리자가 KPI 카드 클릭 → 미배정 건 배정) ── */
+  #ua-ovl{display:none;position:fixed;inset:0;z-index:9998;background:rgba(14,31,56,.45);align-items:center;justify-content:center;padding:20px}
+  #ua-ovl .box{width:520px;max-width:94vw;max-height:82vh;overflow-y:auto;background:#fff;border-radius:16px;box-shadow:0 18px 50px rgba(14,31,56,.28);padding:20px 22px}
+  #ua-ovl h3{margin:0 0 4px;color:var(--navy);font-size:16px}
+  #ua-ovl .desc{color:var(--gray);font-size:12px;margin-bottom:14px}
+  #ua-ovl .item{border:1px solid var(--ice2);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  #ua-ovl .item .info{flex:1;min-width:170px}
+  #ua-ovl .item .info b{display:block;font-size:13.5px}
+  #ua-ovl .item .info span{display:block;font-size:11.5px;color:var(--gray)}
+  #ua-ovl select{min-width:150px}
+  #ua-ovl .close{width:100%;margin-top:10px}
   /* ── 로그인 오버레이 (viewer-mgr #login-ovl 패턴 · 네이비/골드 팔레트) ── */
   #login-ovl{display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(160deg,#16335B 0%,#1B3A6B 55%,#0E1F38 100%);align-items:center;justify-content:center;padding:20px}
   #login-ovl .box{width:342px;max-width:92vw;background:#fff;border-radius:20px;box-shadow:0 18px 50px rgba(14,31,56,.28),0 2px 8px rgba(0,0,0,.05);border:1px solid var(--ice2);overflow:hidden;animation:lgIn .4s cubic-bezier(.2,.8,.2,1)}
@@ -149,6 +160,16 @@
 </div>
 
 <div class="saving" id="saving">저장 중…</div>
+
+<!-- 2026-09-08 추가: 영업관리자가 "배정 대기(팀)" 카드를 클릭하면 여는 배정 팝업 -->
+<div id="ua-ovl">
+  <div class="box">
+    <h3>📋 배정 대기(팀)</h3>
+    <div class="desc">담당컨설턴트가 아직 없는 건입니다 — 배정할 컨설턴트를 선택하세요.</div>
+    <div id="ua-list"></div>
+    <button class="close" onclick="closeUnassigned()">닫기</button>
+  </div>
+</div>
 
 <script>
 // ▼▼▼ 배포 후 여기에 Apps Script 웹앱 URL을 넣으면 모두에게 고정됩니다 ▼▼▼
@@ -357,9 +378,42 @@ function renderKPIs(){
   '<div class="card"><div class="label">종결·실패</div><div class="val">'+s.fail+'</div></div>'+
   '<div class="card"><div class="label">A/S 대상 / 신청 / 승인</div><div class="val">'+s.asElig+'<span style="font-size:14px;color:var(--gray)"> / '+s.asReq+' / '+s.asOk+'</span></div></div>';
   if(SESS.role==="영업관리자"){
-    html += '<div class="card'+(s.unassigned>0?" hl":"")+'"><div class="label">배정 대기(팀)</div><div class="val">'+s.unassigned+'</div></div>';
+    html += '<div class="card'+(s.unassigned>0?" hl":"")+'" style="cursor:pointer" onclick="openUnassigned()" title="클릭하면 미배정 건을 배정할 수 있습니다"><div class="label">배정 대기(팀)</div><div class="val">'+s.unassigned+'</div></div>';
   }
   document.getElementById("kpis").innerHTML=html;
+}
+
+// 2026-09-08 추가: 영업관리자가 "배정 대기(팀)" 카드를 클릭하면 미배정 건 목록을 보여주고
+// 그 자리에서 팀 소속 컨설턴트(본인 포함)에게 바로 배정할 수 있게 하는 팝업.
+// 배정 자체는 기존 테이블 인라인 드롭다운과 동일하게 up()의 action:'update'(field:'담당컨설턴트')를 그대로 재사용함
+// — 백엔드 handleUpdate_는 이미 영업관리자의 팀 범위 배정/재배정을 검증·처리하므로 .gs 변경 불필요(13절 참고).
+function openUnassigned(){
+  if(SESS.role!=="영업관리자") return;
+  renderUnassignedList();
+  document.getElementById("ua-ovl").style.display="flex";
+}
+function closeUnassigned(){ document.getElementById("ua-ovl").style.display="none"; }
+function renderUnassignedList(){
+  const list=rows.filter(d=>!String(d["담당컨설턴트"]||"").trim());
+  const box=document.getElementById("ua-list");
+  if(!list.length){ box.innerHTML='<div class="desc">🎉 배정 대기 중인 건이 없습니다.</div>'; return; }
+  const team=SESS.team||[SESS.name];
+  box.innerHTML=list.map(d=>{
+    const no=d["번호"];
+    const opts='<option value="">— 배정할 컨설턴트 선택 —</option>'+team.map(n=>'<option>'+esc(n)+'</option>').join("");
+    return '<div class="item" data-no="'+no+'">'+
+      '<div class="info"><b>'+esc(d["가게명"]||"(가게)")+'</b>'+
+        '<span>'+esc(d["점주명"]||"")+' · '+esc(fmtPhone(d["연락처"]||""))+'</span>'+
+        '<span>'+esc(d["동네"]||"")+' · DB지급일 '+esc(d["DB지급일"]||"—")+'</span></div>'+
+      '<select onchange="assignFromPopup('+no+',this.value,this)">'+opts+'</select>'+
+    '</div>';
+  }).join("");
+}
+async function assignFromPopup(no, value, sel){
+  if(!value) return;
+  sel.disabled=true;
+  await up(no, "담당컨설턴트", value);
+  renderUnassignedList(); // 배정된 항목은 미배정 목록에서 사라짐 — 팝업은 열어둔 채로 계속 처리 가능
 }
 
 function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
@@ -532,7 +586,7 @@ let saveTimer;
 function toast(){ const s=document.getElementById("saving"); s.classList.add("on"); clearTimeout(saveTimer); saveTimer=setTimeout(()=>s.classList.remove("on"),900); }
 async function up(no, field, value){
   const row=rows.find(d=>String(d["번호"])===String(no)); if(row) row[field]=value;
-  if(field==="계약현황"||field==="클로징확률") render();
+  if(field==="계약현황"||field==="클로징확률"||field==="담당컨설턴트") render(); // 2026-09-08: 배정/재배정 시에도 KPI(배정 대기) 즉시 갱신
   toast();
   try{
     const j=await post({action:"update", name:SESS.name, pw:SESS.pw, no:no, field:field, value:value});
