@@ -548,6 +548,26 @@ function syncFromSharedSheet_20260907(){
   );
 }
 
+// 2026-09-08 추가 — syncFromSharedSheet_20260907()를 1시간마다 자동 실행되게 하는 트리거 설치/제거.
+// 최초 1회만 setupHourlyTrigger_20260908()을 Apps Script 편집기에서 실행하면 됨(재실행해도 중복 생성 안 되고 안전).
+// 자동 실행 결과는 "실행 기록"(왼쪽 메뉴 시계 아이콘 옆) 또는 View > Executions에서 Logger.log 메시지로 확인 가능.
+function setupHourlyTrigger_20260908(){
+  var FN = "syncFromSharedSheet_20260907";
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if(t.getHandlerFunction() === FN) ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger(FN).timeBased().everyHours(1).create();
+  Logger.log(FN + " — 1시간마다 자동 실행 트리거 설치 완료.");
+}
+function removeHourlyTrigger_20260908(){
+  var FN = "syncFromSharedSheet_20260907";
+  var removed = 0;
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if(t.getHandlerFunction() === FN){ ScriptApp.deleteTrigger(t); removed++; }
+  });
+  Logger.log(FN + " — 트리거 " + removed + "개 제거 완료.");
+}
+
 // ── 공통 유틸 ───────────────────────────────────────────────
 function json_(obj){
   return ContentService.createTextOutput(JSON.stringify(obj))

@@ -868,6 +868,26 @@ function syncMeetingScheduleFromSharedSheet_20260907(){
   );
 }
 
+// 2026-09-08 추가 — syncMeetingScheduleFromSharedSheet_20260907()를 1시간마다 자동 실행되게 하는
+// 트리거 설치/제거. 최초 1회만 setupHourlyTrigger_20260908()을 Apps Script 편집기에서 실행하면
+// 됨(재실행해도 중복 생성 안 되고 안전). 자동 실행 결과는 "실행 기록"에서 Logger.log 메시지로 확인 가능.
+function setupHourlyTrigger_20260908(){
+  var FN = "syncMeetingScheduleFromSharedSheet_20260907";
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if(t.getHandlerFunction() === FN) ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger(FN).timeBased().everyHours(1).create();
+  Logger.log(FN + " — 1시간마다 자동 실행 트리거 설치 완료.");
+}
+function removeHourlyTrigger_20260908(){
+  var FN = "syncMeetingScheduleFromSharedSheet_20260907";
+  var removed = 0;
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if(t.getHandlerFunction() === FN){ ScriptApp.deleteTrigger(t); removed++; }
+  });
+  Logger.log(FN + " — 트리거 " + removed + "개 제거 완료.");
+}
+
 // 유니코드 정규화 차이(NFC/NFD)로 인해 getSheetByName이 육안상 동일한 이름의 탭을
 // 못 찾는 문제를 방지하기 위한 느슨한 탭 찾기(정규화+trim 후 비교). 특히 한글이 섞인
 // 탭 이름(다른 사람이 다른 환경에서 만든 "공유시트" 등)에서 이런 불일치가 생길 수 있음
