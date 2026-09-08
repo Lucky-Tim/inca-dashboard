@@ -673,9 +673,9 @@ function openConvert(no){
   if(!row) return;
   if(isDone(row)){ alert("이미 전환된 건입니다."); return; }
   cvNo=no;
-  document.getElementById("cv-desc").innerHTML='<b>'+esc(row["가게명"]||"")+'</b> 건을 컨설팅DB로 넘깁니다.<br>담당 컨설턴트를 고르면 컨설턴트 트래커에 새 행이 생기고, 이 행은 전환완료로 잠깁니다.';
+  document.getElementById("cv-desc").innerHTML='<b>'+esc(row["가게명"]||"")+'</b> 건을 컨설팅DB로 넘깁니다.<br>비워두면 미배정 상태로 넘어가 영업관리자가 배정합니다 — 특정 컨설턴트를 이미 알고 있으면 바로 선택해도 됩니다.';
   const sel=document.getElementById("cv-sel");
-  sel.innerHTML='<option value="">— 담당 컨설턴트 선택 —</option>'+CONSULTANTS.map(c=>'<option>'+esc(c)+'</option>').join("");
+  sel.innerHTML='<option value="">— 미배정(영업관리자가 배정) —</option>'+CONSULTANTS.map(c=>'<option>'+esc(c)+'</option>').join("");
   document.getElementById("cv-err").textContent="";
   document.getElementById("cv-ovl").style.display="flex";
 }
@@ -683,7 +683,6 @@ function closeConvert(){ cvNo=null; document.getElementById("cv-ovl").style.disp
 async function doConvert(){
   const c=document.getElementById("cv-sel").value;
   const err=document.getElementById("cv-err"); err.textContent="";
-  if(!c){ err.textContent="담당 컨설턴트를 선택하세요"; return; }
   const btn=document.getElementById("cv-go"); btn.disabled=true; btn.textContent="전환 중...";
   try{
     const j=await post({action:"convert", name:SESS.name, pw:SESS.pw, no:cvNo, consultant:c});

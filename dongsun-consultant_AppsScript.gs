@@ -41,8 +41,9 @@ var HEADERS = ["번호","담당컨설턴트","가게명","점주명","연락처"
                // 서포터즈 쪽 PRECHECK_FIELDS와 컬럼명을 맞춰야 함(항목이 늘면 여기도 같이 추가)
                "기존설계사관계","월납보험료수준","연령대","성별","3대질환진단여부",
                // 2026-09-07(5차) 추가: 서포터즈에서 지오코딩한 좌표("가까운 순" 정렬용) — 전환 시점에 1회 복사(읽기전용), 기존 행은 backfillLatLngFromSupporter_20260907()으로 소급
-               "위도","경도"];
-var ACCOUNT_HEADERS = ["이름","비번","권한"];
+               "위도","경도",
+               "팀배정일"]; // 2026-09-08 추가: 영업관리자가 담당컨설턴트를 배정/재배정한 시점(비파괴, 맨 뒤) — handleUpdate_가 담당컨설턴트 변경 시 자동 기록
+var ACCOUNT_HEADERS = ["이름","비번","권한","소속영업관리자"]; // 2026-09-08 추가: 영업관리자 계층 도입 — 컨설턴트 행에만 소속 영업관리자 이름을 채움(비파괴, 맨 뒤)
 
 var STATUSES = ["신규배정","상담중","청약완료","계약체결","종결·실패"];
 var PROBS = ["10%","30%","50%","70%","90%","100%"];
@@ -99,7 +100,7 @@ function setupTrackerSheet(){
   // 2026-09-07 추가: DB지급일·AS신청기한은 "yyyy-MM-dd" 문자열로 써넣는데, 서식이 "자동"이면
   // 구글시트가 이를 진짜 날짜 셀로 자동 변환해버려서 API가 다시 읽을 때 Date 객체(→ISO 문자열)로
   // 튀어나오는 문제가 있었음 — 텍스트 서식으로 고정해 항상 문자열로 저장·조회되게 함
-  ["DB지급일","AS신청기한"].forEach(function(colName){
+  ["DB지급일","AS신청기한","팀배정일"].forEach(function(colName){
     var idx = HEADERS.indexOf(colName)+1;
     if(idx > 0) sh.getRange(2, idx, Math.max(sh.getMaxRows()-1,1), 1).setNumberFormat("@");
   });
@@ -135,10 +136,13 @@ function setupAccountSheet(){
     "컨설턴트 로그인 계정 명단입니다.\n" +
     "A열=이름(트래커 탭의 '담당컨설턴트' 값과 정확히 같아야 본인 담당 필터가 동작)\n" +
     "B열=비번(단순 문자열 대조 방식)\n" +
-    "C열=권한 — 비워두면 일반 계정(본인 담당 건만 조회/수정), '관리자'라고 입력하면 전체 데이터 조회·편집 + 담당자 재배정 가능\n" +
+    "C열=권한 — 비워두면 컨설턴트(본인 담당 건만 조회/수정), '영업관리자'라고 입력하면 본인+소속 컨설턴트(D열) 데이터를 조회하고 담당컨설턴트를 배정/재배정할 수 있음, '관리자'라고 입력하면 전체관리자(전체 데이터 조회·편집)\n" +
+    "D열=소속영업관리자 — 컨설턴트 계정에만 입력(그 컨설턴트가 속한 영업관리자 이름). 전체관리자·영업관리자 행은 비워둠.\n" +
+    "  예) 황태성/박지우=권한 '관리자', 정현우=권한 '영업관리자', 김광연·하명규=권한 비움(컨설턴트) + D열에 '정현우'\n" +
     "2행부터 한 줄에 한 명씩 추가하세요.\n" +
     "※ '관리자' 계정은 서포터즈 트래커의 '컨설턴트 전환' 선택 목록에서 자동 제외됩니다.\n" +
-    "※ 이 목록이 서포터즈 트래커의 '컨설턴트 전환' 선택 목록으로도 쓰입니다.");
+    "※ 이 목록이 서포터즈 트래커의 '컨설턴트 전환' 선택 목록으로도 쓰입니다.\n" +
+    "※ 2026-09-08부터 컨설턴트 전환 시 담당컨설턴트는 기본 미배정으로 생성되고, 영업관리자가 컨설턴트 트래커에서 배정합니다.");
   sh.getRange(1,ACCOUNT_HEADERS.length+2).setValue(
     "← 2행부터 [이름 | 비번 | 권한(관리자만 입력, 비우면 일반)]을 입력하세요. 예) 김광연 / 정현우 / 하명규");
   autoWidth_(sh, ACCOUNT_HEADERS.length+3);
@@ -176,7 +180,29 @@ function auth_(name, pw){
     if(String(rows[i]["이름"]||"").trim() === name && String(rows[i]["비번"]||"").trim() === pw){ me = rows[i]; break; }
   }
   if(!me) return null;
-  return {name:name, isAdmin: String(me["권한"]||"").trim() === "관리자"};
+  var role = roleOf_(me["권한"]);
+  return {name:name, isAdmin: role === "관리자", role: role};
+}
+
+// 2026-09-08 추가 — 영업관리자 계층: "권한" 컬럼 문자열을 3단 역할로 정규화
+function roleOf_(perm){
+  perm = String(perm||"").trim();
+  if(perm === "관리자") return "관리자";
+  if(perm === "영업관리자") return "영업관리자";
+  return "컨설턴트";
+}
+
+// 2026-09-08 추가 — 영업관리자(managerName) 본인 + 소속 컨설턴트(계정 탭 "소속영업관리자"=managerName) 이름 목록
+function teamMembersOf_(managerName){
+  var team = [managerName];
+  var rows = sheetToObjects_(accountSheet_());
+  for(var i=0;i<rows.length;i++){
+    if(String(rows[i]["소속영업관리자"]||"").trim() === managerName){
+      var n = String(rows[i]["이름"]||"").trim();
+      if(n && team.indexOf(n) < 0) team.push(n);
+    }
+  }
+  return team;
 }
 
 function readTracker_(){
@@ -241,11 +267,23 @@ function handleLogin_(body){
   var auth = auth_(body.name, body.pw);
   if(!auth) return json_({ok:false, error:"이름 또는 비밀번호가 올바르지 않습니다"});
   var allRows = readTracker_();
-  var rows = auth.isAdmin ? allRows : allRows.filter(function(r){
-    return String(r["담당컨설턴트"]||"").trim() === auth.name;
-  });
+  var team = null, rows;
+  if(auth.isAdmin){
+    rows = allRows;
+  } else if(auth.role === "영업관리자"){
+    // 2026-09-08 추가: 영업관리자는 본인 팀 담당 건 + 아직 담당컨설턴트가 비어있는(배정 대기) 건을 봄
+    team = teamMembersOf_(auth.name);
+    rows = allRows.filter(function(r){
+      var owner = String(r["담당컨설턴트"]||"").trim();
+      return !owner || team.indexOf(owner) >= 0;
+    });
+  } else {
+    rows = allRows.filter(function(r){
+      return String(r["담당컨설턴트"]||"").trim() === auth.name;
+    });
+  }
   return json_({
-    ok:true, name:auth.name, isAdmin:auth.isAdmin,
+    ok:true, name:auth.name, isAdmin:auth.isAdmin, role:auth.role, team:team,
     statuses:STATUSES, probs:PROBS,
     closeReasons:CLOSE_REASONS, asTypes:AS_TYPES, applyStatuses:AS_APPLY_STATUSES,
     rows:rows, ts:new Date().getTime()
@@ -281,11 +319,24 @@ function handleUpdate_(body){
   // 증빙은 action:'photo'/'deletePhoto'로만 관리(자유텍스트 update로 덮어쓰지 않음)
   var allowed = editable.slice();
   if(auth.isAdmin) allowed = allowed.concat(["담당컨설턴트","AS신청상태"]);
+  else if(auth.role === "영업관리자") allowed = allowed.concat(["담당컨설턴트"]); // 2026-09-08 추가: 영업관리자는 배정/재배정만 가능(AS신청상태는 전체관리자 전용 유지)
   if(allowed.indexOf(field) < 0) return json_({ok:false, error:"편집할 수 없는 항목입니다: "+field});
 
-  if(!auth.isAdmin){
-    var ownerIdx = t.head.indexOf("담당컨설턴트");
-    if(ownerIdx >= 0 && String(t.values[ownerIdx]).trim() !== auth.name){
+  var ownerIdx = t.head.indexOf("담당컨설턴트");
+  var currentOwner = ownerIdx >= 0 ? String(t.values[ownerIdx]).trim() : "";
+
+  if(field === "담당컨설턴트" && auth.role === "영업관리자"){
+    // 2026-09-08 추가: 영업관리자는 본인 팀(본인+소속 컨설턴트) 범위 안에서만 배정/재배정 가능
+    var team = teamMembersOf_(auth.name);
+    if(currentOwner && team.indexOf(currentOwner) < 0){
+      return json_({ok:false, error:"본인 팀 담당 건만 재배정할 수 있습니다"});
+    }
+    var newOwner = String(body.value||"").trim();
+    if(newOwner && team.indexOf(newOwner) < 0){
+      return json_({ok:false, error:"본인 팀 소속 컨설턴트에게만 배정할 수 있습니다"});
+    }
+  } else if(!auth.isAdmin){
+    if(ownerIdx >= 0 && currentOwner !== auth.name){
       return json_({ok:false, error:"본인 담당 건만 수정할 수 있습니다"});
     }
   }
@@ -296,6 +347,16 @@ function handleUpdate_(body){
   t.values[col] = body.value;
 
   if(field === "종결사유") _applyAsLogic(t);
+  if(field === "담당컨설턴트"){
+    // 2026-09-08 추가: 담당컨설턴트가 배정/재배정/해제될 때마다 팀배정일 자동 기록(공란이 되면 같이 비움)
+    var teamDateCol = t.head.indexOf("팀배정일");
+    if(teamDateCol >= 0){
+      var newOwnerVal = String(body.value||"").trim();
+      var stampVal = newOwnerVal ? Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd") : "";
+      t.sh.getRange(t.row, teamDateCol+1).setValue(stampVal);
+      t.values[teamDateCol] = stampVal;
+    }
+  }
 
   stamp_(t.sh, t.head, t.row, auth.name);
   return json_({ok:true, no:body.no, field:field, value:body.value});

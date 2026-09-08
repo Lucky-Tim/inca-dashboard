@@ -824,8 +824,10 @@ function handleConvert_(body){
   }
   var name = auth.name;
 
+  // 2026-09-08: 영업관리자 계층 도입 — 비워서 전환하면 컨설턴트 트래커에 "미배정"으로 생성되고,
+  // 소속 영업관리자가 컨설턴트 트래커에서 본인 팀에게 배정합니다(권장 흐름). 특정 컨설턴트를 이미
+  // 알고 있으면 그대로 선택해서 바로 배정할 수도 있습니다(기존 동작 유지, 필수 → 선택 사항으로 완화).
   var consultant = String(body.consultant||"").trim();
-  if(!consultant) return json_({ok:false, error:"담당 컨설턴트를 선택하세요"});
 
   var t = findRow_(body.no);
   if(!t) return json_({ok:false, error:"행을 찾을 수 없습니다: "+body.no});
