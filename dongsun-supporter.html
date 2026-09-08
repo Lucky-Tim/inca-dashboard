@@ -22,6 +22,8 @@
   .card .goal{font-size:11px;margin-top:4px;color:var(--gray)}
   .bar{height:8px;background:var(--ice);border-radius:6px;overflow:hidden;margin-top:8px}.bar>i{display:block;height:100%;background:var(--gold)}
   .card.wide{grid-column:1/-1}
+  .card.warn{cursor:pointer;border-color:var(--gold)}
+  .card.warn:hover{box-shadow:0 3px 10px rgba(224,163,62,.35)}
   .ta-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .ta-chip{font-size:12.5px;padding:5px 11px;border-radius:20px;font-weight:700;color:var(--ink)}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
@@ -108,6 +110,17 @@
   #pc-ovl input[type=text]{width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid var(--ice2);border-radius:10px;font-size:14px;background:#F8FAFD;outline:none;font-family:inherit}
   #pc-ovl .row{display:flex;gap:8px;margin-top:16px}#pc-ovl .row button{flex:1;padding:11px}
   #pc-ovl .err{color:var(--red);font-size:11.5px;margin-top:10px;min-height:14px;font-weight:600;text-align:center}
+  /* ── 컨설팅 동의 → 미전환 목록 팝업(2026-09-08 추가) ── */
+  #pd-ovl{display:none;position:fixed;inset:0;z-index:9998;background:rgba(14,31,56,.45);align-items:center;justify-content:center;padding:20px}
+  #pd-ovl .box{width:440px;max-width:92vw;max-height:88vh;overflow-y:auto;background:#fff;border:1px solid var(--ice2);border-radius:16px;padding:22px 24px;box-shadow:0 18px 50px rgba(14,31,56,.3)}
+  #pd-ovl h3{margin:0 0 6px;color:var(--navy);font-size:16px}
+  #pd-ovl p{margin:0 0 14px;font-size:12.5px;color:var(--gray);line-height:1.6}
+  #pd-ovl .pd-item{border:1px solid var(--ice2);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  #pd-ovl .pd-item .nm{font-weight:700;color:var(--navy);font-size:14px}
+  #pd-ovl .pd-item .meta{font-size:12px;color:var(--gray);margin-top:2px}
+  #pd-ovl .pd-item button{margin-top:8px;width:100%;padding:8px}
+  #pd-ovl .empty2{color:var(--gray);font-size:13px;text-align:center;padding:20px 0}
+  #pd-ovl .row{display:flex;gap:8px;margin-top:6px}#pd-ovl .row button{flex:1;padding:11px}
   @media (max-width:640px){
     .wrap{padding:12px}.kpis{grid-template-columns:repeat(2,1fr);gap:8px}.card .val{font-size:22px}
     .toolbar button{flex:1 1 auto}.toolbar #q{flex:1 1 100%;order:5}
@@ -164,7 +177,7 @@
   <div class="kpis" id="kpis"></div>
   <div class="toolbar">
     <button class="primary" onclick="load()">↻ 새로고침</button>
-    <button id="btnMine" class="on" onclick="toggleMine()">👤 내 담당만</button>
+    <select id="fWho" onchange="onWhoChange()" style="display:none"><option value="">👥 담당자 전체</option></select>
     <button id="btnDist" onclick="sortByDistance()">📍 가까운 순</button>
     <button class="primary" onclick="openAddStore()">➕ 신규매장</button>
     <button class="gold" onclick="report()">📨 오늘 단톡 보고</button>
@@ -245,6 +258,18 @@
   </div>
 </div>
 
+<!-- ── 컨설팅 동의 → 미전환 목록 팝업 (2026-09-08 추가) ── -->
+<div id="pd-ovl">
+  <div class="box">
+    <h3>⏳ 동의했지만 아직 전환 안 된 건</h3>
+    <p>컨설팅동의여부가 "컨설팅동의"인데 아직 컨설턴트로 전환되지 않은 매장 목록입니다.</p>
+    <div id="pd-list"></div>
+    <div class="row">
+      <button onclick="closePendingConvert()">닫기</button>
+    </div>
+  </div>
+</div>
+
 <div class="saving" id="saving">저장 중…</div>
 
 <script>
@@ -286,7 +311,7 @@ let SUPPORTERS=[];
 const TA_COLOR={"대기":"#EEF2F7","방문확정":"#DAF0E2","부재":"#EAEFF4","재접촉필요":"#FFF3D6","거절":"#F7DDDA","보류":"#E8E3F5"};
 const AG_COLOR={"미접촉":"#EEF2F7","컨설팅동의":"#DAF0E2","컨설팅거절":"#F7DDDA","보류":"#FFF3D6"};
 
-let rows=[], sortK="번호", sortDir=1, mineOnly=false, SESS={name:"",pw:"",isAdmin:false}, cvNo=null, pcNo=null;
+let rows=[], sortK="번호", sortDir=1, whoFilter="", SESS={name:"",pw:"",isAdmin:false}, cvNo=null, pcNo=null;
 function apiUrl(){ return API_URL || localStorage.getItem("dongsun_sup_api") || ""; }
 
 function boot(){
@@ -343,8 +368,13 @@ function applyData(j){
   SESS.isAdmin = !!j.isAdmin;
   rows=j.rows||[];
   document.getElementById("conn").textContent="연결됨 · "+new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
-  const btnMine=document.getElementById("btnMine");
-  if(btnMine) btnMine.style.display = SESS.isAdmin ? "" : "none";
+  const fWho=document.getElementById("fWho");
+  if(fWho){
+    fWho.style.display = SESS.isAdmin ? "" : "none";
+    if(SESS.isAdmin && fWho.options.length<=1 && SUPPORTERS.length){
+      SUPPORTERS.forEach(function(n){ var o=document.createElement("option"); o.value=n; o.textContent="👤 "+n; fWho.appendChild(o); });
+    }
+  }
 }
 
 async function load(){
@@ -360,11 +390,13 @@ async function load(){
   }
 }
 
-function toggleMine(){
-  mineOnly=!mineOnly;
-  const b=document.getElementById("btnMine");
-  b.classList.toggle("on", mineOnly);
-  b.textContent= mineOnly ? "👤 내 담당만" : "👥 전체보기";
+function onWhoChange(){
+  whoFilter=document.getElementById("fWho").value;
+  render();
+}
+function resetWhoFilter(){
+  const el=document.getElementById("fWho"); if(el) el.value="";
+  whoFilter="";
   render();
 }
 function fillFilters(){
@@ -438,9 +470,10 @@ function stats(){
   const agree=cnt("컨설팅동의여부","컨설팅동의");
   const done=rs.filter(isDone).length;
   const reject=cnt("컨설팅동의여부","컨설팅거절");
+  const pendingConvert=rs.filter(d=>d["컨설팅동의여부"]==="컨설팅동의" && !isDone(d)).length; // 2026-09-08 추가: 동의했지만 아직 전환 안 된 건
   const taBreak={}; TA_STATUSES.forEach(k=>{ taBreak[k]=cnt("TA결과",k); });
   const rate=n>0?Math.round(agree/n*1000)/10:0;
-  return {n,agree,done,reject,taBreak,rate};
+  return {n,agree,done,reject,pendingConvert,taBreak,rate};
 }
 function renderKPIs(){
   const s=stats(), g=Math.min(100,Math.round(s.rate/30*100));
@@ -452,6 +485,7 @@ function renderKPIs(){
   '<div class="card"><div class="label">담당 건수</div><div class="val">'+s.n+'</div></div>'+
   '<div class="card"><div class="label">컨설팅동의</div><div class="val">'+s.agree+'</div></div>'+
   '<div class="card"><div class="label">전환완료</div><div class="val">'+s.done+'</div></div>'+
+  '<div class="card warn" onclick="openPendingConvert()"><div class="label">⏳ 동의 → 미전환</div><div class="val">'+s.pendingConvert+'</div></div>'+
   '<div class="card"><div class="label">컨설팅거절</div><div class="val">'+s.reject+'</div></div>'+
   '<div class="card wide"><div class="label">TA결과 현황(전체값)</div><div class="ta-chips">'+taChips+'</div></div>';
 }
@@ -512,7 +546,7 @@ function cellHtml(d,c){
 }
 
 function scoped(){
-  return (SESS.isAdmin && mineOnly) ? rows.filter(d=>String(d["담당서포터즈"]||"").trim()===SESS.name) : rows.slice();
+  return (SESS.isAdmin && whoFilter) ? rows.filter(d=>String(d["담당서포터즈"]||"").trim()===whoFilter) : rows.slice();
 }
 function render(){
   renderKPIs();
@@ -528,7 +562,7 @@ function render(){
     if(sortK==="_distKm"){x=(x==null?Infinity:x); y=(y==null?Infinity:y);}
     if(x<y)return -1*sortDir; if(x>y)return 1*sortDir; return 0;});
   const tb=document.getElementById("tb");
-  if(!rs.length){ tb.innerHTML='<tr><td class="empty">표시할 가맹점이 없습니다.'+(SESS.isAdmin&&mineOnly?' <button onclick="toggleMine()">전체보기</button>':'')+'</td></tr>'; return; }
+  if(!rs.length){ tb.innerHTML='<tr><td class="empty">표시할 가맹점이 없습니다.'+(SESS.isAdmin&&whoFilter?' <button onclick="resetWhoFilter()">담당자 전체보기</button>':'')+'</td></tr>'; return; }
   tb.innerHTML=rs.map(d=>{
     const no=d["번호"];
     return '<tr class="'+(isDone(d)?"done":"")+'"><td data-label="#">'+no+'. '+(esc(d["가게명"])||"(가게)")+'</td>'+COLS.map(c=>cellHtml(d,c)).join("")+'</tr>';
@@ -753,12 +787,33 @@ async function doAddStore(){
   finally{ btn.disabled=false; btn.textContent="등록"; }
 }
 
+// 2026-09-08 추가: 컨설팅 동의 → 미전환 목록 팝업 (KPI 카드 클릭 시)
+function openPendingConvert(){
+  const rs=scoped().filter(d=>d["컨설팅동의여부"]==="컨설팅동의" && !isDone(d));
+  const box=document.getElementById("pd-list");
+  if(!rs.length){
+    box.innerHTML='<div class="empty2">동의했지만 아직 전환되지 않은 건이 없습니다.</div>';
+  } else {
+    box.innerHTML=rs.map(function(d){
+      const no=d["번호"];
+      return '<div class="pd-item">'+
+        '<div class="nm">'+esc(d["가게명"]||"(가게)")+'</div>'+
+        '<div class="meta">담당 '+esc(d["담당서포터즈"]||"—")+' · '+esc(fmtPhone(d["연락처"])||"—")+'</div>'+
+        '<div class="meta">동의일시 '+esc(fmtDateDisp(d["컨설팅동의일시"])||"—")+'</div>'+
+        (SESS.isAdmin ? '<button class="primary" onclick="closePendingConvert(); openConvert('+no+')">전환하기</button>' : '')+
+      '</div>';
+    }).join("");
+  }
+  document.getElementById("pd-ovl").style.display="flex";
+}
+function closePendingConvert(){ document.getElementById("pd-ovl").style.display="none"; }
+
 function report(){
   const s=stats(), rs=scoped(), md=(new Date().getMonth()+1)+"/"+new Date().getDate();
   const nm=d=>d["가게명"];
   const agreeList=rs.filter(d=>d["컨설팅동의여부"]==="컨설팅동의").map(nm).filter(Boolean);
   const doneList=rs.filter(isDone).map(nm).filter(Boolean);
-  const txt="[동선 서포터즈 활동보고 "+md+" · "+(mineOnly?SESS.name:"전체")+"]\n"+
+  const txt="[동선 서포터즈 활동보고 "+md+" · "+(whoFilter||"전체")+"]\n"+
   "• 담당 "+s.n+" / 대기 "+(s.taBreak["대기"]||0)+"\n"+
   "• TA완료(방문확정) "+(s.taBreak["방문확정"]||0)+" · 방문거절 "+(s.taBreak["거절"]||0)+"\n"+
   "• 컨설팅동의 "+s.agree+"곳(거절 "+s.reject+"): "+(agreeList.join(", ")||"-")+"\n"+
