@@ -22,7 +22,7 @@
   .card .goal{font-size:11px;margin-top:4px;color:var(--gray)}
   .bar{height:8px;background:var(--ice);border-radius:6px;overflow:hidden;margin-top:8px}.bar>i{display:block;height:100%;background:var(--gold)}
   .card.wide{grid-column:1/-1}
-  .card.warn{cursor:pointer;border-color:var(--gold)}
+  .card.warn{cursor:pointer;border-color:var(--gold);background:#FCF3E3}
   .card.warn:hover{box-shadow:0 3px 10px rgba(224,163,62,.35)}
   .ta-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .ta-chip{font-size:12.5px;padding:5px 11px;border-radius:20px;font-weight:700;color:var(--ink)}
@@ -487,7 +487,7 @@ function renderKPIs(){
   '<div class="card"><div class="label">담당 건수</div><div class="val">'+s.n+'</div></div>'+
   '<div class="card"><div class="label">컨설팅동의</div><div class="val">'+s.agree+'</div></div>'+
   '<div class="card"><div class="label">전환완료</div><div class="val">'+s.done+'</div></div>'+
-  '<div class="card warn" onclick="openPendingConvert()"><div class="label">⏳ 동의 → 미전환</div><div class="val">'+s.pendingConvert+'</div></div>'+
+  '<div class="card warn" onclick="openPendingConvert()" title="클릭하면 미전환 목록이 열립니다"><div class="label">⏳ 동의 → 미전환</div><div class="val">'+s.pendingConvert+'</div><div class="goal">👆 클릭하면 목록이 열려요</div></div>'+
   '<div class="card"><div class="label">컨설팅거절</div><div class="val">'+s.reject+'</div></div>'+
   '<div class="card wide"><div class="label">TA결과 현황(전체값)</div><div class="ta-chips">'+taChips+'</div></div>';
 }

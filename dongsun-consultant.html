@@ -19,6 +19,7 @@
   .card .label{font-size:12px;color:var(--gray)}
   .card .val{font-size:26px;font-weight:700;margin-top:4px}
   .card.hl{background:var(--navy);color:#fff}.card.hl .label{color:var(--ice2)}
+  .card.warn{cursor:pointer;border-color:var(--gold);background:#FCF3E3}
   .card .goal{font-size:11px;margin-top:4px;color:var(--gray)}
   .bar{height:8px;background:var(--ice);border-radius:6px;overflow:hidden;margin-top:8px}.bar>i{display:block;height:100%;background:var(--gold)}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
@@ -389,7 +390,7 @@ function renderKPIs(){
   '<div class="card"><div class="label">종결·실패</div><div class="val">'+s.fail+'</div></div>'+
   '<div class="card"><div class="label">A/S 대상 / 신청 / 승인</div><div class="val">'+s.asElig+'<span style="font-size:14px;color:var(--gray)"> / '+s.asReq+' / '+s.asOk+'</span></div></div>';
   if(SESS.role==="영업관리자"){
-    html += '<div class="card'+(s.unassigned>0?" hl":"")+'" style="cursor:pointer" onclick="openUnassigned()" title="클릭하면 미배정 건을 배정할 수 있습니다"><div class="label">배정 대기(팀)</div><div class="val">'+s.unassigned+'</div></div>';
+    html += '<div class="card warn" onclick="openUnassigned()" title="클릭하면 미배정 건을 배정할 수 있습니다"><div class="label">배정 대기(팀)</div><div class="val">'+s.unassigned+'</div><div class="goal">👆 클릭하면 배정할 수 있어요</div></div>';
   }
   document.getElementById("kpis").innerHTML=html;
 }
