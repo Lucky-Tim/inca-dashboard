@@ -205,6 +205,18 @@ function teamMembersOf_(managerName){
   return team;
 }
 
+// 2026-09-08 추가 — 계정 탭 전체 이름 목록(전체관리자의 "담당자 전체/개별" 필터 드롭다운용).
+// 서포터즈 트래커의 supporterNames_()와 동일한 목적 — 전체관리자만 이 목록이 필요해서 handleLogin_에서 isAdmin일 때만 내려줌.
+function allAccountNames_(){
+  var rows = sheetToObjects_(accountSheet_());
+  var out = [];
+  for(var i=0;i<rows.length;i++){
+    var n = String(rows[i]["이름"]||"").trim();
+    if(n && out.indexOf(n) < 0) out.push(n);
+  }
+  return out;
+}
+
 function readTracker_(){
   var sh = trackerSheet_();
   var values = sh.getDataRange().getValues();
@@ -282,8 +294,9 @@ function handleLogin_(body){
       return String(r["담당컨설턴트"]||"").trim() === auth.name;
     });
   }
+  var roster = auth.isAdmin ? allAccountNames_() : null; // 2026-09-08 추가: 전체관리자의 담당자 필터 드롭다운용
   return json_({
-    ok:true, name:auth.name, isAdmin:auth.isAdmin, role:auth.role, team:team,
+    ok:true, name:auth.name, isAdmin:auth.isAdmin, role:auth.role, team:team, roster:roster,
     statuses:STATUSES, probs:PROBS,
     closeReasons:CLOSE_REASONS, asTypes:AS_TYPES, applyStatuses:AS_APPLY_STATUSES,
     rows:rows, ts:new Date().getTime()

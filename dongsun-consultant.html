@@ -138,7 +138,7 @@
   <div class="kpis" id="kpis"></div>
   <div class="toolbar">
     <button class="primary" onclick="load()">↻ 새로고침</button>
-    <button id="btnMine" class="on" onclick="toggleMine()">👤 내 담당만</button>
+    <select id="fWho" onchange="onWhoChange()" style="display:none"><option value="">👥 담당자 전체</option></select>
     <button id="btnDist" onclick="sortByDistance()">📍 가까운 순</button>
     <button class="gold" onclick="report()">📨 오늘 단톡 보고</button>
     <button onclick="logout()">로그아웃</button>
@@ -220,7 +220,8 @@ let APPLY_YN=["Y","N"];
 const PHOTO_MAX=5;
 const ST_COLOR={"신규배정":"#EEF2F7","상담중":"#DDEFF3","청약완료":"#FFF3D6","계약체결":"#C7E9D3","종결·실패":"#F0E4E3"};
 
-let rows=[], sortK="번호", sortDir=1, mineOnly=false, SESS={name:"",pw:"",isAdmin:false,role:"컨설턴트",team:null};
+let rows=[], sortK="번호", sortDir=1, whoFilter="", SESS={name:"",pw:"",isAdmin:false,role:"컨설턴트",team:null};
+let ALL_CONSULTANTS=[]; // 2026-09-08 추가: 전체관리자 담당자 필터 옵션(계정 탭 전체 이름)
 function apiUrl(){ return API_URL || localStorage.getItem("dongsun_con_api") || ""; }
 
 function boot(){
@@ -280,8 +281,16 @@ function applyData(j){
   SESS.team = j.team || null;
   rows=j.rows||[];
   document.getElementById("conn").textContent="연결됨 · "+new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
-  const btnMine=document.getElementById("btnMine");
-  if(btnMine) btnMine.style.display = (SESS.isAdmin || SESS.role==="영업관리자") ? "" : "none";
+  if(j.roster && j.roster.length) ALL_CONSULTANTS=j.roster;
+  const fWho=document.getElementById("fWho");
+  if(fWho){
+    const canFilter = SESS.isAdmin || SESS.role==="영업관리자";
+    fWho.style.display = canFilter ? "" : "none";
+    if(canFilter && fWho.options.length<=1){
+      const names = SESS.isAdmin ? ALL_CONSULTANTS : (SESS.team||[]);
+      names.forEach(function(n){ var o=document.createElement("option"); o.value=n; o.textContent="👤 "+n; fWho.appendChild(o); });
+    }
+  }
 }
 
 async function load(){
@@ -297,11 +306,13 @@ async function load(){
   }
 }
 
-function toggleMine(){
-  mineOnly=!mineOnly;
-  const b=document.getElementById("btnMine");
-  b.classList.toggle("on", mineOnly);
-  b.textContent= mineOnly ? "👤 내 담당만" : "👥 전체보기";
+function onWhoChange(){
+  whoFilter=document.getElementById("fWho").value;
+  render();
+}
+function resetWhoFilter(){
+  const el=document.getElementById("fWho"); if(el) el.value="";
+  whoFilter="";
   render();
 }
 function fillFilters(){
@@ -499,7 +510,7 @@ function cellHtml(d,c){
 }
 
 function scoped(){
-  return ((SESS.isAdmin || SESS.role==="영업관리자") && mineOnly) ? rows.filter(d=>String(d["담당컨설턴트"]||"").trim()===SESS.name) : rows.slice();
+  return ((SESS.isAdmin || SESS.role==="영업관리자") && whoFilter) ? rows.filter(d=>String(d["담당컨설턴트"]||"").trim()===whoFilter) : rows.slice();
 }
 function render(){
   renderKPIs();
@@ -515,7 +526,7 @@ function render(){
     if(sortK==="_distKm"){x=(x==null?Infinity:x); y=(y==null?Infinity:y);}
     if(x<y)return -1*sortDir; if(x>y)return 1*sortDir; return 0;});
   const tb=document.getElementById("tb");
-  if(!rs.length){ tb.innerHTML='<tr><td class="empty">표시할 컨설팅DB가 없습니다.'+((SESS.isAdmin||SESS.role==="영업관리자")&&mineOnly?' <button onclick="toggleMine()">전체보기</button>':'')+'</td></tr>'; return; }
+  if(!rs.length){ tb.innerHTML='<tr><td class="empty">표시할 컨설팅DB가 없습니다.'+((SESS.isAdmin||SESS.role==="영업관리자")&&whoFilter?' <button onclick="resetWhoFilter()">담당자 전체보기</button>':'')+'</td></tr>'; return; }
   tb.innerHTML=rs.map(d=>{
     const no=d["번호"];
     return '<tr><td data-label="#">'+no+'. '+(esc(d["가게명"])||"(가게)")+'</td>'+COLS.map(c=>cellHtml(d,c)).join("")+'</tr>';
@@ -617,7 +628,7 @@ async function asDecide(no, decision){
 function report(){
   const s=stats(), rs=scoped(), md=(new Date().getMonth()+1)+"/"+new Date().getDate();
   const line=st=>rs.filter(d=>d["계약현황"]===st).map(d=>d["가게명"]).filter(Boolean);
-  const txt="[동선 컨설팅 활동보고 "+md+" · "+(mineOnly?SESS.name:"전체")+"]\n"+
+  const txt="[동선 컨설팅 활동보고 "+md+" · "+(whoFilter||"전체")+"]\n"+
   "• 배정 "+s.n+" / 신규배정 "+s.sinkyu+"\n"+
   "• 상담중 "+s.sangdam+"곳: "+(line("상담중").join(", ")||"-")+"\n"+
   "• 청약완료 "+s.cheongyak+"곳: "+(line("청약완료").join(", ")||"-")+"\n"+
