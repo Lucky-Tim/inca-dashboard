@@ -308,6 +308,7 @@ let PRECHECK_FIELDS=[
 ];
 let CONSULTANTS=["김광연","정현우","하명규"];
 let SUPPORTERS=[];
+let MANAGERS=[]; // 2026-09-08 추가: 영업관리자 이름 목록(전환 팝업 문구용)
 const TA_COLOR={"대기":"#EEF2F7","방문확정":"#DAF0E2","부재":"#EAEFF4","재접촉필요":"#FFF3D6","거절":"#F7DDDA","보류":"#E8E3F5"};
 const AG_COLOR={"미접촉":"#EEF2F7","컨설팅동의":"#DAF0E2","컨설팅거절":"#F7DDDA","보류":"#FFF3D6"};
 
@@ -365,6 +366,7 @@ function applyData(j){
   if(j.precheckFields && j.precheckFields.length) PRECHECK_FIELDS=j.precheckFields;
   if(j.consultants && j.consultants.length) CONSULTANTS=j.consultants;
   if(j.supporters && j.supporters.length) SUPPORTERS=j.supporters;
+  if(j.managers && j.managers.length) MANAGERS=j.managers;
   SESS.isAdmin = !!j.isAdmin;
   rows=j.rows||[];
   document.getElementById("conn").textContent="연결됨 · "+new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
@@ -705,15 +707,18 @@ function onAgree(no, value){
 }
 
 // ── 컨설턴트 전환 ──
+function managerLabel(){ // 2026-09-08 추가: "영업관리자가 배정" 문구를 실제 이름으로 직관적으로 표시
+  return MANAGERS.length ? MANAGERS.join("·")+"가 배정" : "영업관리자가 배정";
+}
 function openConvert(no){
   if(!SESS.isAdmin){ alert("컨설턴트 전환은 관리자만 할 수 있습니다."); return; }
   const row=rows.find(d=>String(d["번호"])===String(no));
   if(!row) return;
   if(isDone(row)){ alert("이미 전환된 건입니다."); return; }
   cvNo=no;
-  document.getElementById("cv-desc").innerHTML='<b>'+esc(row["가게명"]||"")+'</b> 건을 컨설팅DB로 넘깁니다.<br>비워두면 미배정 상태로 넘어가 영업관리자가 배정합니다 — 특정 컨설턴트를 이미 알고 있으면 바로 선택해도 됩니다.';
+  document.getElementById("cv-desc").innerHTML='<b>'+esc(row["가게명"]||"")+'</b> 건을 컨설팅DB로 넘깁니다.<br>비워두면 '+esc(managerLabel())+'합니다 — 특정 컨설턴트를 이미 알고 있으면 바로 선택해도 됩니다.';
   const sel=document.getElementById("cv-sel");
-  sel.innerHTML='<option value="">— 미배정(영업관리자가 배정) —</option>'+CONSULTANTS.map(c=>'<option>'+esc(c)+'</option>').join("");
+  sel.innerHTML='<option value="">— '+esc(managerLabel())+' —</option>'+CONSULTANTS.map(c=>'<option>'+esc(c)+'</option>').join("");
   document.getElementById("cv-err").textContent="";
   document.getElementById("cv-ovl").style.display="flex";
 }

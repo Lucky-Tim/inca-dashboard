@@ -652,6 +652,29 @@ function consultantNames_(){
   }catch(e){ return []; }
 }
 
+// 2026-09-08 추가: 컨설턴트 "계정" 탭에서 영업관리자(권한==="영업관리자") 이름만 뽑아옴 —
+// 전환 팝업에서 "미배정(영업관리자가 배정)" 대신 실제 이름을 보여주기 위함(영업관리자 계층, 컨설턴트 문서 13절 참고).
+// 실패하면 빈 배열 → 프론트가 일반적인 문구로 대체 표시.
+function salesManagerNames_(){
+  try{
+    var cache = CacheService.getScriptCache();
+    var cached = cache.get("salesManagerNames_v1");
+    if(cached) return JSON.parse(cached);
+    var css = SpreadsheetApp.openById(CONSULTANT_SPREADSHEET_ID);
+    var sh = css.getSheetByName(ACCOUNT_SHEET);
+    if(!sh) return [];
+    var rows = sheetToObjects_(sh);
+    var out = [];
+    for(var i=0;i<rows.length;i++){
+      if(String(rows[i]["권한"]||"").trim() !== "영업관리자") continue;
+      var n = String(rows[i]["이름"]||"").trim();
+      if(n && out.indexOf(n) < 0) out.push(n);
+    }
+    cache.put("salesManagerNames_v1", JSON.stringify(out), 300);
+    return out;
+  }catch(e){ return []; }
+}
+
 // ── doGet / doPost ────────────────────────────────────────────
 function doGet(e){
   return json_({ ok:true, service:"dongsun-supporter",
@@ -702,6 +725,7 @@ function handleLogin_(body){
     precheckFields:PRECHECK_FIELDS,
     consultants:consultantNames_(),
     supporters:supporterNames_(),
+    managers:salesManagerNames_(), // 2026-09-08 추가: 전환 팝업에 영업관리자 이름 표시용
     rows:rows, ts:new Date().getTime()
   });
 }
