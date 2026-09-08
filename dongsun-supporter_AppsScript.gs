@@ -674,6 +674,7 @@ function doPost(e){
       if(action === "update")      return handleUpdate_(body);
       if(action === "precheck")    return handlePreCheck_(body);
       if(action === "convert")     return handleConvert_(body);
+      if(action === "cancelConvert") return handleCancelConvert_(body);
       if(action === "photo")       return handlePhoto_(body);
       if(action === "deletePhoto") return handleDeletePhoto_(body);
       if(action === "addStore")    return handleAddStore_(body);
@@ -908,6 +909,79 @@ function handleConvert_(body){
   stamp_(t.sh, t.head, t.row, name);
 
   return json_({ok:true, no:body.no, consultant:consultant, consultantNo:nextNo});
+}
+
+// action:'cancelConvert' → handleConvert_로 넘긴 건을 되돌림: 컨설턴트 트래커에 생성된 행을 삭제하고
+// 이 시트(서포터즈) 행의 전환 관련 필드(담당컨설턴트/전환상태/전환일시)를 초기화해서 재전환 가능하게 함.
+// 2026-09-08 추가. 설계 결정(사용자 확인):
+//   - 관리자 전용(컨설턴트/영업관리자는 취소 불가)
+//   - 컨설턴트 트래커 쪽 행은 완전 삭제(재전환 시 중복 행 방지)
+//   - 컨설턴트가 이미 상담을 진행한 건(계약현황이 "신규배정"에서 바뀐 경우)은 데이터 유실 위험이 있어 취소 자체를 막음
+//   - 컨설팅동의여부/컨설팅동의일시는 건드리지 않음(전환과 별개의 실제 사실이므로) — 전환 관련 필드만 초기화
+function handleCancelConvert_(body){
+  var auth = auth_(body.name, body.pw);
+  if(!auth) return json_({ok:false, error:"인증 실패 — 다시 로그인하세요"});
+  if(!auth.isAdmin){
+    return json_({ok:false, error:"전환 취소는 관리자만 할 수 있습니다"});
+  }
+  var name = auth.name;
+
+  var t = findRow_(body.no);
+  if(!t) return json_({ok:false, error:"행을 찾을 수 없습니다: "+body.no});
+
+  var g = function(k){ var i = t.head.indexOf(k); return i>=0 ? t.values[i] : ""; };
+  if(String(g("전환상태")).trim() !== "전환완료"){
+    return json_({ok:false, error:"전환된 건이 아닙니다"});
+  }
+
+  // 컨설턴트 트래커 쪽 대응 행 찾기 — 별도로 저장해둔 연결 ID가 없어 가게명+연락처(숫자만, 맨 앞 0 제거)로 매칭
+  // (기존 backfillPreCheckFromOriginalSheet_20260907 등과 동일한 매칭 키 방식)
+  var normPhone = function(v){
+    var s = String(v||"").replace(/\D/g, "");
+    if(s.indexOf("0") === 0) s = s.substring(1);
+    return s;
+  };
+  var storeName = String(g("가게명")||"").trim();
+  var storeKey = normPhone(g("연락처"));
+
+  var css = SpreadsheetApp.openById(CONSULTANT_SPREADSHEET_ID);
+  var csh = css.getSheetByName(CONSULTANT_TRACKER_SHEET);
+  if(!csh){
+    return json_({ok:false, error:'컨설팅DB 스프레드시트에 "' + CONSULTANT_TRACKER_SHEET + '" 탭이 없습니다.'});
+  }
+  var cdata = csh.getDataRange().getValues();
+  var chead = cdata[0].map(function(h){ return String(h).trim(); });
+  var cColStore = chead.indexOf("가게명");
+  var cColPhone = chead.indexOf("연락처");
+  var cColStatus = chead.indexOf("계약현황");
+  if(cColStore < 0 || cColPhone < 0){
+    return json_({ok:false, error:'컨설팅DB 탭에서 "가게명"/"연락처" 컬럼을 찾을 수 없습니다.'});
+  }
+
+  var matchRow = -1; // 1-based 시트 행 번호
+  for(var i=1;i<cdata.length;i++){
+    var rName = String(cdata[i][cColStore]||"").trim();
+    var rKey = normPhone(cdata[i][cColPhone]);
+    if(rName === storeName && rKey === storeKey){ matchRow = i+1; break; }
+  }
+  if(matchRow < 0){
+    return json_({ok:false, error:"컨설턴트 트래커에서 해당 매장을 찾을 수 없습니다(이미 삭제되었거나 매칭 실패) — 관리자가 컨설팅DB에서 직접 확인해주세요"});
+  }
+
+  var status = cColStatus>=0 ? String(cdata[matchRow-1][cColStatus]||"").trim() : "";
+  if(status && status !== "신규배정"){
+    return json_({ok:false, error:'컨설턴트가 이미 상담을 진행한 건입니다(계약현황: "' + status + '") — 전환 취소가 불가능합니다. 필요하면 컨설팅DB에서 직접 확인 후 처리하세요.'});
+  }
+
+  csh.deleteRow(matchRow);
+
+  var setIf = function(k, v){ var i = t.head.indexOf(k); if(i>=0) t.sh.getRange(t.row, i+1).setValue(v); };
+  setIf("담당컨설턴트", "");
+  setIf("전환상태", "");
+  setIf("전환일시", "");
+  stamp_(t.sh, t.head, t.row, name);
+
+  return json_({ok:true, no:body.no});
 }
 
 // ── 사진 업로드(매장사진·동의서) — 구글드라이브에 저장 후 트래커 셀에는 URL만 기록 ──

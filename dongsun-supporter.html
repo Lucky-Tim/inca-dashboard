@@ -50,6 +50,7 @@
   td input.ed::placeholder{color:#BBA050;font-size:12px}
   td .cvbtn{background:var(--gold);border-color:var(--gold);color:#3a2a05;padding:5px 9px;font-size:12px;border-radius:7px;white-space:nowrap}
   td .cvdone{color:var(--green);font-weight:700;font-size:12px}
+  td .cvcancel{background:#fff;border:1px solid #d33;color:#d33;padding:3px 7px;font-size:11px;border-radius:6px;white-space:nowrap;margin-left:6px;cursor:pointer}
   .hint{background:#FFF8E6;border:1px solid #EAD9AE;color:#6b5518;font-size:12px;padding:8px 12px;border-radius:8px;margin-bottom:10px;line-height:1.5}
   .st{border-radius:6px;padding:4px 6px;font-weight:600}
   .empty{padding:30px;text-align:center;color:var(--gray)}
@@ -471,7 +472,10 @@ function cellHtml(d,c){
   if(c.t==="fixed") return '<td data-label="'+c.label+'"><span class="fx">'+(esc(v)||"—")+'</span></td>';
   if(c.t==="phone") return '<td data-label="연락처"><span class="fx">'+(esc(fmtPhone(v))||"—")+'</span></td>';
   if(c.t==="convert"){
-    if(done) return '<td data-label="담당컨설턴트"><span class="cvdone">✔ 전환완료 · '+(esc(v)||"—")+'</span></td>';
+    if(done){
+      if(SESS.isAdmin) return '<td data-label="담당컨설턴트"><span class="cvdone">✔ 전환완료 · '+(esc(v)||"—")+'</span><button class="cvcancel" onclick="doCancelConvert('+no+')">취소</button></td>';
+      return '<td data-label="담당컨설턴트"><span class="cvdone">✔ 전환완료 · '+(esc(v)||"—")+'</span></td>';
+    }
     if(!SESS.isAdmin) return '<td data-label="담당컨설턴트"><span class="ro">관리자 전환 대기</span></td>';
     return '<td data-label="담당컨설턴트"><button class="cvbtn" onclick="openConvert('+no+')">컨설턴트에게 전환</button></td>';
   }
@@ -692,6 +696,19 @@ async function doConvert(){
     closeConvert(); render(); toast();
   }catch(e){ err.textContent="❌ "+e.message; }
   finally{ btn.disabled=false; btn.textContent="전환하기"; }
+}
+
+// 2026-09-08 추가: 전환 취소 — 컨설턴트 트래커 쪽 행 삭제 + 이 시트 전환 상태 초기화(관리자 전용, handleCancelConvert_ 참고)
+async function doCancelConvert(no){
+  if(!SESS.isAdmin){ alert("전환 취소는 관리자만 할 수 있습니다."); return; }
+  if(!confirm("이 건의 컨설턴트 전환을 취소할까요?\n컨설팅DB에 생성된 행이 삭제되고, 다시 전환할 수 있는 상태로 되돌아갑니다.\n(컨설턴트가 이미 상담을 진행한 건은 취소할 수 없습니다.)")) return;
+  try{
+    const j=await post({action:"cancelConvert", name:SESS.name, pw:SESS.pw, no:no});
+    if(!j.ok) throw new Error(j.error||"취소 실패");
+    const row=rows.find(d=>String(d["번호"])===String(no));
+    if(row){ row["담당컨설턴트"]=""; row["전환상태"]=""; row["전환일시"]=""; }
+    render(); toast();
+  }catch(e){ alert("❌ "+e.message); }
 }
 
 // ── 신규매장 추가(현장 방문 시 즉시 등록) ──
