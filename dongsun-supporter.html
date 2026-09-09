@@ -474,8 +474,9 @@ function stats(){
   const reject=cnt("컨설팅동의여부","컨설팅거절");
   const pendingConvert=rs.filter(d=>d["컨설팅동의여부"]==="컨설팅동의" && !isDone(d)).length; // 2026-09-08 추가: 동의했지만 아직 전환 안 된 건
   const taBreak={}; TA_STATUSES.forEach(k=>{ taBreak[k]=cnt("TA결과",k); });
+  const agreeBreak={}; AGREES.forEach(k=>{ agreeBreak[k]=cnt("컨설팅동의여부",k); }); // 2026-09-09 추가: 단톡보고 동의여부별 전체 breakdown용
   const rate=n>0?Math.round(agree/n*1000)/10:0;
-  return {n,agree,done,reject,pendingConvert,taBreak,rate};
+  return {n,agree,done,reject,pendingConvert,taBreak,agreeBreak,rate};
 }
 function renderKPIs(){
   const s=stats(), g=Math.min(100,Math.round(s.rate/30*100));
@@ -816,8 +817,6 @@ function closePendingConvert(){ document.getElementById("pd-ovl").style.display=
 function report(){
   const s=stats(), rs=scoped(), md=(new Date().getMonth()+1)+"/"+new Date().getDate();
   const nm=d=>d["가게명"];
-  const agreeList=rs.filter(d=>d["컨설팅동의여부"]==="컨설팅동의").map(nm).filter(Boolean);
-  const doneList=rs.filter(isDone).map(nm).filter(Boolean);
   // 2026-09-08 추가: "오늘 업데이트된 건" — 오늘 수정시각이 찍힌 행을 현재 상태(전환완료>컨설팅동의/거절>TA결과 순) 기준으로 묶어서 보여줌
   const p2=n=>String(n).padStart(2,"0");
   const today=new Date(), todayStr=today.getFullYear()+"-"+p2(today.getMonth()+1)+"-"+p2(today.getDate());
@@ -826,13 +825,16 @@ function report(){
   const byStatus={};
   todayRows.forEach(d=>{ const st=statusOf(d); (byStatus[st]=byStatus[st]||[]).push(nm(d)); });
   const todayTxt=todayRows.length ? Object.keys(byStatus).map(st=>"• "+st+" "+byStatus[st].length+"곳: "+(byStatus[st].filter(Boolean).join(", ")||"-")).join("\n") : "오늘 업데이트된 건 없음";
+  // 2026-09-09 추가: TA상태별/동의여부별 전체 숫자 breakdown (매장명 나열 없이 숫자만)
+  const taLine=TA_STATUSES.map(k=>k+" "+(s.taBreak[k]||0)).join(" · ");
+  const agreeLine=AGREES.map(k=>k+" "+(s.agreeBreak[k]||0)).join(" · ");
   const txt="[동선 서포터즈 활동보고 "+md+" · "+(whoFilter||"전체")+"]\n\n"+
   "📌 오늘 업데이트 ("+todayRows.length+"건)\n"+todayTxt+"\n\n"+
   "📊 전체 현황\n"+
-  "• 담당 "+s.n+" / 대기 "+(s.taBreak["대기"]||0)+"\n"+
-  "• TA완료(방문확정) "+(s.taBreak["방문확정"]||0)+" · 방문거절 "+(s.taBreak["거절"]||0)+"\n"+
-  "• 컨설팅동의 "+s.agree+"곳(거절 "+s.reject+"): "+(agreeList.join(", ")||"-")+"\n"+
-  "• 전환완료 "+s.done+"곳: "+(doneList.join(", ")||"-")+"\n"+
+  "• 담당 "+s.n+"\n"+
+  "• TA현황: "+taLine+"\n"+
+  "• 동의여부: "+agreeLine+"\n"+
+  "• 전환완료 "+s.done+"곳\n"+
   "• 동의율 "+s.rate+"%";
   navigator.clipboard.writeText(txt).then(()=>alert("보고 문구를 복사했습니다.\n\n"+txt), ()=>prompt("복사해서 붙여넣기:", txt));
 }

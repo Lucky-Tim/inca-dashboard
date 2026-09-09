@@ -377,7 +377,8 @@ function stats(){
   const asReq=rs.filter(d=>["확인중","승인","불가능"].indexOf(d["AS신청상태"])>=0).length;
   const asOk=rs.filter(d=>d["AS신청상태"]==="승인").length;
   const unassigned=rows.filter(d=>!String(d["담당컨설턴트"]||"").trim()).length;
-  return {n,sinkyu,sangdam,cheongyak,gyeyak,fail,avg,rate,asElig,asReq,asOk,unassigned};
+  const statusBreak={}; STATUSES.forEach(k=>{ statusBreak[k]=cnt(k); }); // 2026-09-09 추가: 단톡보고 계약현황별 전체 breakdown용
+  return {n,sinkyu,sangdam,cheongyak,gyeyak,fail,avg,rate,asElig,asReq,asOk,unassigned,statusBreak};
 }
 function renderKPIs(){
   const s=stats(), g=Math.min(100,Math.round(s.rate/30*100));
@@ -628,7 +629,6 @@ async function asDecide(no, decision){
 
 function report(){
   const s=stats(), rs=scoped(), md=(new Date().getMonth()+1)+"/"+new Date().getDate();
-  const line=st=>rs.filter(d=>d["계약현황"]===st).map(d=>d["가게명"]).filter(Boolean);
   // 2026-09-08 추가: "오늘 업데이트된 건" — 오늘 수정시각이 찍힌 행을 현재 계약현황 기준으로 묶어서 보여줌
   const p2=n=>String(n).padStart(2,"0");
   const today=new Date(), todayStr=today.getFullYear()+"-"+p2(today.getMonth()+1)+"-"+p2(today.getDate());
@@ -636,13 +636,13 @@ function report(){
   const byStatus={};
   todayRows.forEach(d=>{ const st=d["계약현황"]||"(상태 미상)"; (byStatus[st]=byStatus[st]||[]).push(d["가게명"]); });
   const todayTxt=todayRows.length ? Object.keys(byStatus).map(st=>"• "+st+" "+byStatus[st].length+"곳: "+(byStatus[st].filter(Boolean).join(", ")||"-")).join("\n") : "오늘 업데이트된 건 없음";
+  // 2026-09-09 추가: 계약현황별 전체 숫자 breakdown (매장명 나열 없이 숫자만)
+  const statusLine=STATUSES.map(k=>k+" "+(s.statusBreak[k]||0)).join(" · ");
   const txt="[동선 컨설팅 활동보고 "+md+" · "+(whoFilter||"전체")+"]\n\n"+
   "📌 오늘 업데이트 ("+todayRows.length+"건)\n"+todayTxt+"\n\n"+
   "📊 전체 현황\n"+
   "• 배정 "+s.n+" / 신규배정 "+s.sinkyu+"\n"+
-  "• 상담중 "+s.sangdam+"곳: "+(line("상담중").join(", ")||"-")+"\n"+
-  "• 청약완료 "+s.cheongyak+"곳: "+(line("청약완료").join(", ")||"-")+"\n"+
-  "• 계약체결 "+s.gyeyak+"곳: "+(line("계약체결").join(", ")||"-")+"\n"+
+  "• 계약현황: "+statusLine+"\n"+
   "• 체결률 "+s.rate+"% · 평균 클로징확률 "+s.avg+"%";
   navigator.clipboard.writeText(txt).then(()=>alert("보고 문구를 복사했습니다.\n\n"+txt), ()=>prompt("복사해서 붙여넣기:", txt));
 }
