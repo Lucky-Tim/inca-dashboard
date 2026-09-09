@@ -52,6 +52,8 @@ var ACCOUNT_HEADERS = ["이름","비번","권한"];
 
 var TA_STATUSES = ["대기","방문확정","부재","재접촉필요","거절","보류"];
 var AGREES = ["미접촉","컨설팅동의","컨설팅거절","보류"];
+// 2026-09-09 추가: 컨설팅동의 신규 발생 시 이메일 알림을 받을 주소 목록
+var AGREE_NOTIFY_EMAILS = ["parjiwoo8079@gmail.com","hara610@gmail.com"];
 // 2026-09-07(3차) 추가: 동의서 등록 전 사전체크 팝업(action:'precheck') 항목 정의 — 프론트가 로그인 응답(precheckFields)으로
 // 받아서 팝업을 통째로 동적 렌더링함. 항목을 추가하려면 위 HEADERS에 컬럼명을 추가하고 아래 배열에 정의 하나만 더 넣으면
 // 팝업 UI·검증·시트 저장·컨설턴트 트래커 복사(handleConvert_)까지 전부 자동으로 반영됨(하드코딩 반복 없앰).
@@ -839,10 +841,38 @@ function handleUpdate_(body){
   if(field === "컨설팅동의여부" && String(val).trim() === "컨설팅동의"){
     var agreeColIdx = t.head.indexOf("컨설팅동의일시");
     if(agreeColIdx >= 0) t.sh.getRange(t.row, agreeColIdx+1).setValue(now_());
+    notifyNewAgree_(t, auth.name); // 2026-09-09 추가: 신규 컨설팅동의 발생 시 관리자 이메일 알림
   }
 
   stamp_(t.sh, t.head, t.row, auth.name);
   return json_({ok:true, no:body.no, field:field, value:body.value});
+}
+
+// 2026-09-09 추가: 컨설팅동의여부가 "컨설팅동의"로 새로 바뀔 때 AGREE_NOTIFY_EMAILS로 이메일 알림
+// 실패해도(메일 발송 오류 등) 본 저장 자체는 이미 끝난 뒤라 사용자 화면에는 영향 없음 — 로그로만 남김
+function notifyNewAgree_(t, byName){
+  try{
+    var g = function(k){ var i=t.head.indexOf(k); return i>=0 ? t.values[i] : ""; };
+    var store = String(g("가게명")||"").trim() || "(가게명 없음)";
+    var ownerName = String(g("점주명")||"").trim();
+    var phone = String(g("연락처")||"").trim();
+    var town = String(g("동네")||"").trim();
+    var addr = String(g("주소")||"").trim();
+    var supporter = String(g("담당서포터즈")||"").trim() || byName;
+    var subject = "[동선] 컨설팅동의 신규 발생 — " + store;
+    var body =
+      "새로운 컨설팅동의가 접수됐습니다.\n\n" +
+      "가게명: " + store + "\n" +
+      "점주명: " + (ownerName || "—") + "\n" +
+      "연락처: " + (phone || "—") + "\n" +
+      "동네: " + (town || "—") + "\n" +
+      "주소: " + (addr || "—") + "\n" +
+      "담당서포터즈: " + (supporter || "—") + "\n" +
+      "처리시각: " + now_();
+    MailApp.sendEmail(AGREE_NOTIFY_EMAILS.join(","), subject, body);
+  }catch(e){
+    Logger.log("notifyNewAgree_ 실패: " + e);
+  }
 }
 
 // action:'precheck' → 동의서 등록 전 사전체크 항목(PRECHECK_FIELDS 정의 전체)을 한 번에 저장
