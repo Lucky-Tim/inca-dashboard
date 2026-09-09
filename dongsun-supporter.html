@@ -122,16 +122,16 @@
   #pd-ovl .empty2{color:var(--gray);font-size:13px;text-align:center;padding:20px 0}
   #pd-ovl .row{display:flex;gap:8px;margin-top:6px}#pd-ovl .row button{flex:1;padding:11px}
   /* ── 내 DB A/S 현황 팝업 (2026-09-09 추가: 컨설턴트 트래커의 A/S 현황을 읽기 전용으로 조회) ── */
-  #as-ovl{display:none;position:fixed;inset:0;z-index:9998;background:rgba(14,31,56,.45);align-items:center;justify-content:center;padding:20px}
-  #as-ovl .box{width:480px;max-width:94vw;max-height:86vh;overflow-y:auto;background:#fff;border:1px solid var(--ice2);border-radius:16px;padding:22px 24px;box-shadow:0 18px 50px rgba(14,31,56,.3)}
-  #as-ovl h3{margin:0 0 6px;color:var(--navy);font-size:16px}
-  #as-ovl p{margin:0 0 14px;font-size:12.5px;color:var(--gray);line-height:1.6}
-  #as-ovl .as-item{border:1px solid var(--ice2);border-radius:10px;padding:10px 12px;margin-bottom:8px}
-  #as-ovl .as-item .nm{font-weight:700;color:var(--navy);font-size:14px}
-  #as-ovl .as-item .meta{font-size:12px;color:var(--gray);margin-top:2px}
-  #as-ovl .as-item .memo{margin-top:6px;font-size:11px;color:var(--gray);white-space:pre-wrap;background:#F7F9FC;border-radius:6px;padding:5px 7px}
-  #as-ovl .empty2{color:var(--gray);font-size:13px;text-align:center;padding:20px 0}
-  #as-ovl .close{width:100%;margin-top:10px;padding:11px}
+  #assum-ovl{display:none;position:fixed;inset:0;z-index:9998;background:rgba(14,31,56,.45);align-items:center;justify-content:center;padding:20px}
+  #assum-ovl .box{width:480px;max-width:94vw;max-height:86vh;overflow-y:auto;background:#fff;border:1px solid var(--ice2);border-radius:16px;padding:22px 24px;box-shadow:0 18px 50px rgba(14,31,56,.3)}
+  #assum-ovl h3{margin:0 0 6px;color:var(--navy);font-size:16px}
+  #assum-ovl p{margin:0 0 14px;font-size:12.5px;color:var(--gray);line-height:1.6}
+  #assum-ovl .as-item{border:1px solid var(--ice2);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  #assum-ovl .as-item .nm{font-weight:700;color:var(--navy);font-size:14px}
+  #assum-ovl .as-item .meta{font-size:12px;color:var(--gray);margin-top:2px}
+  #assum-ovl .as-item .memo{margin-top:6px;font-size:11px;color:var(--gray);white-space:pre-wrap;background:#F7F9FC;border-radius:6px;padding:5px 7px}
+  #assum-ovl .empty2{color:var(--gray);font-size:13px;text-align:center;padding:20px 0}
+  #assum-ovl .close{width:100%;margin-top:10px;padding:11px}
   @media (max-width:640px){
     .wrap{padding:12px}.kpis{grid-template-columns:repeat(2,1fr);gap:8px}.card .val{font-size:22px}
     .toolbar button{flex:1 1 auto}.toolbar #q{flex:1 1 100%;order:5}
@@ -282,7 +282,7 @@
 </div>
 
 <!-- ── 내 DB A/S 현황 팝업 (2026-09-09 추가) ── -->
-<div id="as-ovl">
+<div id="assum-ovl">
   <div class="box">
     <h3>📋 내 DB A/S 현황</h3>
     <p>내가 만든 컨설팅DB 중 A/S 대상으로 확인된 건입니다(처리는 컨설턴트 트래커에서 이뤄지며 여기서는 조회만 가능합니다).</p>
@@ -866,9 +866,9 @@ async function openAsSummary(){
       '</div>';
     }).join("");
   }
-  document.getElementById("as-ovl").style.display="flex";
+  document.getElementById("assum-ovl").style.display="flex";
 }
-function closeAsSummary(){ document.getElementById("as-ovl").style.display="none"; }
+function closeAsSummary(){ document.getElementById("assum-ovl").style.display="none"; }
 
 function report(){
   const s=stats(), rs=scoped(), md=(new Date().getMonth()+1)+"/"+new Date().getDate();
