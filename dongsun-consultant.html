@@ -45,6 +45,8 @@
   td input.ed:focus,td select.ed:focus{border-color:var(--gold);background:#fff;outline:none}
   td input.ed::placeholder{color:#BBA050;font-size:12px}
   .hint{background:#FFF8E6;border:1px solid #EAD9AE;color:#6b5518;font-size:12px;padding:8px 12px;border-radius:8px;margin-bottom:10px;line-height:1.5}
+  .hint-row{padding:1px 0}
+  .hint-row b{color:#8a6a12}
   .st{border-radius:6px;padding:4px 6px;font-weight:600}
   .phbtn{padding:4px 8px;font-size:11px;margin-left:4px;vertical-align:middle}
   .delbtn{padding:4px 8px;font-size:11px;margin-left:4px;vertical-align:middle;border-color:#C0392B;color:#C0392B}
@@ -162,7 +164,12 @@
     <select id="fStatus" onchange="render()"><option value="">계약현황 전체</option></select>
     <select id="fProb" onchange="render()"><option value="">클로징확률 전체</option></select>
   </div>
-  <div class="hint">💡 <b>노란 칸</b>(월납보험료·미팅1차·미팅2/3차·클로징확률·계약현황·청약여부/차수/금액/상품·종결사유·증빙·비고)만 탭해서 입력하세요. 회색 칸(가게명·점주명·연락처·업종·동네·주소·출처서포터즈·DB지급일)은 서포터즈 트래커에서 넘어온 값이라 읽기전용입니다. · <b>계약현황을 "종결·실패"로 바꾸고 종결사유를 고르면</b> A/S 대상 여부·신청기한이 자동으로 계산됩니다 — A/S 인정 유형이면 증빙 사진을 등록한 뒤 "A/S 신청" 버튼을 누르세요. · <b>📍 가까운 순</b> 버튼(또는 "거리" 칸 클릭)을 누르면 위치 권한 허용 후 지금 계신 곳에서 가까운 매장 순으로 정렬됩니다(좌표가 있는 매장만 거리가 표시돼요).</div>
+  <div class="hint">
+    <div class="hint-row"><b>✏️ 입력</b> — 노란 칸만: 월납보험료·미팅1차/2·3차·클로징확률·계약현황·청약정보·종결사유·증빙·비고</div>
+    <div class="hint-row"><b>🔒 읽기전용</b> — 회색 칸: 가게명·점주명·연락처·업종·동네·주소·출처서포터즈·DB지급일 (서포터즈 연동값)</div>
+    <div class="hint-row"><b>🔧 A/S</b> — 계약현황 "종결·실패"+종결사유 선택 시 자동계산 → 인정 유형은 증빙 등록 후 "A/S 신청"</div>
+    <div class="hint-row"><b>📍 거리순</b> — "가까운 순" 클릭 → 위치 허용 시 가까운 매장 순 정렬 (좌표 있는 매장만 표시)</div>
+  </div>
   <div class="tablewrap">
     <table><thead id="thead"></thead><tbody id="tb"></tbody></table>
   </div>
