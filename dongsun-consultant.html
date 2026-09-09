@@ -38,6 +38,8 @@
   td input,td select{width:100%;border:1px solid transparent;background:transparent}
   td input:focus,td select:focus{border-color:var(--ice2);background:#fff}
   td .ro{color:var(--gray);font-size:12px;display:block;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  td a.ro.addrlink{color:var(--teal);text-decoration:underline;cursor:pointer}
+  td a.ro.addrlink:hover{color:var(--navy)}
   td .fx{display:block;font-weight:600;color:var(--ink)}
   td input.ed,td select.ed{background:#FFFBEF;border:1px solid #EAD9AE;border-radius:6px;padding:6px 8px;min-width:78px}
   td select.ed{min-width:106px}
@@ -472,6 +474,12 @@ function cellHtml(d,c){
     const dv=d["_distKm"];
     const label=(dv==null)?"—":(dv<1?Math.round(dv*1000)+"m":dv.toFixed(1)+"km");
     return '<td data-label="거리"><span class="ro">'+label+'</span></td>';
+  }
+  if(c.k==="주소"){
+    const addr=String(v||"").trim();
+    if(!addr) return '<td data-label="주소"><span class="ro">—</span></td>';
+    const url="https://map.naver.com/p/search/"+encodeURIComponent(addr);
+    return '<td data-label="주소"><a class="ro addrlink" href="'+url+'" target="_blank" rel="noopener" title="네이버지도에서 열기">'+esc(addr)+'</a></td>';
   }
   if(c.k==="담당컨설턴트"){
     if(SESS.isAdmin) return '<td data-label="담당"><input class="ed" value="'+esc(v)+'" placeholder="담당자명" onchange="up('+no+',\'담당컨설턴트\',this.value)"></td>';
