@@ -344,9 +344,13 @@ function fillFilters(){
   const f1=document.getElementById("fStatus"); if(f1.options.length<=1) STATUSES.forEach(s=>{const o=document.createElement("option");o.textContent=s;f1.appendChild(o);});
   const f2=document.getElementById("fProb"); if(f2.options.length<=1) PROBS.forEach(s=>{const o=document.createElement("option");o.textContent=s;f2.appendChild(o);});
 }
+// 2026-09-09 추가: "출처서포터즈"는 전체관리자만 보이게(영업관리자·컨설턴트에게는 숨김)
+function visibleCols(){
+  return SESS.isAdmin ? COLS : COLS.filter(c=>c.k!=="출처서포터즈");
+}
 function buildHead(){
   const th=document.getElementById("thead");
-  th.innerHTML='<tr><th data-k="번호">#  가게명</th>'+COLS.map(c=>'<th data-k="'+c.k+'">'+c.label+'</th>').join("")+'</tr>';
+  th.innerHTML='<tr><th data-k="번호">#  가게명</th>'+visibleCols().map(c=>'<th data-k="'+c.k+'">'+c.label+'</th>').join("")+'</tr>';
   th.querySelectorAll("th[data-k]").forEach(el=>el.onclick=()=>{
     const k=el.dataset.k;
     if(k==="_distKm"){ if(sortK==="_distKm"){ sortDir*=-1; render(); } else { sortByDistance(); } return; }
@@ -555,7 +559,7 @@ function render(){
   if(!rs.length){ tb.innerHTML='<tr><td class="empty">표시할 컨설팅DB가 없습니다.'+((SESS.isAdmin||SESS.role==="영업관리자")&&whoFilter?' <button onclick="resetWhoFilter()">담당자 전체보기</button>':'')+'</td></tr>'; return; }
   tb.innerHTML=rs.map(d=>{
     const no=d["번호"];
-    return '<tr><td data-label="#">'+no+'. '+(esc(d["가게명"])||"(가게)")+'</td>'+COLS.map(c=>cellHtml(d,c)).join("")+'</tr>';
+    return '<tr><td data-label="#">'+no+'. '+(esc(d["가게명"])||"(가게)")+'</td>'+visibleCols().map(c=>cellHtml(d,c)).join("")+'</tr>';
   }).join("");
 }
 
