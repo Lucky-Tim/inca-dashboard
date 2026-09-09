@@ -66,6 +66,20 @@
   #ua-ovl .item .info span{display:block;font-size:11.5px;color:var(--gray)}
   #ua-ovl select{min-width:150px}
   #ua-ovl .close{width:100%;margin-top:10px}
+  /* ── A/S 처리 팝업 (2026-09-09 추가: A/S 대상/신청/승인 KPI 카드 클릭 → 그 자리에서 처리) ── */
+  #as-ovl{display:none;position:fixed;inset:0;z-index:9998;background:rgba(14,31,56,.45);align-items:center;justify-content:center;padding:20px}
+  #as-ovl .box{width:560px;max-width:94vw;max-height:84vh;overflow-y:auto;background:#fff;border-radius:16px;box-shadow:0 18px 50px rgba(14,31,56,.28);padding:20px 22px}
+  #as-ovl h3{margin:0 0 4px;color:var(--navy);font-size:16px}
+  #as-ovl h4{margin:14px 0 6px;font-size:13px;color:var(--navy)}
+  #as-ovl .desc{color:var(--gray);font-size:12px;margin-bottom:10px}
+  #as-ovl .item{border:1px solid var(--ice2);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  #as-ovl .item .info b{display:block;font-size:13.5px;margin-bottom:2px}
+  #as-ovl .item .info span{display:block;font-size:11.5px;color:var(--gray);margin-top:1px}
+  #as-ovl .item .memo{margin-top:6px;font-size:11px;color:var(--gray);white-space:pre-wrap;background:#F7F9FC;border-radius:6px;padding:5px 7px}
+  #as-ovl .item .act{margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  #as-ovl .item .act input{flex:1;min-width:110px;font-size:12px;padding:5px 7px}
+  #as-ovl .item .act button{padding:5px 10px;font-size:12px}
+  #as-ovl .close{width:100%;margin-top:10px}
   /* ── 로그인 오버레이 (viewer-mgr #login-ovl 패턴 · 네이비/골드 팔레트) ── */
   #login-ovl{display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(160deg,#16335B 0%,#1B3A6B 55%,#0E1F38 100%);align-items:center;justify-content:center;padding:20px}
   #login-ovl .box{width:342px;max-width:92vw;background:#fff;border-radius:20px;box-shadow:0 18px 50px rgba(14,31,56,.28),0 2px 8px rgba(0,0,0,.05);border:1px solid var(--ice2);overflow:hidden;animation:lgIn .4s cubic-bezier(.2,.8,.2,1)}
@@ -169,6 +183,16 @@
     <div class="desc">담당컨설턴트가 아직 없는 건입니다 — 배정할 컨설턴트를 선택하세요.</div>
     <div id="ua-list"></div>
     <button class="close" onclick="closeUnassigned()">닫기</button>
+  </div>
+</div>
+
+<!-- 2026-09-09 추가: "A/S 대상/신청/승인" 카드를 클릭하면 여는 처리 팝업 -->
+<div id="as-ovl">
+  <div class="box">
+    <h3>🗂️ A/S 처리</h3>
+    <div class="desc" id="as-desc"></div>
+    <div id="as-list"></div>
+    <button class="close" onclick="closeAsProcess()">닫기</button>
   </div>
 </div>
 
@@ -389,7 +413,7 @@ function renderKPIs(){
   '<div class="card"><div class="label">청약 / 계약체결</div><div class="val">'+s.cheongyak+'<span style="font-size:14px;color:var(--gray)"> / '+s.gyeyak+'</span></div></div>'+
   '<div class="card"><div class="label">평균 클로징확률</div><div class="val">'+s.avg+'%</div><div class="goal">진행 건 기준(종결·실패 제외)</div></div>'+
   '<div class="card"><div class="label">종결·실패</div><div class="val">'+s.fail+'</div></div>'+
-  '<div class="card"><div class="label">A/S 대상 / 신청 / 승인</div><div class="val">'+s.asElig+'<span style="font-size:14px;color:var(--gray)"> / '+s.asReq+' / '+s.asOk+'</span></div></div>';
+  '<div class="card warn" onclick="openAsProcess()" title="클릭하면 A/S 건을 처리할 수 있습니다"><div class="label">A/S 대상 / 신청 / 승인</div><div class="val">'+s.asElig+'<span style="font-size:14px;color:var(--gray)"> / '+s.asReq+' / '+s.asOk+'</span></div><div class="goal">👆 클릭하면 처리할 수 있어요</div></div>';
   if(SESS.role==="영업관리자"){
     html += '<div class="card warn" onclick="openUnassigned()" title="클릭하면 미배정 건을 배정할 수 있습니다"><div class="label">배정 대기(팀)</div><div class="val">'+s.unassigned+'</div><div class="goal">👆 클릭하면 배정할 수 있어요</div></div>';
   }
@@ -624,6 +648,66 @@ async function asDecide(no, decision){
     const j=await post({action:"asDecide", name:SESS.name, pw:SESS.pw, no:no, decision:decision, memo:memo});
     if(!j.ok){ alert("처리 실패: "+(j.error||"")); return; }
     await load();
+  }catch(e){ alert("처리 실패 — 새로고침 후 재시도"); }
+}
+
+// 2026-09-09 추가: "A/S 대상/신청/승인" 카드를 클릭하면 열리는 처리 팝업.
+// ①확인중(처리 대기) 건을 테이블 스크롤 없이 바로 찾고 ②증빙·종결사유·기한을 한 화면에서 보고 판단하고
+// ③과거 처리 메모(이력)까지 함께 볼 수 있게 해서 "찾기 어려움/정보 부족/이력 부재" 3가지를 한번에 해결.
+// 처리(승인/불가)는 기존 action:'asDecide'를 그대로 재사용 — 백엔드 변경 없음.
+function openAsProcess(){
+  document.getElementById("as-desc").textContent = SESS.isAdmin
+    ? "확인중인 신청 건은 아래에서 바로 승인/불가 처리할 수 있습니다."
+    : "A/S 대상·신청 현황입니다(처리는 전체관리자만 가능합니다).";
+  renderAsProcessList();
+  document.getElementById("as-ovl").style.display="flex";
+}
+function closeAsProcess(){ document.getElementById("as-ovl").style.display="none"; }
+function asItemHtml(d, actionable){
+  const no=d["번호"];
+  const urls=String(d["증빙"]||"").split("|").map(s=>s.trim()).filter(Boolean);
+  const thumbs=urls.map(u=>'<a href="'+esc(u)+'" target="_blank" rel="noopener"><img src="'+esc(u)+'" alt="증빙" style="width:30px;height:30px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);margin:2px 4px 2px 0;vertical-align:middle"></a>').join("");
+  const st=d["AS신청상태"]||"미신청";
+  const stBg={"확인중":"#FFF3D6","승인":"#C7E9D3","불가능":"#F0E4E3","미신청":"#EEF2F7"}[st]||"#EEF2F7";
+  const overdue = d["AS신청기한"] && st!=="승인" && d["AS신청기한"]<todayStr();
+  const memo=String(d["AS점검메모"]||"").trim();
+  let actions="";
+  if(actionable && st==="확인중"){
+    actions='<div class="act">'+
+      '<input type="text" placeholder="메모(선택)">'+
+      '<button onclick="asDecideFromPopup('+no+',\'승인\',this)">승인</button>'+
+      '<button onclick="asDecideFromPopup('+no+',\'불가능\',this)">불가</button>'+
+    '</div>';
+  }
+  return '<div class="item">'+
+    '<div class="info"><b>'+esc(d["가게명"]||"(가게)")+'</b> <span class="st" style="background:'+stBg+'">'+esc(st)+'</span>'+
+      '<span>담당 '+esc(d["담당컨설턴트"]||"—")+' · 종결사유 '+esc(d["종결사유"]||"—")+'</span>'+
+      '<span>DB지급일 '+esc(d["DB지급일"]||"—")+' · 신청기한 <b style="'+(overdue?"color:var(--red)":"")+'">'+esc(d["AS신청기한"]||"—")+(overdue?" (기한초과)":"")+'</b></span>'+
+      (thumbs ? '<span>증빙: '+thumbs+'</span>' : '<span>증빙 없음</span>')+
+    '</div>'+
+    (memo ? '<div class="memo">'+esc(memo).replace(/\n/g,"<br>")+'</div>' : '')+
+    actions+
+  '</div>';
+}
+function renderAsProcessList(){
+  const rs=scoped().filter(d=>d["AS대상"]==="A/S 대상");
+  const pending=rs.filter(d=>d["AS신청상태"]==="확인중");
+  const others=rs.filter(d=>d["AS신청상태"]!=="확인중").sort((a,b)=>String(b["수정시각"]||"").localeCompare(String(a["수정시각"]||"")));
+  const box=document.getElementById("as-list");
+  let html='<h4>🔴 처리 대기(확인중) '+pending.length+'건</h4>';
+  html += pending.length ? pending.map(d=>asItemHtml(d, SESS.isAdmin)).join("") : '<div class="desc">처리 대기 중인 신청이 없습니다.</div>';
+  html += '<h4>🗂 A/S 대상 · 처리 이력(최근 10건)</h4>';
+  html += others.length ? others.slice(0,10).map(d=>asItemHtml(d,false)).join("") : '<div class="desc">해당 건이 없습니다.</div>';
+  box.innerHTML=html;
+}
+async function asDecideFromPopup(no, decision, btn){
+  const memo=btn.parentElement.querySelector("input").value.trim();
+  toast();
+  try{
+    const j=await post({action:"asDecide", name:SESS.name, pw:SESS.pw, no:no, decision:decision, memo:memo});
+    if(!j.ok){ alert("처리 실패: "+(j.error||"")); return; }
+    await load();
+    renderAsProcessList();
   }catch(e){ alert("처리 실패 — 새로고침 후 재시도"); }
 }
 

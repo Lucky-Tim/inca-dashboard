@@ -710,6 +710,7 @@ function doPost(e){
 
     // 읽기 전용(login)은 락 없이 처리 — 새로고침/자동폴링이 쓰기 작업과 서로 줄서서 기다리지 않도록 함
     if(action === "login") return handleLogin_(body);
+    if(action === "asSummary") return handleAsSummary_(body); // 2026-09-09 추가: 읽기 전용(컨설턴트 트래커 A/S 현황 조회) — 락 불필요
 
     var lock = LockService.getScriptLock();
     lock.waitLock(20000);
@@ -748,6 +749,39 @@ function handleLogin_(body){
     managers:salesManagerNames_(), // 2026-09-08 추가: 전환 팝업에 영업관리자 이름 표시용
     rows:rows, ts:new Date().getTime()
   });
+}
+
+// action:'asSummary' → 컨설턴트 트래커에서 이 서포터즈가 만든 DB 중 A/S 대상 건을 읽기 전용으로 보여줌.
+// (2026-09-09 추가 — "AS 신청건 처리 프로세스 고도화" 요청 중 "서포터즈 쪽에서도 자기 DB의 A/S 현황을 볼 수 있게" 결정 반영)
+// 컨설턴트 스프레드시트("트래커" 탭)를 읽기 전용으로만 열어 "출처서포터즈"가 본인 이름인 행만(관리자는 전체) 필터링해서 반환.
+// 쓰기 작업이 아니므로 doPost의 락 구간 밖에서 처리하며, 카드 클릭 시에만 호출(60초 자동새로고침엔 포함 안 함 — 불필요한 부하 방지).
+function handleAsSummary_(body){
+  var auth = auth_(body.name, body.pw);
+  if(!auth) return json_({ok:false, error:"인증 실패 — 다시 로그인하세요"});
+
+  var css = SpreadsheetApp.openById(CONSULTANT_SPREADSHEET_ID);
+  var sh = css.getSheetByName(CONSULTANT_TRACKER_SHEET);
+  if(!sh) return json_({ok:false, error:"컨설턴트 트래커 탭을 찾을 수 없습니다"});
+
+  var data = sh.getDataRange().getValues();
+  if(data.length < 2) return json_({ok:true, rows:[]});
+  var head = data[0].map(function(h){ return String(h).trim(); });
+  var fields = ["가게명","담당컨설턴트","출처서포터즈","종결사유","AS대상","AS신청기한","AS신청상태","AS점검메모","DB지급일","수정시각"];
+  var col = {};
+  fields.forEach(function(k){ col[k] = head.indexOf(k); });
+
+  var out = [];
+  for(var i=1;i<data.length;i++){
+    var row = data[i];
+    var asDae = col["AS대상"]>=0 ? String(row[col["AS대상"]]||"").trim() : "";
+    if(asDae !== "A/S 대상") continue; // 영업 사유 건은 서포터즈에게 노출하지 않음 — DB 품질 A/S만 관심 대상
+    var owner = col["출처서포터즈"]>=0 ? String(row[col["출처서포터즈"]]||"").trim() : "";
+    if(!auth.isAdmin && owner !== auth.name) continue;
+    var o = {};
+    fields.forEach(function(k){ o[k] = col[k]>=0 ? row[col[k]] : ""; });
+    out.push(o);
+  }
+  return json_({ok:true, rows:out, ts:new Date().getTime()});
 }
 
 // 트래커 탭에서 번호로 행 찾기 → {sh, head, rowIdx(1-based)}
