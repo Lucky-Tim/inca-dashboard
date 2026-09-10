@@ -195,6 +195,7 @@
     <select id="fWho" onchange="onWhoChange()" style="display:none"><option value="">👥 담당자 전체</option></select>
     <button id="btnDist" onclick="sortByDistance()">📍 가까운 순</button>
     <button class="primary" onclick="openAddStore()">➕ 신규매장</button>
+    <button class="gold" id="btnImportOriginal" onclick="doImportFromOriginal()" style="display:none">🆕 신규DB 등록</button>
     <button class="gold" onclick="report()">📨 오늘 단톡 보고</button>
     <button onclick="logout()">로그아웃</button>
     <span class="spacer"></span>
@@ -410,6 +411,8 @@ function applyData(j){
       SUPPORTERS.forEach(function(n){ var o=document.createElement("option"); o.value=n; o.textContent="👤 "+n; fWho.appendChild(o); });
     }
   }
+  const btnImp=document.getElementById("btnImportOriginal"); // 2026-09-10 추가: 관리자 전용 신규DB 등록 버튼
+  if(btnImp) btnImp.style.display = SESS.isAdmin ? "" : "none";
 }
 
 async function load(){
@@ -831,6 +834,23 @@ async function doAddStore(){
     closeAddStore(); render(); toast();
   }catch(e){ err.textContent="❌ "+e.message; }
   finally{ btn.disabled=false; btn.textContent="등록"; }
+}
+
+// 2026-09-10 추가: "원본" 탭의 미배정 신규DB를 트래커에 일괄 반입(관리자 전용) — 다시 눌러도
+// 이미 반입된 건은 서버에서 자동으로 건너뛰므로 안전하게 반복 실행 가능.
+async function doImportFromOriginal(){
+  if(!SESS.isAdmin) return;
+  if(!confirm('"원본" 탭의 미배정 신규DB를 트래커에 일괄 반입합니다.\n(중복·이미 등록된 매장은 자동으로 건너뜁니다)\n계속할까요?')) return;
+  const btn=document.getElementById("btnImportOriginal");
+  btn.disabled=true; const orig=btn.textContent; btn.textContent="반입 중...";
+  try{
+    const j=await post({action:"importFromOriginal", name:SESS.name, pw:SESS.pw});
+    if(!j.ok) throw new Error(j.error||"반입 실패");
+    alert("반입 완료: 신규 "+j.added+"건 추가"+(j.skippedDup?" · 중복 건너뜀 "+j.skippedDup+"건":"")+
+          (j.note?("\n\n"+j.note):""));
+    await load();
+  }catch(e){ alert("❌ "+e.message); }
+  finally{ btn.disabled=false; btn.textContent=orig; }
 }
 
 // 2026-09-08 추가: 컨설팅 동의 → 미전환 목록 팝업 (KPI 카드 클릭 시)

@@ -724,6 +724,7 @@ function doPost(e){
       if(action === "photo")       return handlePhoto_(body);
       if(action === "deletePhoto") return handleDeletePhoto_(body);
       if(action === "addStore")    return handleAddStore_(body);
+      if(action === "importFromOriginal") return handleImportFromOriginal_(body); // 2026-09-10 추가: 관리자 전용, "원본" 탭 미배정 신규DB 일괄 반입
       return json_({ok:false, error:"알 수 없는 요청: "+action});
     } finally {
       lock.releaseLock();
@@ -1269,6 +1270,119 @@ function handleAddStore_(body){
   var obj = {};
   for(var c=0;c<head.length;c++){ obj[head[c]] = newRow[c]; }
   return json_({ok:true, row:obj});
+}
+
+// ── "원본" 탭(원천 리드) → "트래커" 탭 신규DB 일괄 반입 ────────────────
+// 2026-09-10 추가: 관리자 전용. 프론트 "🆕 신규DB 등록" 버튼에서 action:'importFromOriginal'로 호출.
+// 대상: "원본" 탭에서 "진행 체크"="미배정"이고 "중복여부"≠"중복"인 행 전체(활성상태 무관 — 사용자 확인).
+// 담당서포터즈는 항상 비워서 등록(미배정 유지) — 배정은 관리자가 트래커에서 담당서포터즈 칸에 직접 채움.
+// 중복 판정: 가게명 + 연락처(숫자만, 맨 앞 0 제거) — 기존 "트래커" 행 및 이번에 새로 추가되는 행끼리도 동일 키면 1건만
+// 반입(importStagingToTracker와 동일한 컨벤션). 그래서 같은 조건으로 다시 눌러도 이미 반입된 행은 자동으로 건너뛰어
+// 안전하게 반복 실행 가능(멱등).
+// "원본"은 읽기 전용으로만 취급 — 이 함수는 "원본" 탭에 절대 쓰지 않음.
+// "원본"의 상세 동네(예: "월곶/배곧/정왕/거북섬 배곧동")는 트래커 "동네" 컬럼에는 넣지 않고(기존 176건과 동일하게
+// "시흥"으로 통일) "비고"에 원본 동네·원본ID와 함께 남김 — 2026-09-10 사용자 확인.
+// 위도/경도는 이 시점엔 채우지 않음(수백 건을 한 번에 지오코딩하면 웹앱 실행시간 제한에 걸릴 위험) — 반입 후
+// Apps Script 편집기에서 backfillLatLngFromAddress_20260907()를 한 번 실행하면 새로 추가된 행들의 좌표만 채워짐
+// (이미 값이 있는 기존 행은 건드리지 않는 함수라 안전).
+function handleImportFromOriginal_(body){
+  var auth = auth_(body.name, body.pw);
+  if(!auth) return json_({ok:false, error:"인증 실패 — 다시 로그인하세요"});
+  if(!auth.isAdmin) return json_({ok:false, error:"관리자만 사용할 수 있습니다"});
+
+  var ORIGINAL_SHEET_NAME = "원본";
+  var osh = findSheetByNameLoose_(ss_(), ORIGINAL_SHEET_NAME);
+  if(!osh) return json_({ok:false, error:'"' + ORIGINAL_SHEET_NAME + '" 탭을 찾을 수 없습니다.'});
+
+  var odata = osh.getDataRange().getValues();
+  if(odata.length < 2) return json_({ok:false, error:'"' + ORIGINAL_SHEET_NAME + '" 탭에 데이터가 없습니다.'});
+  var ohead = odata[0].map(function(h){ return String(h).trim(); });
+  var oColStatus    = ohead.indexOf("진행 체크");
+  var oColDup       = ohead.indexOf("중복여부");
+  var oColStore     = ohead.indexOf("가게명");
+  var oColOwnerName = ohead.indexOf("점주명");
+  var oColPhone     = ohead.indexOf("점주 연락처");
+  var oColBiz       = ohead.indexOf("업종");
+  var oColTown      = ohead.indexOf("동네");
+  var oColAddr      = ohead.indexOf("주소");
+  var oColId        = ohead.indexOf("ID");
+  if(oColStatus<0 || oColStore<0 || oColPhone<0){
+    return json_({ok:false, error:'"' + ORIGINAL_SHEET_NAME + '" 탭 헤더가 예상과 다릅니다(진행 체크/가게명/점주 연락처 컬럼 확인 필요).'});
+  }
+
+  // 기존 컨벤션과 동일한 인라인 정규화(연락처 숫자만, 맨 앞 0 제거) — syncFromSharedSheet_20260907 등과 동일 로직
+  var normPhone = function(v){
+    var s = String(v||"").replace(/\D/g, "");
+    if(s.indexOf("0") === 0) s = s.substring(1);
+    return s;
+  };
+
+  var trSh = trackerSheet_();
+  var trData = trSh.getDataRange().getValues();
+  var trHead = trData[0].map(function(h){ return String(h).trim(); });
+  var tNo = trHead.indexOf("번호"), tStore = trHead.indexOf("가게명"), tPhone = trHead.indexOf("연락처");
+
+  var maxNo = 0;
+  var existing = {}; // "가게명|정규화연락처" → true (중복 판정용)
+  for(var i=1;i<trData.length;i++){
+    var r = trData[i];
+    if(String(r[tNo]).trim() !== "") maxNo = Math.max(maxNo, Number(r[tNo])||0);
+    var storeExisting = String(r[tStore]||"").trim();
+    if(storeExisting) existing[storeExisting + "|" + normPhone(r[tPhone])] = true;
+  }
+
+  var appendRows = [];
+  var added = 0, skippedDup = 0, skippedNoStore = 0;
+
+  for(var row=1; row<odata.length; row++){
+    var r = odata[row];
+    var status = String(r[oColStatus]||"").trim();
+    if(status !== "미배정") continue;
+    var dup = oColDup>=0 ? String(r[oColDup]||"").trim() : "";
+    if(dup === "중복") continue;
+
+    var storeName = String(r[oColStore]||"").trim();
+    if(!storeName){ skippedNoStore++; continue; }
+    var phone = String(r[oColPhone]||"").trim();
+    var key = storeName + "|" + normPhone(phone);
+    if(existing[key]){ skippedDup++; continue; }
+
+    var townDetail = oColTown>=0 ? String(r[oColTown]||"").trim() : "";
+    var origId = oColId>=0 ? String(r[oColId]||"").trim() : "";
+    var noteParts = [];
+    if(townDetail) noteParts.push("원본동네:" + townDetail);
+    if(origId) noteParts.push("원본ID:" + origId);
+    noteParts.push("원본 자동반입 " + now_());
+    var note = noteParts.join(" / ");
+
+    maxNo++;
+    var newRow = new Array(trHead.length).fill("");
+    var set = function(k, v){ var c = trHead.indexOf(k); if(c>=0) newRow[c]=v; };
+    set("번호", maxNo);
+    set("담당서포터즈", ""); // 미배정 상태로 등록 — 2026-09-10 사용자 확인
+    set("가게명", storeName);
+    set("점주명", oColOwnerName>=0 ? r[oColOwnerName] : "");
+    set("연락처", phone);
+    set("업종", oColBiz>=0 ? r[oColBiz] : "");
+    set("동네", "시흥"); // 기존 176건과 동일하게 통일(상세 지역은 비고에 기록) — 2026-09-10 사용자 확인
+    set("주소", oColAddr>=0 ? r[oColAddr] : "");
+    set("비고", note);
+    set("TA결과", TA_STATUSES[0] || "대기");
+    set("수정자", "신규DB 등록(" + auth.name + ")");
+    set("수정시각", now_());
+    appendRows.push(newRow);
+    existing[key] = true;
+    added++;
+  }
+
+  if(appendRows.length){
+    trSh.getRange(trSh.getLastRow()+1, 1, appendRows.length, trHead.length).setValues(appendRows);
+  }
+
+  return json_({
+    ok:true, added:added, skippedDup:skippedDup, skippedNoStore:skippedNoStore,
+    note:"위도/경도는 비어있습니다 — Apps Script 편집기에서 backfillLatLngFromAddress_20260907()를 한 번 실행하면 새로 추가된 행의 좌표가 채워집니다."
+  });
 }
 
 // ── 일회성 마이그레이션(2026-09-07, 5차): 기존 행 중 위도/경도가 비어있는데 주소가 있는 행을
