@@ -502,19 +502,31 @@ function handlePhoto_(body){
   }
 
   var b64 = String(body.data||"");
-  if(!b64) return json_({ok:false, error:"사진 데이터가 없습니다"});
-  if(b64.length > 8000000) return json_({ok:false, error:"사진 용량이 너무 큽니다 — 다시 촬영해보세요"});
+  if(!b64) return json_({ok:false, error:"사진/녹취 데이터가 없습니다"});
 
   var mime = String(body.mime||"image/jpeg");
+  var isAudio = mime.indexOf("audio/") === 0; // 2026-09-10 추가: 증빙에 사진뿐 아니라 녹취파일도 첨부 가능하도록 지원
+  var maxLen = isAudio ? 30000000 : 8000000; // 녹취는 용량이 커질 수 있어 이미지보다 넉넉한 한도를 둠(약 22MB 원본 기준)
+  if(b64.length > maxLen){
+    return json_({ok:false, error: isAudio ? "녹취파일 용량이 너무 큽니다 — 더 짧게 녹음하거나 압축해보세요" : "사진 용량이 너무 큽니다 — 다시 촬영해보세요"});
+  }
+
   var storeName = String(t.values[t.head.indexOf("가게명")]||"").trim() || "매장";
   var stamp = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyyMMdd_HHmmss");
-  var fname = (String(body.no)+"_"+storeName+"_"+field+"_"+stamp+"_"+(urls.length+1)+".jpg").replace(/[\\\/:*?"<>|]/g, "_");
+  var ext = ".jpg";
+  if(isAudio){
+    var origName = String(body.filename||"");
+    var m = origName.match(/\.([a-zA-Z0-9]+)$/);
+    ext = m ? ("."+m[1].toLowerCase()) : ".m4a";
+  }
+  var fname = (String(body.no)+"_"+storeName+"_"+field+"_"+stamp+"_"+(urls.length+1)+ext).replace(/[\\\/:*?"<>|]/g, "_");
 
   var blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, fname);
   var folder = photoFolder_();
   var file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   var url = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1600";
+  if(isAudio) url += "::audio"; // 프론트에서 이미지/음성 구분용 태그 — 기존 순수 URL 데이터와 하위호환
 
   urls.push(url);
   var joined = urls.join("|");

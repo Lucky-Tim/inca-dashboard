@@ -84,6 +84,21 @@
   #as-ovl .item .act input{flex:1;min-width:110px;font-size:12px;padding:5px 7px}
   #as-ovl .item .act button{padding:5px 10px;font-size:12px}
   #as-ovl .close{width:100%;margin-top:10px}
+  /* ── 상태별 목록 팝업 (2026-09-10 추가: 신규배정/상담중/청약완료/계약체결/종결·실패 카드 클릭 → 목록+행이동) ── */
+  #st-ovl{display:none;position:fixed;inset:0;z-index:9998;background:rgba(14,31,56,.45);align-items:center;justify-content:center;padding:20px}
+  #st-ovl .box{width:520px;max-width:94vw;max-height:84vh;overflow-y:auto;background:#fff;border-radius:16px;box-shadow:0 18px 50px rgba(14,31,56,.28);padding:20px 22px}
+  #st-ovl h3{margin:0 0 4px;color:var(--navy);font-size:16px}
+  #st-ovl .desc{color:var(--gray);font-size:12px;margin-bottom:10px}
+  #st-ovl .item{border:1px solid var(--ice2);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  #st-ovl .item .info{flex:1;min-width:170px}
+  #st-ovl .item .info b{display:block;font-size:13.5px}
+  #st-ovl .item .info span{display:block;font-size:11.5px;color:var(--gray)}
+  #st-ovl .close{width:100%;margin-top:10px}
+  .statlink{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+  .statlink:hover{color:var(--navy2)}
+  .gotorow{padding:4px 8px;font-size:11px}
+  tr.flash{outline:3px solid var(--gold);outline-offset:-1px}
+  tr.flash td{background:#FFF7E0 !important;transition:background-color 1s}
   /* ── 로그인 오버레이 (viewer-mgr #login-ovl 패턴 · 네이비/골드 팔레트) ── */
   #login-ovl{display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(160deg,#16335B 0%,#1B3A6B 55%,#0E1F38 100%);align-items:center;justify-content:center;padding:20px}
   #login-ovl .box{width:342px;max-width:92vw;background:#fff;border-radius:20px;box-shadow:0 18px 50px rgba(14,31,56,.28),0 2px 8px rgba(0,0,0,.05);border:1px solid var(--ice2);overflow:hidden;animation:lgIn .4s cubic-bezier(.2,.8,.2,1)}
@@ -202,6 +217,16 @@
     <div class="desc" id="as-desc"></div>
     <div id="as-list"></div>
     <button class="close" onclick="closeAsProcess()">닫기</button>
+  </div>
+</div>
+
+<!-- 2026-09-10 추가: 신규배정/상담중/청약완료/계약체결/종결·실패 카드 클릭 → 해당 목록 팝업(행 이동 지원) -->
+<div id="st-ovl">
+  <div class="box">
+    <h3 id="st-title">📋 목록</h3>
+    <div class="desc">항목의 "표에서 보기"를 누르면 아래 표의 실제 행으로 이동합니다.</div>
+    <div id="st-list"></div>
+    <button class="close" onclick="closeStatusPopup()">닫기</button>
   </div>
 </div>
 
@@ -421,16 +446,59 @@ function renderKPIs(){
   const s=stats(), g=Math.min(100,Math.round(s.rate/30*100));
   let html=
   '<div class="card hl"><div class="label">계약 체결률</div><div class="val">'+s.rate+'%</div><div class="bar"><i style="width:'+g+'%"></i></div><div class="goal" style="color:var(--ice2)">목표 30%(안) · 계약 '+s.gyeyak+' / 유효 '+(s.n-s.fail)+'</div></div>'+
-  '<div class="card"><div class="label">배정건수 / 신규</div><div class="val">'+s.n+'<span style="font-size:14px;color:var(--gray)"> / '+s.sinkyu+'</span></div></div>'+
-  '<div class="card"><div class="label">상담중</div><div class="val">'+s.sangdam+'</div></div>'+
-  '<div class="card"><div class="label">청약 / 계약체결</div><div class="val">'+s.cheongyak+'<span style="font-size:14px;color:var(--gray)"> / '+s.gyeyak+'</span></div></div>'+
+  '<div class="card"><div class="label">배정건수 / 신규</div><div class="val">'+s.n+' / <span class="statlink" onclick="openStatusPopup(\'신규배정\')" title="클릭하면 신규배정 목록을 볼 수 있습니다">'+s.sinkyu+'</span></div><div class="goal">👆 신규 숫자를 클릭하면 목록이 열려요</div></div>'+
+  '<div class="card"><div class="label">상담중</div><div class="val"><span class="statlink" onclick="openStatusPopup(\'상담중\')" title="클릭하면 상담중 목록을 볼 수 있습니다">'+s.sangdam+'</span></div><div class="goal">👆 클릭하면 목록이 열려요</div></div>'+
+  '<div class="card"><div class="label">청약 / 계약체결</div><div class="val"><span class="statlink" onclick="openStatusPopup(\'청약완료\')" title="클릭하면 청약완료 목록을 볼 수 있습니다">'+s.cheongyak+'</span> / <span class="statlink" onclick="openStatusPopup(\'계약체결\')" title="클릭하면 계약체결 목록을 볼 수 있습니다">'+s.gyeyak+'</span></div><div class="goal">👆 숫자를 클릭하면 목록이 열려요</div></div>'+
   '<div class="card"><div class="label">평균 클로징확률</div><div class="val">'+s.avg+'%</div><div class="goal">진행 건 기준(종결·실패 제외)</div></div>'+
-  '<div class="card"><div class="label">종결·실패</div><div class="val">'+s.fail+'</div></div>'+
+  '<div class="card"><div class="label">종결·실패</div><div class="val"><span class="statlink" onclick="openStatusPopup(\'종결·실패\')" title="클릭하면 종결·실패 목록을 볼 수 있습니다">'+s.fail+'</span></div><div class="goal">👆 클릭하면 목록이 열려요</div></div>'+
   '<div class="card warn" onclick="openAsProcess()" title="클릭하면 A/S 건을 처리할 수 있습니다"><div class="label">A/S 대상 / 신청 / 승인</div><div class="val">'+s.asElig+'<span style="font-size:14px;color:var(--gray)"> / '+s.asReq+' / '+s.asOk+'</span></div><div class="goal">👆 클릭하면 처리할 수 있어요</div></div>';
   if(SESS.role==="영업관리자"){
     html += '<div class="card warn" onclick="openUnassigned()" title="클릭하면 미배정 건을 배정할 수 있습니다"><div class="label">배정 대기(팀)</div><div class="val">'+s.unassigned+'</div><div class="goal">👆 클릭하면 배정할 수 있어요</div></div>';
   }
   document.getElementById("kpis").innerHTML=html;
+}
+
+// 2026-09-10 추가: 신규배정/상담중/청약완료/계약체결/종결·실패 KPI 숫자 클릭 → 목록 팝업.
+// 처리 액션은 없음(단순 조회) — 항목의 "표에서 보기"를 누르면 scrollToRow()로 표의 실제 행으로 이동.
+let currentStatusFilter="";
+function openStatusPopup(status){
+  currentStatusFilter=status;
+  document.getElementById("st-title").textContent = "📋 "+status+" 목록";
+  renderStatusList();
+  document.getElementById("st-ovl").style.display="flex";
+}
+function closeStatusPopup(){ document.getElementById("st-ovl").style.display="none"; }
+function renderStatusList(){
+  const list=scoped().filter(d=>d["계약현황"]===currentStatusFilter);
+  const box=document.getElementById("st-list");
+  if(!list.length){ box.innerHTML='<div class="desc">해당하는 건이 없습니다.</div>'; return; }
+  box.innerHTML=list.map(d=>{
+    const no=d["번호"];
+    return '<div class="item">'+
+      '<div class="info"><b>'+esc(d["가게명"]||"(가게)")+'</b>'+
+        '<span>'+esc(d["점주명"]||"")+' · '+esc(fmtPhone(d["연락처"]||""))+'</span>'+
+        '<span>담당 '+esc(d["담당컨설턴트"]||"—")+' · '+esc(d["동네"]||"")+'</span></div>'+
+      '<button type="button" class="gotorow" onclick="scrollToRow('+no+')">표에서 보기</button>'+
+    '</div>';
+  }).join("");
+}
+function closeAllPopups(){
+  closeUnassigned(); closeAsProcess(); closeStatusPopup();
+}
+function scrollToRow(no){
+  closeAllPopups();
+  const q=document.getElementById("q"); if(q) q.value="";
+  const fStatus=document.getElementById("fStatus"); if(fStatus) fStatus.value="";
+  const fProb=document.getElementById("fProb"); if(fProb) fProb.value="";
+  if(typeof whoFilter!=="undefined" && whoFilter){ whoFilter=""; const fWho=document.getElementById("fWho"); if(fWho) fWho.value=""; }
+  render();
+  requestAnimationFrame(()=>{
+    const el=document.getElementById("row-"+no);
+    if(!el) return;
+    el.scrollIntoView({behavior:"smooth", block:"center"});
+    el.classList.add("flash");
+    setTimeout(()=>el.classList.remove("flash"), 1600);
+  });
 }
 
 // 2026-09-08 추가: 영업관리자가 "배정 대기(팀)" 카드를 클릭하면 미배정 건 목록을 보여주고
@@ -456,6 +524,7 @@ function renderUnassignedList(){
         '<span>'+esc(d["점주명"]||"")+' · '+esc(fmtPhone(d["연락처"]||""))+'</span>'+
         '<span>'+esc(d["동네"]||"")+' · DB지급일 '+esc(d["DB지급일"]||"—")+'</span></div>'+
       '<select onchange="assignFromPopup('+no+',this.value,this)">'+opts+'</select>'+
+      ' <button type="button" class="gotorow" onclick="scrollToRow('+no+')">표에서 보기</button>'+
     '</div>';
   }).join("");
 }
@@ -501,14 +570,19 @@ function cellHtml(d,c){
     return '<td data-label="클로징확률"><select class="ed" onchange="up('+no+',\'클로징확률\',this.value)">'+opts+'</select></td>';
   }
   if(c.t==="photo"){
-    const urls=String(v||"").split("|").map(s=>s.trim()).filter(Boolean);
+    const urls=parsePhotoEntries(v);
     const asSt=String(d["AS신청상태"]||"");
     const locked=!SESS.isAdmin && (asSt==="승인"||asSt==="불가능");
-    const thumbs=urls.map((u,i)=>
-      '<span style="position:relative;display:inline-block;margin:2px">'+
-        '<a href="'+esc(u)+'" target="_blank" rel="noopener"><img src="'+esc(u)+'" alt="증빙" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB"></a>'+
-        (locked ? '' : ' <button type="button" class="delbtn" onclick="deletePhoto('+no+',\''+c.k+'\','+i+')" style="padding:2px 6px;font-size:10px">×</button>')+
-      '</span>'
+    const thumbs=urls.map((e,i)=>
+      e.type==="audio"
+      ? '<span style="position:relative;display:inline-block;margin:2px">'+
+          '<a href="'+esc(e.url)+'" target="_blank" rel="noopener" title="녹취파일 열기" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB;font-size:16px;text-decoration:none">🎧</a>'+
+          (locked ? '' : ' <button type="button" class="delbtn" onclick="deletePhoto('+no+',\''+c.k+'\','+i+')" style="padding:2px 6px;font-size:10px">×</button>')+
+        '</span>'
+      : '<span style="position:relative;display:inline-block;margin:2px">'+
+          '<a href="'+esc(e.url)+'" target="_blank" rel="noopener"><img src="'+esc(e.url)+'" alt="증빙" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB"></a>'+
+          (locked ? '' : ' <button type="button" class="delbtn" onclick="deletePhoto('+no+',\''+c.k+'\','+i+')" style="padding:2px 6px;font-size:10px">×</button>')+
+        '</span>'
     ).join("");
     if(locked) return '<td data-label="증빙">'+(thumbs||'<span class="ro">—</span>')+'</td>';
     const canAdd=urls.length<PHOTO_MAX;
@@ -516,7 +590,7 @@ function cellHtml(d,c){
       ? ' <button type="button" class="phbtn" onclick="triggerPhoto('+no+',\''+c.k+'\')">'+(urls.length?"추가":"등록")+'</button>'
       : ' <span class="ro">최대 '+PHOTO_MAX+'장</span>';
     return '<td data-label="증빙">'+(thumbs||'<span class="ro">—</span>')+addBtn+
-      '<input type="file" accept="image/*" multiple id="ph-'+no+'-'+c.k+'" style="display:none" onchange="onPhotoChange('+no+',\''+c.k+'\',this)"></td>';
+      '<input type="file" accept="image/*,audio/*" multiple id="ph-'+no+'-'+c.k+'" style="display:none" onchange="onPhotoChange('+no+',\''+c.k+'\',this)"></td>';
   }
   if(c.t==="wide") return '<td data-label="'+c.label+'"><input class="ed wide" value="'+esc(v)+'" placeholder="일정·결과 자유 기술" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
   if(c.t==="yn"){
@@ -574,11 +648,29 @@ function render(){
   if(!rs.length){ tb.innerHTML='<tr><td class="empty">표시할 컨설팅DB가 없습니다.'+((SESS.isAdmin||SESS.role==="영업관리자")&&whoFilter?' <button onclick="resetWhoFilter()">담당자 전체보기</button>':'')+'</td></tr>'; return; }
   tb.innerHTML=rs.map(d=>{
     const no=d["번호"];
-    return '<tr><td data-label="#">'+no+'. '+(esc(d["가게명"])||"(가게)")+'</td>'+visibleCols().map(c=>cellHtml(d,c)).join("")+'</tr>';
+    return '<tr id="row-'+no+'"><td data-label="#">'+no+'. '+(esc(d["가게명"])||"(가게)")+'</td>'+visibleCols().map(c=>cellHtml(d,c)).join("")+'</tr>';
   }).join("");
 }
 
 // ── 증빙 파일 업로드 ──
+// 2026-09-10 추가: 증빙에 사진뿐 아니라 녹취(음성) 파일도 첨부 가능하도록 지원.
+// 저장 형식은 기존과 동일하게 "url1|url2|..." 이지만, 음성 파일은 URL 뒤에 "::audio"를 붙여 구분한다
+// (예: https://drive.google.com/thumbnail?id=XXX&sz=w1600::audio) — 기존 데이터(순수 URL)는 전부 이미지로 해석되어 하위호환됨.
+function parsePhotoEntries(v){
+  return String(v||"").split("|").map(s=>s.trim()).filter(Boolean).map(entry=>{
+    const idx=entry.indexOf("::audio");
+    if(idx>=0) return {url:entry.slice(0,idx), type:"audio"};
+    return {url:entry, type:"image"};
+  });
+}
+function readAsDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=e=>resolve(e.target.result);
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
 function triggerPhoto(no, field){
   const el=document.getElementById('ph-'+no+'-'+field); if(el) el.click();
 }
@@ -616,9 +708,20 @@ async function onPhotoChange(no, field, inputEl){
   toast();
   try{
     for(const file of toUpload){
-      const dataUrl=await resizeImage(file, 1280, 0.72);
-      const base64=dataUrl.split(',')[1];
-      const j=await post({action:'photo', name:SESS.name, pw:SESS.pw, no:no, field:field, mime:'image/jpeg', filename:file.name||'photo.jpg', data:base64});
+      const isAudio = String(file.type||"").indexOf("audio/")===0;
+      let base64, mime, filename;
+      if(isAudio){
+        const dataUrl=await readAsDataUrl(file);
+        base64=dataUrl.split(',')[1];
+        mime=file.type||'audio/mpeg';
+        filename=file.name||'recording';
+      }else{
+        const dataUrl=await resizeImage(file, 1280, 0.72);
+        base64=dataUrl.split(',')[1];
+        mime='image/jpeg';
+        filename=file.name||'photo.jpg';
+      }
+      const j=await post({action:'photo', name:SESS.name, pw:SESS.pw, no:no, field:field, mime:mime, filename:filename, data:base64});
       if(!j.ok) throw new Error(j.error||'업로드 실패');
       if(row) row[field]=j.value;
       render();
@@ -684,8 +787,12 @@ function openAsProcess(){
 function closeAsProcess(){ document.getElementById("as-ovl").style.display="none"; }
 function asItemHtml(d, actionable){
   const no=d["번호"];
-  const urls=String(d["증빙"]||"").split("|").map(s=>s.trim()).filter(Boolean);
-  const thumbs=urls.map(u=>'<a href="'+esc(u)+'" target="_blank" rel="noopener"><img src="'+esc(u)+'" alt="증빙" style="width:30px;height:30px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);margin:2px 4px 2px 0;vertical-align:middle"></a>').join("");
+  const urls=parsePhotoEntries(d["증빙"]);
+  const thumbs=urls.map(e=>
+    e.type==="audio"
+    ? '<a href="'+esc(e.url)+'" target="_blank" rel="noopener" title="녹취파일 열기" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:6px;border:1px solid var(--ice2);margin:2px 4px 2px 0;vertical-align:middle;background:#F4F7FB;font-size:15px;text-decoration:none">🎧</a>'
+    : '<a href="'+esc(e.url)+'" target="_blank" rel="noopener"><img src="'+esc(e.url)+'" alt="증빙" style="width:30px;height:30px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);margin:2px 4px 2px 0;vertical-align:middle"></a>'
+  ).join("");
   const st=d["AS신청상태"]||"미신청";
   const stBg={"확인중":"#FFF3D6","승인":"#C7E9D3","불가능":"#F0E4E3","미신청":"#EEF2F7"}[st]||"#EEF2F7";
   const overdue = d["AS신청기한"] && st!=="승인" && d["AS신청기한"]<todayStr();
@@ -706,6 +813,7 @@ function asItemHtml(d, actionable){
     '</div>'+
     (memo ? '<div class="memo">'+esc(memo).replace(/\n/g,"<br>")+'</div>' : '')+
     actions+
+    '<div class="act"><button type="button" class="gotorow" onclick="scrollToRow('+no+')">표에서 보기</button></div>'+
   '</div>';
 }
 function renderAsProcessList(){
