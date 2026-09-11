@@ -59,6 +59,10 @@
   #setup input{width:100%;margin:10px 0}
   .saving{position:fixed;bottom:16px;right:16px;background:var(--navy);color:#fff;padding:8px 14px;border-radius:20px;font-size:12px;opacity:0;transition:.2s}
   .saving.on{opacity:1}
+  /* ── 팝업 우상단 빠른 닫기(×) (2026-09-11 추가) — 목록이 길어도 스크롤 안 하고 바로 닫을 수 있게, 기존 하단 닫기 버튼은 그대로 둠 ── */
+  .ovl-xbar{position:sticky;top:-2px;display:flex;justify-content:flex-end;margin:-4px -4px 6px;pointer-events:none;z-index:5}
+  .ovl-x{pointer-events:auto;background:#fff;border:1px solid var(--ice2);width:26px;height:26px;line-height:24px;border-radius:50%;font-size:13px;color:var(--gray);cursor:pointer;padding:0;box-shadow:0 2px 6px rgba(14,31,56,.14)}
+  .ovl-x:hover{background:#F1F4F9;color:var(--navy);border-color:var(--navy)}
   /* ── 배정 대기(팀) 팝업 (2026-09-08 추가: 영업관리자가 KPI 카드 클릭 → 미배정 건 배정) ── */
   #ua-ovl{display:none;position:fixed;inset:0;z-index:9998;background:rgba(14,31,56,.45);align-items:center;justify-content:center;padding:20px}
   #ua-ovl .box{width:520px;max-width:94vw;max-height:82vh;overflow-y:auto;background:#fff;border-radius:16px;box-shadow:0 18px 50px rgba(14,31,56,.28);padding:20px 22px}
@@ -204,6 +208,7 @@
 <!-- 2026-09-08 추가: 영업관리자가 "배정 대기(팀)" 카드를 클릭하면 여는 배정 팝업 -->
 <div id="ua-ovl">
   <div class="box">
+    <div class="ovl-xbar"><button class="ovl-x" onclick="closeUnassigned()" aria-label="닫기">✕</button></div>
     <h3>📋 배정 대기(팀)</h3>
     <div class="desc">담당컨설턴트가 아직 없는 건입니다 — 배정할 컨설턴트를 선택하세요.</div>
     <div id="ua-list"></div>
@@ -214,6 +219,7 @@
 <!-- 2026-09-09 추가: "A/S 대상/신청/승인" 카드를 클릭하면 여는 처리 팝업 -->
 <div id="as-ovl">
   <div class="box">
+    <div class="ovl-xbar"><button class="ovl-x" onclick="closeAsProcess()" aria-label="닫기">✕</button></div>
     <h3>🗂️ A/S 처리</h3>
     <div class="desc" id="as-desc"></div>
     <div id="as-list"></div>
@@ -224,6 +230,7 @@
 <!-- 2026-09-10 추가: 신규배정/상담중/청약완료/계약체결/종결·실패 카드 클릭 → 해당 목록 팝업(행 이동 지원) -->
 <div id="st-ovl">
   <div class="box">
+    <div class="ovl-xbar"><button class="ovl-x" onclick="closeStatusPopup()" aria-label="닫기">✕</button></div>
     <h3 id="st-title">📋 목록</h3>
     <div class="desc">항목의 "표에서 보기"를 누르면 아래 표의 실제 행으로 이동합니다.</div>
     <div id="st-list"></div>
