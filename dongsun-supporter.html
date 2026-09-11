@@ -25,7 +25,7 @@
   .card.warn{cursor:pointer;border-color:var(--gold);background:#FCF3E3}
   .card.warn:hover{box-shadow:0 3px 10px rgba(224,163,62,.35)}
   .ta-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-  .ta-chip{font-size:12.5px;padding:5px 11px;border-radius:20px;font-weight:700;color:var(--ink)}
+  .ta-chip{font-size:12.5px;padding:5px 11px;border-radius:20px;font-weight:700;color:var(--ink);cursor:pointer}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
   button{font-family:inherit;font-size:13px;border:1px solid var(--navy);background:#fff;color:var(--navy);padding:7px 12px;border-radius:8px;cursor:pointer}
   button:hover{background:var(--ice)}button.primary{background:var(--navy);color:#fff}
@@ -146,8 +146,6 @@
   #st-ovl .item .info b{display:block;font-size:13.5px}
   #st-ovl .item .info span{display:block;font-size:11.5px;color:var(--gray)}
   #st-ovl .close{width:100%;margin-top:10px}
-  #st-ovl .ta-group-title{display:block;font-size:12px;font-weight:700;color:var(--ink);padding:5px 10px;border-radius:8px;margin:10px 0 6px}
-  #st-ovl .ta-group-title:first-child{margin-top:0}
   .statlink{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
   .statlink:hover{color:var(--navy2)}
   .gotorow{padding:4px 8px;font-size:11px}
@@ -540,23 +538,18 @@ function stats(){
   const agree=cnt("컨설팅동의여부","컨설팅동의");
   const done=rs.filter(isDone).length;
   const reject=cnt("컨설팅동의여부","컨설팅거절");
-  const hold=cnt("컨설팅동의여부","보류"); // 2026-09-11 추가: "방문완료" 묶음용 보류 건수
-  const visited=rs.filter(isVisited).length; // 2026-09-11 추가: 동의+거절+보류 = 방문완료
+  const hold=cnt("컨설팅동의여부","보류"); // 2026-09-11 추가: "방문완료" 카드용 보류 건수
   const pendingConvert=rs.filter(d=>d["컨설팅동의여부"]==="컨설팅동의" && !isDone(d)).length; // 2026-09-08 추가: 동의했지만 아직 전환 안 된 건
   const taBreak={}; TA_STATUSES.forEach(k=>{ taBreak[k]=cnt("TA결과",k); });
   const agreeBreak={}; AGREES.forEach(k=>{ agreeBreak[k]=cnt("컨설팅동의여부",k); }); // 2026-09-09 추가: 단톡보고 동의여부별 전체 breakdown용
   const rate=n>0?Math.round(agree/n*1000)/10:0;
-  return {n,agree,done,reject,hold,visited,pendingConvert,taBreak,agreeBreak,rate};
+  return {n,agree,done,reject,hold,pendingConvert,taBreak,agreeBreak,rate};
 }
 function renderKPIs(){
   const s=stats(), g=Math.min(100,Math.round(s.rate/30*100));
   const taChips=TA_STATUSES.map(k=>
-    '<span class="ta-chip" style="background:'+(TA_COLOR[k]||"#EEF2F7")+'">'+esc(k)+' '+(s.taBreak[k]||0)+'</span>'
+    '<span class="ta-chip" style="background:'+(TA_COLOR[k]||"#EEF2F7")+'" onclick="openStatusPopup(\'TA결과\',\''+k+'\')" title="클릭하면 '+esc(k)+' 목록을 볼 수 있습니다">'+esc(k)+' '+(s.taBreak[k]||0)+'</span>'
   ).join("");
-  const visitChips=
-    '<span class="ta-chip" style="background:'+(AG_COLOR["컨설팅동의"]||"#EEF2F7")+'">동의 '+s.agree+'</span>'+
-    '<span class="ta-chip" style="background:'+(AG_COLOR["컨설팅거절"]||"#EEF2F7")+'">거절 '+s.reject+'</span>'+
-    '<span class="ta-chip" style="background:'+(AG_COLOR["보류"]||"#EEF2F7")+'">보류 '+s.hold+'</span>';
   document.getElementById("kpis").innerHTML=
   '<div class="card hl"><div class="label">컨설팅 동의율</div><div class="val">'+s.rate+'%</div><div class="bar"><i style="width:'+g+'%"></i></div><div class="goal" style="color:var(--ice2)">목표 30%(안) · 동의 '+s.agree+' / 전체 '+s.n+'</div></div>'+
   '<div class="card"><div class="label">담당 건수</div><div class="val">'+s.n+'</div></div>'+
@@ -565,30 +558,17 @@ function renderKPIs(){
   '<div class="card warn" onclick="openPendingConvert()" title="클릭하면 미전환 목록이 열립니다"><div class="label">⏳ 동의 → 미전환</div><div class="val">'+s.pendingConvert+'</div><div class="goal">👆 클릭하면 목록이 열려요</div></div>'+
   '<div class="card"><div class="label">컨설팅거절</div><div class="val"><span class="statlink" onclick="openStatusPopup(\'컨설팅동의여부\',\'컨설팅거절\')" title="클릭하면 컨설팅거절 목록을 볼 수 있습니다">'+s.reject+'</span></div><div class="goal">👆 클릭하면 목록이 열려요</div></div>'+
   '<div class="card warn" onclick="openAsSummary()" title="클릭하면 내 DB의 A/S 현황을 볼 수 있습니다"><div class="label">📋 내 DB A/S 현황</div><div class="val">'+(asRows?asRows.length:"—")+'</div><div class="goal">👆 클릭하면 확인할 수 있어요</div></div>'+
-  '<div class="card wide warn" onclick="openVisitPopup()" title="클릭하면 방문완료(동의+거절+보류) 목록을 볼 수 있습니다"><div class="label">✅ 방문완료(동의+거절+보류)</div><div class="val">'+s.visited+'</div><div class="ta-chips">'+visitChips+'</div><div class="goal">👆 클릭하면 목록이 열려요 · 표에서는 흐리게 구분 표시</div></div>'+
-  '<div class="card wide warn" onclick="openTaPopup()" title="클릭하면 TA결과별 전체 목록을 볼 수 있습니다"><div class="label">TA결과 현황(전체값)</div><div class="ta-chips">'+taChips+'</div><div class="goal">👆 클릭하면 목록이 열려요</div></div>';
+  '<div class="card"><div class="label">✅ 방문완료</div><div class="val"><span class="statlink" onclick="openStatusPopup(\'컨설팅동의여부\',\'컨설팅동의\')" title="클릭하면 컨설팅동의 목록을 볼 수 있습니다">동의 '+s.agree+'</span> / <span class="statlink" onclick="openStatusPopup(\'컨설팅동의여부\',\'컨설팅거절\')" title="클릭하면 컨설팅거절 목록을 볼 수 있습니다">거절 '+s.reject+'</span> / <span class="statlink" onclick="openStatusPopup(\'컨설팅동의여부\',\'보류\')" title="클릭하면 보류 목록을 볼 수 있습니다">보류 '+s.hold+'</span></div><div class="goal">👆 숫자를 클릭하면 목록이 열려요 · 표에서는 흐리게 구분 표시</div></div>'+
+  '<div class="card wide"><div class="label">TA결과 현황(전체값)</div><div class="ta-chips">'+taChips+'</div><div class="goal">👆 칩을 클릭하면 해당 상태 목록이 열려요</div></div>';
 }
 
-// 2026-09-11 추가: 컨설팅동의/전환완료/컨설팅거절/TA결과 KPI 숫자·카드 클릭 → 목록 팝업 (컨설턴트 트래커 19절 구조 이식).
+// 2026-09-11 추가: 컨설팅동의/전환완료/컨설팅거절/보류/TA결과 각 숫자·칩 클릭 → 그 값 하나만의 목록 팝업 (컨설턴트 트래커 19절 구조 이식).
 // 처리 액션은 없음(단순 조회) — 항목의 "표에서 보기"를 누르면 scrollToRow()로 표의 실제 행으로 이동.
-let currentPopupMode=null; // {field,value} 또는 {ta:true}
+// 2026-09-11(2차 수정): 방문완료/TA결과 카드는 전체를 묶어 보여주는 그룹 팝업 대신, 숫자·칩 하나당 그 값만 보여주는 단일 팝업으로 통일(사용자 요청) — openStatusPopup(field,value)는 어떤 필드든 값 하나만 필터링하는 범용 함수라 TA결과에도 그대로 재사용.
+let currentPopupMode=null; // {field,value}
 function openStatusPopup(field, value){
   currentPopupMode={field:field, value:value};
   document.getElementById("st-title").textContent = "📋 "+value+" 목록";
-  renderPopupList();
-  document.getElementById("st-ovl").style.display="flex";
-}
-function openTaPopup(){
-  currentPopupMode={ta:true};
-  document.getElementById("st-title").textContent = "📋 TA결과 전체 목록";
-  renderPopupList();
-  document.getElementById("st-ovl").style.display="flex";
-}
-// 2026-09-11 추가: 컨설팅동의/컨설팅거절/보류를 "방문완료"로 묶어서 한 팝업에 상태별로 그룹핑해 보여줌(표는 안 건드림 — 대신 tr.done 블러로 표에서 구분).
-const VISIT_STATUSES=["컨설팅동의","컨설팅거절","보류"];
-function openVisitPopup(){
-  currentPopupMode={visit:true};
-  document.getElementById("st-title").textContent = "📋 방문완료(동의+거절+보류) 목록";
   renderPopupList();
   document.getElementById("st-ovl").style.display="flex";
 }
@@ -596,42 +576,6 @@ function closeStatusPopup(){ document.getElementById("st-ovl").style.display="no
 function renderPopupList(){
   const box=document.getElementById("st-list");
   if(!currentPopupMode){ box.innerHTML=""; return; }
-  if(currentPopupMode.ta){
-    let html="";
-    TA_STATUSES.forEach(function(st){
-      const items=scoped().filter(d=>d["TA결과"]===st);
-      if(!items.length) return;
-      html += '<div class="ta-group-title" style="background:'+(TA_COLOR[st]||"#EEF2F7")+'">'+esc(st)+' '+items.length+'</div>'+
-        items.map(function(d){
-          const no=d["번호"];
-          return '<div class="item">'+
-            '<div class="info"><b>'+esc(d["가게명"]||"(가게)")+'</b>'+
-              '<span>담당 '+esc(d["담당서포터즈"]||"—")+' · '+esc(d["동네"]||"")+'</span></div>'+
-            '<button type="button" class="gotorow" onclick="scrollToRow('+no+')">표에서 보기</button>'+
-          '</div>';
-        }).join("");
-    });
-    box.innerHTML = html || '<div class="desc">TA결과가 등록된 건이 없습니다.</div>';
-    return;
-  }
-  if(currentPopupMode.visit){
-    let html="";
-    VISIT_STATUSES.forEach(function(st){
-      const items=scoped().filter(d=>d["컨설팅동의여부"]===st);
-      if(!items.length) return;
-      html += '<div class="ta-group-title" style="background:'+(AG_COLOR[st]||"#EEF2F7")+'">'+esc(st)+' '+items.length+'</div>'+
-        items.map(function(d){
-          const no=d["번호"];
-          return '<div class="item">'+
-            '<div class="info"><b>'+esc(d["가게명"]||"(가게)")+'</b>'+
-              '<span>담당 '+esc(d["담당서포터즈"]||"—")+' · '+esc(d["동네"]||"")+'</span></div>'+
-            '<button type="button" class="gotorow" onclick="scrollToRow('+no+')">표에서 보기</button>'+
-          '</div>';
-        }).join("");
-    });
-    box.innerHTML = html || '<div class="desc">방문완료로 확인된 건이 없습니다.</div>';
-    return;
-  }
   const field=currentPopupMode.field, value=currentPopupMode.value;
   const list = (field==="_done") ? scoped().filter(isDone) : scoped().filter(d=>d[field]===value);
   if(!list.length){ box.innerHTML='<div class="desc">해당하는 건이 없습니다.</div>'; return; }
