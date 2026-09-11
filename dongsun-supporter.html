@@ -556,11 +556,10 @@ function renderKPIs(){
     '<span class="ta-chip" style="background:'+(AG_COLOR["보류"]||"#EEF2F7")+'" onclick="openStatusPopup(\'컨설팅동의여부\',\'보류\')" title="클릭하면 보류 목록을 볼 수 있습니다">보류 '+s.hold+'</span>';
   document.getElementById("kpis").innerHTML=
   '<div class="card hl"><div class="label">컨설팅 동의율</div><div class="val">'+s.rate+'%</div><div class="bar"><i style="width:'+g+'%"></i></div><div class="goal" style="color:var(--ice2)">목표 30%(안) · 동의 '+s.agree+' / 전체 '+s.n+'</div></div>'+
-  '<div class="card"><div class="label">담당 건수</div><div class="val">'+s.n+'</div></div>'+
-  '<div class="card"><div class="label">컨설팅동의</div><div class="val"><span class="statlink" onclick="openStatusPopup(\'컨설팅동의여부\',\'컨설팅동의\')" title="클릭하면 컨설팅동의 목록을 볼 수 있습니다">'+s.agree+'</span></div><div class="goal">👆 클릭하면 목록이 열려요</div></div>'+
-  '<div class="card"><div class="label">전환완료</div><div class="val"><span class="statlink" onclick="openStatusPopup(\'_done\',\'전환완료\')" title="클릭하면 전환완료 목록을 볼 수 있습니다">'+s.done+'</span></div><div class="goal">👆 클릭하면 목록이 열려요</div></div>'+
-  '<div class="card warn" onclick="openPendingConvert()" title="클릭하면 미전환 목록이 열립니다"><div class="label">⏳ 동의 → 미전환</div><div class="val">'+s.pendingConvert+'</div><div class="goal">👆 클릭하면 목록이 열려요</div></div>'+
-  '<div class="card"><div class="label">컨설팅거절</div><div class="val"><span class="statlink" onclick="openStatusPopup(\'컨설팅동의여부\',\'컨설팅거절\')" title="클릭하면 컨설팅거절 목록을 볼 수 있습니다">'+s.reject+'</span></div><div class="goal">👆 클릭하면 목록이 열려요</div></div>'+
+  '<div class="card"><div class="label">🔄 전환 현황</div><div class="ta-chips">'+
+    '<span class="ta-chip" style="background:#DAF0E2" onclick="openStatusPopup(\'_done\',\'전환완료\')" title="클릭하면 전환완료 목록을 볼 수 있습니다">전환완료 '+s.done+'</span>'+
+    '<span class="ta-chip" style="background:#FCF3E3" onclick="openPendingConvert()" title="클릭하면 미전환 목록이 열립니다">미전환 '+s.pendingConvert+'</span>'+
+  '</div><div class="goal">👆 칩을 클릭하면 목록이 열려요</div></div>'+
   '<div class="card warn" onclick="openAsSummary()" title="클릭하면 내 DB의 A/S 현황을 볼 수 있습니다"><div class="label">📋 내 DB A/S 현황</div><div class="val">'+(asRows?asRows.length:"—")+'</div><div class="goal">👆 클릭하면 확인할 수 있어요</div></div>'+
   '<div class="card"><div class="label">✅ 방문완료</div><div class="ta-chips">'+visitChips+'</div><div class="goal">👆 칩을 클릭하면 해당 상태 목록이 열려요 · 표에서는 흐리게 구분 표시</div></div>'+
   '<div class="card wide"><div class="label">TA결과 현황(전체값)</div><div class="ta-chips">'+taChips+'</div><div class="goal">👆 칩을 클릭하면 해당 상태 목록이 열려요</div></div>';
