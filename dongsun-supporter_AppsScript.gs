@@ -55,6 +55,8 @@ var TA_STATUSES = ["대기","방문확정","부재","재접촉필요","거절","
 var AGREES = ["미접촉","컨설팅동의","컨설팅거절","보류"];
 // 2026-09-09 추가: 컨설팅동의 신규 발생 시 이메일 알림을 받을 주소 목록
 var AGREE_NOTIFY_EMAILS = ["parjiwoo8079@gmail.com","hara610@gmail.com"];
+// 2026-09-11 추가: notifyNewAgree_ 이메일 본문에 넣을 서포터즈 트래커 바로가기 URL
+var SUPPORTER_TRACKER_URL = "https://lucky-tim.github.io/inca-dashboard/dongsun-supporter.html";
 // 2026-09-07(3차) 추가: 동의서 등록 전 사전체크 팝업(action:'precheck') 항목 정의 — 프론트가 로그인 응답(precheckFields)으로
 // 받아서 팝업을 통째로 동적 렌더링함. 항목을 추가하려면 위 HEADERS에 컬럼명을 추가하고 아래 배열에 정의 하나만 더 넣으면
 // 팝업 UI·검증·시트 저장·컨설턴트 트래커 복사(handleConvert_)까지 전부 자동으로 반영됨(하드코딩 반복 없앰).
@@ -919,7 +921,8 @@ function notifyNewAgree_(t, byName){
       "동네: " + (town || "—") + "\n" +
       "주소: " + (addr || "—") + "\n" +
       "담당서포터즈: " + (supporter || "—") + "\n" +
-      "처리시각: " + now_();
+      "처리시각: " + now_() + "\n\n" +
+      "🔗 서포터즈 트래커 바로가기: " + SUPPORTER_TRACKER_URL;
     MailApp.sendEmail(AGREE_NOTIFY_EMAILS.join(","), subject, body);
   }catch(e){
     Logger.log("notifyNewAgree_ 실패: " + e);
