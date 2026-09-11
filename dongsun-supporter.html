@@ -136,6 +136,23 @@
   #assum-ovl .as-item .memo{margin-top:6px;font-size:11px;color:var(--gray);white-space:pre-wrap;background:#F7F9FC;border-radius:6px;padding:5px 7px}
   #assum-ovl .empty2{color:var(--gray);font-size:13px;text-align:center;padding:20px 0}
   #assum-ovl .close{width:100%;margin-top:10px;padding:11px}
+  /* ── 상태별 목록 팝업 (2026-09-11 추가: 컨설팅동의/전환완료/컨설팅거절/TA결과 카드 클릭 → 목록+행이동, 컨설턴트 트래커 구조 이식) ── */
+  #st-ovl{display:none;position:fixed;inset:0;z-index:9998;background:rgba(14,31,56,.45);align-items:center;justify-content:center;padding:20px}
+  #st-ovl .box{width:520px;max-width:94vw;max-height:84vh;overflow-y:auto;background:#fff;border-radius:16px;box-shadow:0 18px 50px rgba(14,31,56,.28);padding:20px 22px}
+  #st-ovl h3{margin:0 0 4px;color:var(--navy);font-size:16px}
+  #st-ovl .desc{color:var(--gray);font-size:12px;margin-bottom:10px}
+  #st-ovl .item{border:1px solid var(--ice2);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  #st-ovl .item .info{flex:1;min-width:170px}
+  #st-ovl .item .info b{display:block;font-size:13.5px}
+  #st-ovl .item .info span{display:block;font-size:11.5px;color:var(--gray)}
+  #st-ovl .close{width:100%;margin-top:10px}
+  #st-ovl .ta-group-title{display:block;font-size:12px;font-weight:700;color:var(--ink);padding:5px 10px;border-radius:8px;margin:10px 0 6px}
+  #st-ovl .ta-group-title:first-child{margin-top:0}
+  .statlink{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+  .statlink:hover{color:var(--navy2)}
+  .gotorow{padding:4px 8px;font-size:11px}
+  tr.flash{outline:3px solid var(--gold);outline-offset:-1px}
+  tr.flash td{background:#FFF7E0 !important;transition:background-color 1s}
   @media (max-width:640px){
     .wrap{padding:12px}.kpis{grid-template-columns:repeat(2,1fr);gap:8px}.card .val{font-size:22px}
     .toolbar button{flex:1 1 auto}.toolbar #q{flex:1 1 100%;order:5}
@@ -209,6 +226,7 @@
     <div class="hint-row"><b>🔄 전환</b> — 동의여부를 "컨설팅동의"로 바꾸면 관리자 확인 후 컨설턴트 전환</div>
     <div class="hint-row"><b>📷 사진</b> — 매장사진·동의서는 촬영 또는 갤러리 업로드 (동의서는 현장 촬영)</div>
     <div class="hint-row"><b>📍 거리순</b> — "가까운 순" 클릭 → 위치 허용 시 가까운 매장 순 정렬 (좌표 등록 매장만 표시)</div>
+    <div class="hint-row"><b>🗺️ 주소</b> — 표의 주소를 클릭하면 네이버지도가 새 창으로 열립니다</div>
   </div>
   <div class="tablewrap">
     <table><thead id="thead"></thead><tbody id="tb"></tbody></table>
@@ -299,6 +317,16 @@
     <p>내가 만든 컨설팅DB 중 A/S 대상으로 확인된 건입니다(처리는 컨설턴트 트래커에서 이뤄지며 여기서는 조회만 가능합니다).</p>
     <div id="as-list"></div>
     <button class="close" onclick="closeAsSummary()">닫기</button>
+  </div>
+</div>
+
+<!-- ── 상태별 목록 팝업 (2026-09-11 추가: 컨설팅동의/전환완료/컨설팅거절/TA결과 카드 클릭 → 목록 조회, 행이동 지원) ── -->
+<div id="st-ovl">
+  <div class="box">
+    <h3 id="st-title">📋 목록</h3>
+    <div class="desc">항목의 "표에서 보기"를 누르면 아래 표의 실제 행으로 이동합니다.</div>
+    <div id="st-list"></div>
+    <button class="close" onclick="closeStatusPopup()">닫기</button>
   </div>
 </div>
 
@@ -524,12 +552,81 @@ function renderKPIs(){
   document.getElementById("kpis").innerHTML=
   '<div class="card hl"><div class="label">컨설팅 동의율</div><div class="val">'+s.rate+'%</div><div class="bar"><i style="width:'+g+'%"></i></div><div class="goal" style="color:var(--ice2)">목표 30%(안) · 동의 '+s.agree+' / 전체 '+s.n+'</div></div>'+
   '<div class="card"><div class="label">담당 건수</div><div class="val">'+s.n+'</div></div>'+
-  '<div class="card"><div class="label">컨설팅동의</div><div class="val">'+s.agree+'</div></div>'+
-  '<div class="card"><div class="label">전환완료</div><div class="val">'+s.done+'</div></div>'+
+  '<div class="card"><div class="label">컨설팅동의</div><div class="val"><span class="statlink" onclick="openStatusPopup(\'컨설팅동의여부\',\'컨설팅동의\')" title="클릭하면 컨설팅동의 목록을 볼 수 있습니다">'+s.agree+'</span></div><div class="goal">👆 클릭하면 목록이 열려요</div></div>'+
+  '<div class="card"><div class="label">전환완료</div><div class="val"><span class="statlink" onclick="openStatusPopup(\'_done\',\'전환완료\')" title="클릭하면 전환완료 목록을 볼 수 있습니다">'+s.done+'</span></div><div class="goal">👆 클릭하면 목록이 열려요</div></div>'+
   '<div class="card warn" onclick="openPendingConvert()" title="클릭하면 미전환 목록이 열립니다"><div class="label">⏳ 동의 → 미전환</div><div class="val">'+s.pendingConvert+'</div><div class="goal">👆 클릭하면 목록이 열려요</div></div>'+
-  '<div class="card"><div class="label">컨설팅거절</div><div class="val">'+s.reject+'</div></div>'+
+  '<div class="card"><div class="label">컨설팅거절</div><div class="val"><span class="statlink" onclick="openStatusPopup(\'컨설팅동의여부\',\'컨설팅거절\')" title="클릭하면 컨설팅거절 목록을 볼 수 있습니다">'+s.reject+'</span></div><div class="goal">👆 클릭하면 목록이 열려요</div></div>'+
   '<div class="card warn" onclick="openAsSummary()" title="클릭하면 내 DB의 A/S 현황을 볼 수 있습니다"><div class="label">📋 내 DB A/S 현황</div><div class="val">'+(asRows?asRows.length:"—")+'</div><div class="goal">👆 클릭하면 확인할 수 있어요</div></div>'+
-  '<div class="card wide"><div class="label">TA결과 현황(전체값)</div><div class="ta-chips">'+taChips+'</div></div>';
+  '<div class="card wide warn" onclick="openTaPopup()" title="클릭하면 TA결과별 전체 목록을 볼 수 있습니다"><div class="label">TA결과 현황(전체값)</div><div class="ta-chips">'+taChips+'</div><div class="goal">👆 클릭하면 목록이 열려요</div></div>';
+}
+
+// 2026-09-11 추가: 컨설팅동의/전환완료/컨설팅거절/TA결과 KPI 숫자·카드 클릭 → 목록 팝업 (컨설턴트 트래커 19절 구조 이식).
+// 처리 액션은 없음(단순 조회) — 항목의 "표에서 보기"를 누르면 scrollToRow()로 표의 실제 행으로 이동.
+let currentPopupMode=null; // {field,value} 또는 {ta:true}
+function openStatusPopup(field, value){
+  currentPopupMode={field:field, value:value};
+  document.getElementById("st-title").textContent = "📋 "+value+" 목록";
+  renderPopupList();
+  document.getElementById("st-ovl").style.display="flex";
+}
+function openTaPopup(){
+  currentPopupMode={ta:true};
+  document.getElementById("st-title").textContent = "📋 TA결과 전체 목록";
+  renderPopupList();
+  document.getElementById("st-ovl").style.display="flex";
+}
+function closeStatusPopup(){ document.getElementById("st-ovl").style.display="none"; }
+function renderPopupList(){
+  const box=document.getElementById("st-list");
+  if(!currentPopupMode){ box.innerHTML=""; return; }
+  if(currentPopupMode.ta){
+    let html="";
+    TA_STATUSES.forEach(function(st){
+      const items=scoped().filter(d=>d["TA결과"]===st);
+      if(!items.length) return;
+      html += '<div class="ta-group-title" style="background:'+(TA_COLOR[st]||"#EEF2F7")+'">'+esc(st)+' '+items.length+'</div>'+
+        items.map(function(d){
+          const no=d["번호"];
+          return '<div class="item">'+
+            '<div class="info"><b>'+esc(d["가게명"]||"(가게)")+'</b>'+
+              '<span>담당 '+esc(d["담당서포터즈"]||"—")+' · '+esc(d["동네"]||"")+'</span></div>'+
+            '<button type="button" class="gotorow" onclick="scrollToRow('+no+')">표에서 보기</button>'+
+          '</div>';
+        }).join("");
+    });
+    box.innerHTML = html || '<div class="desc">TA결과가 등록된 건이 없습니다.</div>';
+    return;
+  }
+  const field=currentPopupMode.field, value=currentPopupMode.value;
+  const list = (field==="_done") ? scoped().filter(isDone) : scoped().filter(d=>d[field]===value);
+  if(!list.length){ box.innerHTML='<div class="desc">해당하는 건이 없습니다.</div>'; return; }
+  box.innerHTML=list.map(function(d){
+    const no=d["번호"];
+    return '<div class="item">'+
+      '<div class="info"><b>'+esc(d["가게명"]||"(가게)")+'</b>'+
+        '<span>'+esc(d["점주명"]||"")+' · '+esc(fmtPhone(d["연락처"]||""))+'</span>'+
+        '<span>담당 '+esc(d["담당서포터즈"]||"—")+' · '+esc(d["동네"]||"")+'</span></div>'+
+      '<button type="button" class="gotorow" onclick="scrollToRow('+no+')">표에서 보기</button>'+
+    '</div>';
+  }).join("");
+}
+function closeAllPopups(){
+  closeStatusPopup(); closePendingConvert(); closeAsSummary();
+}
+function scrollToRow(no){
+  closeAllPopups();
+  const q=document.getElementById("q"); if(q) q.value="";
+  const fTa=document.getElementById("fTa"); if(fTa) fTa.value="";
+  const fAgree=document.getElementById("fAgree"); if(fAgree) fAgree.value="";
+  if(whoFilter){ whoFilter=""; const fWho=document.getElementById("fWho"); if(fWho) fWho.value=""; }
+  render();
+  requestAnimationFrame(()=>{
+    const el=document.getElementById("row-"+no);
+    if(!el) return;
+    el.scrollIntoView({behavior:"smooth", block:"center"});
+    el.classList.add("flash");
+    setTimeout(()=>el.classList.remove("flash"), 1600);
+  });
 }
 
 function cellHtml(d,c){
@@ -618,7 +715,7 @@ function render(){
   if(!rs.length){ tb.innerHTML='<tr><td class="empty">표시할 가맹점이 없습니다.'+(SESS.isAdmin&&whoFilter?' <button onclick="resetWhoFilter()">담당자 전체보기</button>':'')+'</td></tr>'; return; }
   tb.innerHTML=rs.map(d=>{
     const no=d["번호"];
-    return '<tr class="'+(isDone(d)?"done":"")+'"><td data-label="#">'+no+'. '+(esc(d["가게명"])||"(가게)")+'</td>'+COLS.map(c=>cellHtml(d,c)).join("")+'</tr>';
+    return '<tr id="row-'+no+'" class="'+(isDone(d)?"done":"")+'"><td data-label="#">'+no+'. '+(esc(d["가게명"])||"(가게)")+'</td>'+COLS.map(c=>cellHtml(d,c)).join("")+'</tr>';
   }).join("");
 }
 
@@ -874,6 +971,7 @@ function openPendingConvert(){
         '<div class="meta">담당 '+esc(d["담당서포터즈"]||"—")+' · '+esc(fmtPhone(d["연락처"])||"—")+'</div>'+
         '<div class="meta">동의일시 '+esc(fmtDateDisp(d["컨설팅동의일시"])||"—")+'</div>'+
         (SESS.isAdmin ? '<button class="primary" onclick="closePendingConvert(); openConvert('+no+')">전환하기</button>' : '')+
+        '<button type="button" class="gotorow" onclick="scrollToRow('+no+')">표에서 보기</button>'+
       '</div>';
     }).join("");
   }
