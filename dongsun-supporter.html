@@ -313,6 +313,8 @@ const API_URL = "https://script.google.com/macros/s/AKfycbx02edUPg7Fj65i2j-a_Gc0
 // ※ 가게명은 표 첫 칸(번호+가게명)에 표시하므로 COLS에서 제외
 const COLS=[
   {k:"담당서포터즈",label:"담당",t:"ro"},
+  {k:"1차담당자",label:"1차담당자",t:"ro"}, // 2026-09-11 추가(22절): 이 행의 최초 담당자(재배정 이력 없으면 현재 담당서포터즈와 동일하게 표시됨 — 백엔드 readTracker_() 참고)
+  {k:"2차담당자",label:"2차담당자",t:"reassign"}, // 2026-09-11 추가(22절): 가장 최근 재배정 대상 — 마우스 올리면 전체 변경 이력(담당변경이력) 툴팁 표시
   {k:"점주명",label:"점주명",t:"ro"},
   {k:"연락처",label:"연락처",t:"phone"},
   {k:"업종",label:"업종",t:"fixed"},
@@ -547,6 +549,11 @@ function cellHtml(d,c){
   if(c.k==="담당서포터즈"){
     if(SESS.isAdmin) return '<td data-label="담당"><input class="ed" value="'+esc(v)+'" placeholder="담당자명" onchange="up('+no+',\'담당서포터즈\',this.value)"></td>';
     return '<td data-label="담당"><span class="ro" title="'+esc(v)+'">'+(esc(v)||"—")+'</span></td>';
+  }
+  if(c.k==="2차담당자"){ // 2026-09-11 추가(22절): 담당변경이력 전체를 툴팁으로 보여줌(재배정된 적 없으면 값 자체가 비어있음)
+    const hist=String(d["담당변경이력"]||"").trim();
+    const title=hist || "재배정 이력 없음";
+    return '<td data-label="2차담당자"><span class="ro" title="'+esc(title)+'">'+(esc(v)||"—")+'</span></td>';
   }
   if(c.t==="ro") return '<td data-label="'+c.label+'"><span class="ro" title="'+esc(v)+'">'+(esc(v)||"—")+'</span></td>';
   if(c.t==="fixed") return '<td data-label="'+c.label+'"><span class="fx">'+(esc(v)||"—")+'</span></td>';

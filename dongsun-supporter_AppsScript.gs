@@ -44,7 +44,8 @@ var HEADERS = ["번호","담당서포터즈","가게명","점주명","연락처"
                "매장사진","동의서",
                "컨설팅동의일시", // 2026-09-07 추가: 컨설팅동의여부가 "컨설팅동의"로 바뀐 시점(DB지급일 계산 기준 — 전환일시와는 별개)
                "기존설계사관계","월납보험료수준","연령대","성별","3대질환진단여부", // 2026-09-07(3차) 추가: 동의서 등록 전 사전체크 항목(PRECHECK_FIELDS 참고) — action:'precheck'로 저장, handleConvert_가 컨설턴트 트래커로 1회 복사. 항목을 늘릴 때는 여기 컬럼 추가 + 아래 PRECHECK_FIELDS에 정의만 추가하면 됨(비파괴, 항상 뒤에 추가)
-               "위도","경도"]; // 2026-09-07(5차) 추가: 주소 지오코딩 결과 좌표("가까운 순" 정렬 기능용) — handleAddStore_/importStagingToTracker에서 신규 등록 시 자동 채움, 기존 행은 backfillLatLngFromAddress_20260907()으로 소급. handleConvert_가 컨설턴트 트래커로 1회 복사.
+               "위도","경도", // 2026-09-07(5차) 추가: 주소 지오코딩 결과 좌표("가까운 순" 정렬 기능용) — handleAddStore_/importStagingToTracker에서 신규 등록 시 자동 채움, 기존 행은 backfillLatLngFromAddress_20260907()으로 소급. handleConvert_가 컨설턴트 트래커로 1회 복사.
+               "1차담당자","2차담당자","담당변경이력"]; // 2026-09-11 추가: 담당서포터즈 재배정 구조(22절). 1차담당자=이 행의 첫 재배정 시점에 1회만 고정 기록되는 "이전" 담당자, 2차담당자=가장 최근 재배정 대상(재배정될 때마다 갱신), 담당변경이력=전체 변경 로그(비파괴 누적). 최초 배정(미배정→배정)은 재배정이 아니므로 셀 자체는 비워두고, 화면에는 readTracker_()가 1차담당자 없을 때 현재 담당서포터즈로 대신 채워 보여줌 — recordOwnerChange_() 참고.
 var PHOTO_FIELDS = ["매장사진","동의서"];
 var PHOTO_MAX = 5; // 사진 항목당 최대 등록 장수 — 셀에 URL을 "|"로 이어붙여 저장
 var PHOTO_FOLDER_NAME = "동선_서포터즈_사진";
@@ -485,6 +486,7 @@ function syncFromSharedSheet_20260907(){
       if(curOwner !== src.owner){
         sh.getRange(rowNum, colOwner+1).setValue(src.owner);
         ownerChanges.push(storeName + ": '" + curOwner + "' → '" + src.owner + "'");
+        recordOwnerChange_(sh, head, rowNum, data[r], curOwner, src.owner, "공유시트 자동동기화"); // 2026-09-11 추가(22절)
       }
     }
 
@@ -657,6 +659,11 @@ function readTracker_(){
       o[key] = v;
     }
     if(String(o["번호"]).trim() === "") continue;
+    // 2026-09-11 추가(22절): 아직 한 번도 재배정된 적 없는 행은 1차담당자 셀이 비어있는 게 정상(실제
+    // 셀엔 기록 안 함, recordOwnerChange_ 참고) — 화면에는 현재 담당서포터즈를 1차담당자로 대신 보여줌.
+    if(!String(o["1차담당자"]||"").trim()){
+      o["1차담당자"] = o["담당서포터즈"];
+    }
     rows.push(o);
   }
   return rows;
@@ -797,6 +804,33 @@ function handleAsSummary_(body){
   return json_({ok:true, rows:out, ts:new Date().getTime()});
 }
 
+// 2026-09-11 추가(22절): 담당서포터즈가 "재배정"(이미 담당자가 있던 행이 다른 사람으로 바뀜)될 때마다
+// 1차담당자(이 행의 첫 재배정 시점에만 1회 고정 기록되는 "이전" 담당자)/2차담당자(가장 최근 재배정 대상,
+// 매번 갱신)/담당변경이력(전체 변경 로그, 개행으로 누적)을 함께 기록하는 공용 헬퍼. handleUpdate_(관리자가
+// 표에서 직접 재배정)와 syncFromSharedSheet_20260907(공유시트 자동동기화로 인한 재배정) 양쪽에서 재사용.
+// 신규 행 생성 시 처음으로 담당서포터즈가 채워지는 것(미배정→배정)은 "재배정"이 아니므로 oldOwner가
+// 비어있으면 아무것도 하지 않음 — 그 경우 1차담당자 컬럼 자체는 계속 비어있고, readTracker_()가 화면
+// 표시 시점에만 현재 담당서포터즈 값으로 대신 채워 보여줌(실제 셀엔 쓰지 않음).
+function recordOwnerChange_(sh, head, row, values, oldOwner, newOwner, byName){
+  oldOwner = String(oldOwner||"").trim();
+  newOwner = String(newOwner||"").trim();
+  if(!oldOwner || oldOwner === newOwner) return; // 최초 배정이거나 실제 변경이 없으면 기록하지 않음
+  var idx1 = head.indexOf("1차담당자");
+  var idx2 = head.indexOf("2차담당자");
+  var idxLog = head.indexOf("담당변경이력");
+  if(idx1>=0 && !String(values[idx1]||"").trim()){
+    sh.getRange(row, idx1+1).setValue(oldOwner); // 이 행의 첫 재배정이면 "이전 담당자"를 1차담당자로 고정
+  }
+  if(idx2>=0){
+    sh.getRange(row, idx2+1).setValue(newOwner); // 항상 가장 최근 재배정 대상으로 갱신
+  }
+  if(idxLog>=0){
+    var prev = String(values[idxLog]||"").trim();
+    var line = "[" + now_() + " " + (byName||"") + "] " + oldOwner + " → " + newOwner;
+    sh.getRange(row, idxLog+1).setValue(prev ? (prev + "\n" + line) : line);
+  }
+}
+
 // 트래커 탭에서 번호로 행 찾기 → {sh, head, rowIdx(1-based)}
 function findRow_(no){
   var sh = trackerSheet_();
@@ -846,7 +880,13 @@ function handleUpdate_(body){
     var dt = parseKstDateTime_(val);
     if(dt) val = dt; // 날짜+시간을 실제 Date로 저장(시트에서도 날짜로 인식되도록)
   }
+  var prevVal = t.values[col]; // 2026-09-11 추가: 담당서포터즈 재배정 이력 기록용 — 덮어쓰기 전 값 캡처
   t.sh.getRange(t.row, col+1).setValue(val);
+
+  // 2026-09-11 추가(22절): 관리자가 담당서포터즈를 재배정하면 1차담당자/2차담당자/담당변경이력 갱신
+  if(field === "담당서포터즈"){
+    recordOwnerChange_(t.sh, t.head, t.row, t.values, prevVal, val, auth.name);
+  }
 
   // 컨설팅동의여부가 "컨설팅동의"로 바뀌는 시점을 별도 컬럼에 기록 — DB지급일 계산 기준(전환일시와는 별개 이벤트)
   if(field === "컨설팅동의여부" && String(val).trim() === "컨설팅동의"){
