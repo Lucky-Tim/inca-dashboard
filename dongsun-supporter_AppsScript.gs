@@ -502,13 +502,23 @@ function syncFromSharedSheet_20260907(){
       }
     }
 
-    // 방문일정 ← 방문일정 (같은 스프레드시트 내 Date라 그대로 복사)
-    if(src.visit){
+    // 방문일정 ← 방문일정
+    // 2026-09-11 수정: 예전에는 "같은 스프레드시트 내 Date라 시간대 변환 없이 그대로 복사"했으나,
+    // 이 스프레드시트 파일의 시간대 설정이 Asia/Seoul이 아닐 경우 ymd_()가 화면 표시할 때 무조건
+    // "Asia/Seoul"로 재해석하면서 시간이 밀리는 버그가 확인됨(예: 104번 밝은세상안경원 — 공유시트엔
+    // 09-11 11:00로 보이는데 웹앱엔 09-12 03:00로 표시, 정확히 +16시간 = 미국 서부시간(PDT)과
+    // KST의 시차). 원본 셀에 "보이는 그대로의 시각"(파일 시간대 기준 wall clock 숫자)을 한국시간
+    // 값으로 간주해 parseKstDateTime_()와 동일한 방식으로 절대시각을 재구성해서 저장하면,
+    // 파일의 시간대 설정이 무엇이든(설정을 바꾸지 않아도) ymd_() 표시가 항상 정확해짐 —
+    // handleUpdate_가 방문일정을 저장할 때 쓰는 방식과 동일한 원리를 여기 복사 경로에도 적용.
+    if(src.visit instanceof Date){
+      var fileTz = ss_().getSpreadsheetTimeZone();
+      var wallStr = Utilities.formatDate(src.visit, fileTz, "yyyy-MM-dd'T'HH:mm");
+      var correctedVisit = parseKstDateTime_(wallStr);
       var curVisit = data[r][colVisit];
       var curVisitMs = (curVisit instanceof Date) ? curVisit.getTime() : null;
-      var srcVisitMs = (src.visit instanceof Date) ? src.visit.getTime() : null;
-      if(srcVisitMs !== null && srcVisitMs !== curVisitMs){
-        sh.getRange(rowNum, colVisit+1).setValue(src.visit);
+      if(correctedVisit && correctedVisit.getTime() !== curVisitMs){
+        sh.getRange(rowNum, colVisit+1).setValue(correctedVisit);
         visitUpdated++;
       }
     }
