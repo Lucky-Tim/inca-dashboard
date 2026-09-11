@@ -303,6 +303,29 @@
   </div>
 </div>
 
+<!-- ── 즉석 방문 기록 (2026-09-11 추가, 28절) ── -->
+<div id="fv-ovl">
+  <div class="box">
+    <div class="ovl-xbar"><button class="ovl-x" onclick="closeFieldVisit()" aria-label="닫기">✕</button></div>
+    <h3>🚶 즉석 방문 기록</h3>
+    <p id="fv-desc"></p>
+    <label class="pcLabel">방문 결과 *</label>
+    <select id="fv-result" class="ed" style="width:100%">
+      <option value="컨설팅동의">컨설팅동의</option>
+      <option value="컨설팅거절">컨설팅거절</option>
+      <option value="보류">보류</option>
+      <option value="부재">부재(사장님 없음)</option>
+    </select>
+    <label class="pcLabel" style="margin-top:10px">메모(선택)</label>
+    <textarea id="fv-memo" placeholder="현장에서 있었던 내용을 남겨주세요" style="width:100%;min-height:70px"></textarea>
+    <div class="row">
+      <button onclick="closeFieldVisit()">취소</button>
+      <button class="primary" id="fv-go" onclick="doFieldVisit()">저장</button>
+    </div>
+    <div class="err" id="fv-err"></div>
+  </div>
+</div>
+
 <!-- ── 컨설팅 동의 → 미전환 목록 팝업 (2026-09-08 추가) ── -->
 <div id="pd-ovl">
   <div class="box">
@@ -680,7 +703,10 @@ function cellHtml(d,c){
   }
   if(c.t==="status"){
     const opts=TA_STATUSES.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join("");
-    return '<td data-label="TA결과"><select class="st ed" style="background:'+(TA_COLOR[v]||"#fff")+'" onchange="up('+no+',\'TA결과\',this.value)">'+opts+'</select></td>';
+    const fv=String(d["즉석방문일시"]||"").trim();
+    const fvTitle = fv ? ("마지막 즉석방문: "+esc(fv)) : "즉석 방문 기록 추가 — 콜/예약 없이 현장에서 바로 방문했을 때 결과를 남깁니다";
+    return '<td data-label="TA결과"><select class="st ed" style="background:'+(TA_COLOR[v]||"#fff")+'" onchange="up('+no+',\'TA결과\',this.value)">'+opts+'</select> '+
+      '<button type="button" class="fvbtn" title="'+fvTitle+'" onclick="openFieldVisit('+no+')" style="margin-top:4px;padding:2px 6px;font-size:12px;border-radius:6px;border:1px solid var(--ice2);background:'+(fv?"#DAF0E2":"#fff")+';cursor:pointer">🚶'+(fv?"":" 즉석방문")+'</button></td>';
   }
   if(c.t==="agree"){
     const opts=AGREES.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join("");
@@ -847,6 +873,42 @@ async function up(no, field, value){
 function onAgree(no, value){
   up(no, "컨설팅동의여부", value);
   if(value==="컨설팅동의" && SESS.isAdmin) openConvert(no);
+}
+
+// ── 즉석 방문 기록 (2026-09-11 추가, 28절) — 서포터즈가 콜/예약 없이 현장에서 바로 방문했을 때, 방문결과+메모를
+// 한 번에 기록. 백엔드가 즉석방문일시(자동 now)·TA결과 또는 컨설팅동의여부·비고를 한 번에 갱신함(action:'fieldVisit').
+let fvNo=null;
+function openFieldVisit(no){
+  const row=rows.find(d=>String(d["번호"])===String(no)); if(!row) return;
+  fvNo=no;
+  document.getElementById("fv-desc").innerHTML='<b>'+esc(row["가게명"]||"")+'</b> 매장에 방금 방문하셨나요? 방문 결과를 기록해주세요.';
+  document.getElementById("fv-result").value="컨설팅동의";
+  document.getElementById("fv-memo").value="";
+  document.getElementById("fv-err").textContent="";
+  document.getElementById("fv-ovl").style.display="flex";
+}
+function closeFieldVisit(){ fvNo=null; document.getElementById("fv-ovl").style.display="none"; }
+async function doFieldVisit(){
+  const err=document.getElementById("fv-err"); err.textContent="";
+  const result=document.getElementById("fv-result").value;
+  const memo=document.getElementById("fv-memo").value.trim();
+  const btn=document.getElementById("fv-go"); btn.disabled=true;
+  try{
+    const j=await post({action:"fieldVisit", name:SESS.name, pw:SESS.pw, no:fvNo, result:result, memo:memo});
+    if(!j.ok){ err.textContent=j.error||"저장 실패"; btn.disabled=false; return; }
+    const row=rows.find(d=>String(d["번호"])===String(fvNo));
+    if(row){
+      row["즉석방문일시"]=j.visitTime;
+      if(result==="부재"){ row["TA결과"]=j.taResult||"부재"; }
+      else{ row["컨설팅동의여부"]=result; if(j.agreeDate) row["컨설팅동의일시"]=j.agreeDate; }
+      if(j.note!=null) row["비고"]=j.note;
+      row["수정자"]=SESS.name; if(j.stampTime) row["수정시각"]=j.stampTime;
+    }
+    closeFieldVisit();
+    render();
+    toast();
+  }catch(e){ err.textContent="저장 실패 — 다시 시도해주세요"; }
+  btn.disabled=false;
 }
 
 // ── 컨설턴트 전환 ──

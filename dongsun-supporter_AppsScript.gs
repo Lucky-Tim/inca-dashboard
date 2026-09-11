@@ -45,7 +45,8 @@ var HEADERS = ["번호","담당서포터즈","가게명","점주명","연락처"
                "컨설팅동의일시", // 2026-09-07 추가: 컨설팅동의여부가 "컨설팅동의"로 바뀐 시점(DB지급일 계산 기준 — 전환일시와는 별개)
                "기존설계사관계","월납보험료수준","연령대","성별","3대질환진단여부", // 2026-09-07(3차) 추가: 동의서 등록 전 사전체크 항목(PRECHECK_FIELDS 참고) — action:'precheck'로 저장, handleConvert_가 컨설턴트 트래커로 1회 복사. 항목을 늘릴 때는 여기 컬럼 추가 + 아래 PRECHECK_FIELDS에 정의만 추가하면 됨(비파괴, 항상 뒤에 추가)
                "위도","경도", // 2026-09-07(5차) 추가: 주소 지오코딩 결과 좌표("가까운 순" 정렬 기능용) — handleAddStore_/importStagingToTracker에서 신규 등록 시 자동 채움, 기존 행은 backfillLatLngFromAddress_20260907()으로 소급. handleConvert_가 컨설턴트 트래커로 1회 복사.
-               "1차담당자","2차담당자","담당변경이력"]; // 2026-09-11 추가: 담당서포터즈 재배정 구조(22절). 1차담당자=이 행의 첫 재배정 시점에 1회만 고정 기록되는 "이전" 담당자, 2차담당자=가장 최근 재배정 대상(재배정될 때마다 갱신), 담당변경이력=전체 변경 로그(비파괴 누적). 최초 배정(미배정→배정)은 재배정이 아니므로 셀 자체는 비워두고, 화면에는 readTracker_()가 1차담당자 없을 때 현재 담당서포터즈로 대신 채워 보여줌 — recordOwnerChange_() 참고.
+               "1차담당자","2차담당자","담당변경이력", // 2026-09-11 추가: 담당서포터즈 재배정 구조(22절). 1차담당자=이 행의 첫 재배정 시점에 1회만 고정 기록되는 "이전" 담당자, 2차담당자=가장 최근 재배정 대상(재배정될 때마다 갱신), 담당변경이력=전체 변경 로그(비파괴 누적). 최초 배정(미배정→배정)은 재배정이 아니므로 셀 자체는 비워두고, 화면에는 readTracker_()가 1차담당자 없을 때 현재 담당서포터즈로 대신 채워 보여줌 — recordOwnerChange_() 참고.
+               "즉석방문일시"]; // 2026-09-11(2차) 추가(28절): 서포터즈가 콜/예약 없이 현장에서 즉석으로 방문했을 때, 그 방문이 실제로 발생한 시각을 기록하는 컬럼. "방문일정"(예정/확정 시각)과는 성격이 달라 별도 컬럼으로 분리 — action:'fieldVisit'(handleFieldVisit_)로만 기록됨, 항상 now_()로 자동 기록(사용자가 직접 입력하지 않음).
 var PHOTO_FIELDS = ["매장사진","동의서"];
 var PHOTO_MAX = 5; // 사진 항목당 최대 등록 장수 — 셀에 URL을 "|"로 이어붙여 저장
 var PHOTO_FOLDER_NAME = "동선_서포터즈_사진";
@@ -744,6 +745,7 @@ function doPost(e){
       if(action === "deletePhoto") return handleDeletePhoto_(body);
       if(action === "addStore")    return handleAddStore_(body);
       if(action === "importFromOriginal") return handleImportFromOriginal_(body); // 2026-09-10 추가: 관리자 전용, "원본" 탭 미배정 신규DB 일괄 반입
+      if(action === "fieldVisit")  return handleFieldVisit_(body); // 2026-09-11(2차) 추가(28절): 즉석 방문 기록
       return json_({ok:false, error:"알 수 없는 요청: "+action});
     } finally {
       lock.releaseLock();
@@ -927,6 +929,68 @@ function notifyNewAgree_(t, byName){
   }catch(e){
     Logger.log("notifyNewAgree_ 실패: " + e);
   }
+}
+
+// 2026-09-11(2차) 추가(28절): action:'fieldVisit' → 서포터즈가 콜/예약 없이 현장에서 즉석으로 방문했을 때 기록.
+// body: {name, pw, no, result, memo} — result는 "컨설팅동의"/"컨설팅거절"/"보류"/"부재" 중 하나(둘 다 대기 리스트에서
+// 이미 쓰이고 있는 기존 값 그대로 재사용 — 새 상태값을 만들지 않음).
+// 권한/잠금 규칙은 handleUpdate_와 동일(본인 담당 건만, 전환완료 행은 잠금, 관리자는 예외).
+// 항상 "즉석방문일시"를 now_()로 자동 기록(사용자가 시각을 직접 입력하지 않음 — 방문일정과 구분되는 별도 컬럼, HEADERS 참고).
+// result==="부재"면 TA결과만 "부재"로 갱신, 그 외(컨설팅동의/컨설팅거절/보류)면 컨설팅동의여부를 그 값으로 갱신하고
+// handleUpdate_와 동일하게 "컨설팅동의"로 바뀔 때 컨설팅동의일시 기록 + notifyNewAgree_ 알림을 그대로 재사용함(로직 중복 없이).
+// 비고에는 비파괴적으로 로그 한 줄을 누적(담당변경이력/AS점검메모와 동일한 "[시각 이름] ..." 패턴).
+function handleFieldVisit_(body){
+  var auth = auth_(body.name, body.pw);
+  if(!auth) return json_({ok:false, error:"인증 실패 — 다시 로그인하세요"});
+
+  var t = findRow_(body.no);
+  if(!t) return json_({ok:false, error:"행을 찾을 수 없습니다: "+body.no});
+
+  var result = String(body.result||"").trim();
+  var allowedResults = ["컨설팅동의","컨설팅거절","보류","부재"];
+  if(allowedResults.indexOf(result) < 0) return json_({ok:false, error:"올바르지 않은 방문 결과입니다: "+result});
+
+  if(!auth.isAdmin){
+    var ownerIdx = t.head.indexOf("담당서포터즈");
+    if(ownerIdx >= 0 && String(t.values[ownerIdx]).trim() !== auth.name){
+      return json_({ok:false, error:"본인 담당 건만 기록할 수 있습니다"});
+    }
+    var csIdx = t.head.indexOf("전환상태");
+    if(csIdx >= 0 && String(t.values[csIdx]).trim() === "전환완료"){
+      return json_({ok:false, error:"이미 컨설턴트로 전환된 건이라 기록할 수 없습니다"});
+    }
+  }
+
+  var visitTime = now_();
+  var fvCol = t.head.indexOf("즉석방문일시");
+  if(fvCol >= 0) t.sh.getRange(t.row, fvCol+1).setValue(visitTime);
+
+  var taResult = null, agreeDate = null;
+  if(result === "부재"){
+    var taCol = t.head.indexOf("TA결과");
+    if(taCol >= 0){ t.sh.getRange(t.row, taCol+1).setValue("부재"); taResult = "부재"; }
+  } else {
+    var agreeCol = t.head.indexOf("컨설팅동의여부");
+    if(agreeCol >= 0) t.sh.getRange(t.row, agreeCol+1).setValue(result);
+    if(result === "컨설팅동의"){
+      var agreeColIdx = t.head.indexOf("컨설팅동의일시");
+      if(agreeColIdx >= 0){ agreeDate = now_(); t.sh.getRange(t.row, agreeColIdx+1).setValue(agreeDate); }
+      notifyNewAgree_(t, auth.name); // handleUpdate_와 동일한 사이드이펙트 재사용
+    }
+  }
+
+  var memo = String(body.memo||"").trim();
+  var noteCol = t.head.indexOf("비고");
+  if(noteCol >= 0){
+    var logLine = "[" + visitTime + " " + auth.name + "] 즉석방문 — 결과: " + result + (memo ? " · 메모: " + memo : "");
+    var prevNote = String(t.values[noteCol]||"").trim();
+    var newNote = prevNote ? (prevNote + "\n" + logLine) : logLine;
+    t.sh.getRange(t.row, noteCol+1).setValue(newNote);
+  }
+
+  stamp_(t.sh, t.head, t.row, auth.name);
+  var stampTime = now_();
+  return json_({ok:true, no:body.no, visitTime:visitTime, result:result, taResult:taResult, agreeDate:agreeDate, note:(noteCol>=0 ? t.sh.getRange(t.row, noteCol+1).getValue() : null), stampTime:stampTime});
 }
 
 // action:'precheck' → 동의서 등록 전 사전체크 항목(PRECHECK_FIELDS 정의 전체)을 한 번에 저장
