@@ -585,6 +585,40 @@ function removeHourlyTrigger_20260908(){
   Logger.log(FN + " — 트리거 " + removed + "개 제거 완료.");
 }
 
+// 2026-09-14 추가(29절, "웜업" 기능) — "로그인이 느리다" 문의(28-6절)에서 확인된 병목(컨설턴트 "계정" 탭을
+// 여는 외부 스프레드시트 캐시가 주기적으로 만료되는 것)을 실제 이용자가 로그인하기 전에 미리 없애기 위한 트리거.
+// 5분마다 자동 실행되며 두 가지를 함: ① consultantAccountRows_ 캐시를 강제로 새로 채워서 항상 따끈하게 유지,
+// ② 이 웹앱 자체(doGet)를 한 번 호출해서 스크립트 실행환경도 같이 깨움. 실패해도(권한/일시 오류) 조용히 로그만
+// 남기고 다음 5분 뒤 재시도 — 실제 서비스 흐름에는 전혀 영향 없음.
+function warmup_(){
+  try{
+    refreshConsultantAccountCache_();
+  }catch(err){
+    Logger.log("warmup_ — 컨설턴트 계정 캐시 갱신 실패: " + err);
+  }
+  try{
+    UrlFetchApp.fetch(ScriptApp.getService().getUrl(), { muteHttpExceptions: true });
+  }catch(err){
+    Logger.log("warmup_ — 웹앱 자체 호출 실패: " + err);
+  }
+}
+function setupWarmupTrigger_20260914(){
+  var FN = "warmup_";
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if(t.getHandlerFunction() === FN) ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger(FN).timeBased().everyMinutes(5).create();
+  Logger.log(FN + " — 5분마다 자동 실행 웜업 트리거 설치 완료.");
+}
+function removeWarmupTrigger_20260914(){
+  var FN = "warmup_";
+  var removed = 0;
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if(t.getHandlerFunction() === FN){ ScriptApp.deleteTrigger(t); removed++; }
+  });
+  Logger.log(FN + " — 웜업 트리거 " + removed + "개 제거 완료.");
+}
+
 // ── 공통 유틸 ───────────────────────────────────────────────
 function json_(obj){
   return ContentService.createTextOutput(JSON.stringify(obj))
@@ -681,10 +715,18 @@ function consultantAccountRows_(){
   var cache = CacheService.getScriptCache();
   var cached = cache.get("consultantAccountRows_v1");
   if(cached) return JSON.parse(cached);
+  return refreshConsultantAccountCache_();
+}
+
+// 2026-09-14 추가(29절, "웜업" 기능): consultantAccountRows_()의 캐시 채우기 로직을 분리 —
+// 캐시 존재 여부와 무관하게 항상 외부 스프레드시트를 다시 읽어서 캐시를 갱신함(웜업 트리거 전용).
+// 캐시 TTL을 300초(5분)→600초(10분)로 늘려서, 5분마다 도는 웜업 트리거가 한 번 정도 실패하거나
+// 늦게 실행돼도 실제 로그인 요청이 캐시 만료 순간과 겹쳐 콜드 조회를 타는 일이 없도록 여유를 둠.
+function refreshConsultantAccountCache_(){
   var css = SpreadsheetApp.openById(CONSULTANT_SPREADSHEET_ID);
   var sh = css.getSheetByName(ACCOUNT_SHEET);
   var rows = sh ? sheetToObjects_(sh) : [];
-  cache.put("consultantAccountRows_v1", JSON.stringify(rows), 300); // 5분 캐시
+  CacheService.getScriptCache().put("consultantAccountRows_v1", JSON.stringify(rows), 600); // 10분 캐시(웜업 트리거가 5분마다 갱신)
   return rows;
 }
 

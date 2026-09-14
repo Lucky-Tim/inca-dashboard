@@ -900,6 +900,35 @@ function removeHourlyTrigger_20260908(){
   Logger.log(FN + " — 트리거 " + removed + "개 제거 완료.");
 }
 
+// 2026-09-14 추가(서포터즈 문서 29절, "웜업" 기능 — 두 트래커 공통 요청) — 서포터즈 쪽은 컨설턴트 "계정" 탭을
+// 매번 여는 외부 스프레드시트 캐시가 병목이라 그 캐시를 미리 채워두는 게 핵심이었지만, 이 파일(컨설턴트 트래커)은
+// 로그인 시 자기 자신의 스프레드시트(SPREADSHEET_ID)만 읽고 CacheService 기반 캐시를 전혀 쓰지 않아서
+// 그런 병목이 원래 없음 — 그래서 이 웜업은 "웹앱 자체(doGet)를 5분마다 미리 호출해 스크립트 실행환경을
+// 깨워두는" 역할만 함. 실패해도 조용히 로그만 남기고 다음 5분 뒤 재시도.
+function warmup_(){
+  try{
+    UrlFetchApp.fetch(ScriptApp.getService().getUrl(), { muteHttpExceptions: true });
+  }catch(err){
+    Logger.log("warmup_ — 웹앱 자체 호출 실패: " + err);
+  }
+}
+function setupWarmupTrigger_20260914(){
+  var FN = "warmup_";
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if(t.getHandlerFunction() === FN) ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger(FN).timeBased().everyMinutes(5).create();
+  Logger.log(FN + " — 5분마다 자동 실행 웜업 트리거 설치 완료.");
+}
+function removeWarmupTrigger_20260914(){
+  var FN = "warmup_";
+  var removed = 0;
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if(t.getHandlerFunction() === FN){ ScriptApp.deleteTrigger(t); removed++; }
+  });
+  Logger.log(FN + " — 웜업 트리거 " + removed + "개 제거 완료.");
+}
+
 // 유니코드 정규화 차이(NFC/NFD)로 인해 getSheetByName이 육안상 동일한 이름의 탭을
 // 못 찾는 문제를 방지하기 위한 느슨한 탭 찾기(정규화+trim 후 비교). 특히 한글이 섞인
 // 탭 이름(다른 사람이 다른 환경에서 만든 "공유시트" 등)에서 이런 불일치가 생길 수 있음
