@@ -187,7 +187,7 @@
   </div>
   <div class="hint">
     <div class="hint-row"><b>✏️ 입력</b> — 노란 칸만: 월납보험료·미팅1차/2·3차·클로징확률·계약현황·청약정보·종결사유·증빙·비고</div>
-    <div class="hint-row"><b>🔒 읽기전용</b> — 회색 칸: 가게명·점주명·연락처·업종·동네·주소·출처서포터즈·DB지급일 (서포터즈 연동값)</div>
+    <div class="hint-row"><b>🔒 읽기전용</b> — 회색 칸: 가게명·점주명·연락처·업종·동네·주소·출처서포터즈·DB지급일 (서포터즈 연동값), 동의서 사진(서포터즈가 올린 원본, 클릭하면 새 탭으로 열림)</div>
     <div class="hint-row"><b>🔧 A/S</b> — 계약현황 "종결·실패"+종결사유 선택 시 자동계산 → 인정 유형은 증빙 등록 후 "A/S 신청"</div>
     <div class="hint-row"><b>📍 거리순</b> — "가까운 순" 클릭 → 위치 허용 시 가까운 매장 순 정렬 (좌표 있는 매장만 표시)</div>
     <div class="hint-row"><b>🗺️ 주소</b> — 표의 주소를 클릭하면 네이버지도가 새 창으로 열립니다</div>
@@ -254,6 +254,7 @@ const COLS=[
   {k:"주소",label:"주소",t:"ro"},
   {k:"_distKm",label:"거리",t:"dist"},
   {k:"출처서포터즈",label:"출처서포터즈",t:"ro"},
+  {k:"동의서",label:"동의서",t:"ro-photo"}, // 2026-09-14 추가(23절): 서포터즈가 업로드한 동의서 사진(읽기전용, 전환 시점에 1회 복사)
   {k:"기존설계사관계",label:"기존설계사관계",t:"ro"},
   {k:"월납보험료수준",label:"월평균보험료 수준",t:"ro"},
   {k:"연령대",label:"연령대",t:"ro"},
@@ -599,6 +600,17 @@ function cellHtml(d,c){
       : ' <span class="ro">최대 '+PHOTO_MAX+'장</span>';
     return '<td data-label="증빙">'+(thumbs||'<span class="ro">—</span>')+addBtn+
       '<input type="file" accept="image/*,audio/*" multiple id="ph-'+no+'-'+c.k+'" style="display:none" onchange="onPhotoChange('+no+',\''+c.k+'\',this)"></td>';
+  }
+  if(c.t==="ro-photo"){
+    // 2026-09-14 추가(23절): 서포터즈에서 넘어온 동의서 사진 — 읽기전용(업로드/삭제 버튼 없음), 클릭하면 원본 새 탭
+    const urls=parsePhotoEntries(v);
+    if(!urls.length) return '<td data-label="'+c.label+'"><span class="ro">—</span></td>';
+    const thumbs=urls.map(e=>
+      e.type==="audio"
+      ? '<a href="'+esc(e.url)+'" target="_blank" rel="noopener" title="녹취파일 열기" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB;font-size:16px;text-decoration:none;margin:2px">🎧</a>'
+      : '<a href="'+esc(e.url)+'" target="_blank" rel="noopener" style="margin:2px"><img src="'+esc(e.url)+'" alt="동의서" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB"></a>'
+    ).join("");
+    return '<td data-label="'+c.label+'">'+thumbs+'</td>';
   }
   if(c.t==="wide") return '<td data-label="'+c.label+'"><input class="ed wide" value="'+esc(v)+'" placeholder="일정·결과 자유 기술" onchange="up('+no+',\''+c.k+'\',this.value)"></td>';
   if(c.t==="yn"){
