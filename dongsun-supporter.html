@@ -716,7 +716,7 @@ function cellHtml(d,c){
     const fv=String(d["즉석방문일시"]||"").trim();
     const fvTitle = fv ? ("마지막 즉석방문: "+esc(fv)) : "즉석 방문 기록 추가 — 콜/예약 없이 현장에서 바로 방문했을 때 결과를 남깁니다";
     return '<td data-label="TA결과"><select class="st ed" style="background:'+(TA_COLOR[v]||"#fff")+'" onchange="up('+no+',\'TA결과\',this.value)">'+opts+'</select> '+
-      '<button type="button" class="fvbtn" title="'+fvTitle+'" onclick="openFieldVisit('+no+')" style="margin-top:4px;padding:2px 6px;font-size:12px;border-radius:6px;border:1px solid var(--ice2);background:'+(fv?"#DAF0E2":"#fff")+';cursor:pointer">🚶'+(fv?"":" 즉석방문")+'</button></td>';
+      '<button type="button" class="ta-chip fvbtn" title="'+fvTitle+'" onclick="openFieldVisit('+no+')" style="display:inline-block;margin-top:4px;border:none;background:'+(fv?"#DAF0E2":"#EEF2F7")+'">즉석방문'+(fv?" 완료":"")+'</button></td>';
   }
   if(c.t==="agree"){
     const opts=AGREES.map(s=>'<option '+(s===v?"selected":"")+'>'+s+'</option>').join("");
