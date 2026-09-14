@@ -1104,7 +1104,7 @@ function report(){
 }
 
 boot();
-setInterval(()=>{ if(SESS.name && document.getElementById("app").style.display!=="none") load(); }, 60000);
+setInterval(()=>{ if(SESS.name && document.getElementById("app").style.display!=="none") load(); }, 120000); // 2026-09-14: 60초→120초로 완화(28-6절, 로그인/새로고침이 느리다는 문의 계기 — 자동새로고침 호출량을 절반으로 줄임)
 </script>
 </body>
 </html>

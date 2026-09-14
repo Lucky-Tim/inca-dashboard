@@ -673,23 +673,31 @@ function readTracker_(){
 }
 
 // 컨설턴트 시트의 "계정" 탭에서 컨설턴트 이름 목록을 읽어옴 (전환 팝업용)
+// 2026-09-14 추가(28-6절): 컨설턴트 "계정" 탭을 한 번만 열어서 캐싱 — 아래 consultantNames_()/salesManagerNames_()가
+// 각자 독립적으로 SpreadsheetApp.openById(CONSULTANT_SPREADSHEET_ID)를 호출하며 캐시도 따로 관리하던 것을 하나로
+// 합침. 로그인(및 60초 자동새로고침)마다 캐시가 만료돼 있으면 외부 스프레드시트를 2번 여는 대신 1번만 열게 되어
+// "로그인이 느리다" 문의 계기로 최적화함. 반환값(원본 행 배열) 자체는 바뀌지 않고, 이름 필터링은 호출부에서 함.
+function consultantAccountRows_(){
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get("consultantAccountRows_v1");
+  if(cached) return JSON.parse(cached);
+  var css = SpreadsheetApp.openById(CONSULTANT_SPREADSHEET_ID);
+  var sh = css.getSheetByName(ACCOUNT_SHEET);
+  var rows = sh ? sheetToObjects_(sh) : [];
+  cache.put("consultantAccountRows_v1", JSON.stringify(rows), 300); // 5분 캐시
+  return rows;
+}
+
 // 실패하면 빈 배열 → 프론트 기본값 사용
 function consultantNames_(){
   try{
-    var cache = CacheService.getScriptCache();
-    var cached = cache.get("consultantNames_v1");
-    if(cached) return JSON.parse(cached);
-    var css = SpreadsheetApp.openById(CONSULTANT_SPREADSHEET_ID);
-    var sh = css.getSheetByName(ACCOUNT_SHEET);
-    if(!sh) return [];
-    var rows = sheetToObjects_(sh);
+    var rows = consultantAccountRows_();
     var out = [];
     for(var i=0;i<rows.length;i++){
       if(String(rows[i]["권한"]||"").trim() === "관리자") continue; // 관리자 계정은 전환 대상 목록에서 제외
       var n = String(rows[i]["이름"]||"").trim();
       if(n && out.indexOf(n) < 0) out.push(n);
     }
-    cache.put("consultantNames_v1", JSON.stringify(out), 300); // 5분 캐시 — 매 새로고침마다 다른 스프레드시트를 여는 비용 제거
     return out;
   }catch(e){ return []; }
 }
@@ -699,20 +707,13 @@ function consultantNames_(){
 // 실패하면 빈 배열 → 프론트가 일반적인 문구로 대체 표시.
 function salesManagerNames_(){
   try{
-    var cache = CacheService.getScriptCache();
-    var cached = cache.get("salesManagerNames_v1");
-    if(cached) return JSON.parse(cached);
-    var css = SpreadsheetApp.openById(CONSULTANT_SPREADSHEET_ID);
-    var sh = css.getSheetByName(ACCOUNT_SHEET);
-    if(!sh) return [];
-    var rows = sheetToObjects_(sh);
+    var rows = consultantAccountRows_();
     var out = [];
     for(var i=0;i<rows.length;i++){
       if(String(rows[i]["권한"]||"").trim() !== "영업관리자") continue;
       var n = String(rows[i]["이름"]||"").trim();
       if(n && out.indexOf(n) < 0) out.push(n);
     }
-    cache.put("salesManagerNames_v1", JSON.stringify(out), 300);
     return out;
   }catch(e){ return []; }
 }
