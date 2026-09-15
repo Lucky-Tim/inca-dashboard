@@ -54,7 +54,9 @@ var HEADERS = ["번호","담당컨설턴트","가게명","점주명","연락처"
                // 배정건수(팀배정일)/DB지급(DB지급일)은 이미 있는 컬럼을 그대로 재사용. 두 신규 컬럼 모두 이 기능 추가 이전 건은 소급 채우지 않음(비파괴 원칙) —
                // 프론트 월별 팝업에서 해당 건들은 "월 미상"으로 별도 표시됨. setupTrackerSheet 재실행 필요(신규 컬럼 물리적으로 추가).
                "AS신청일","계약체결일"];
-var ACCOUNT_HEADERS = ["이름","비번","권한","소속영업관리자"]; // 2026-09-08 추가: 영업관리자 계층 도입 — 컨설턴트 행에만 소속 영업관리자 이름을 채움(비파괴, 맨 뒤)
+var ACCOUNT_HEADERS = ["이름","비번","권한","소속영업관리자","이메일"]; // 2026-09-08 추가: 영업관리자 계층 도입 — 컨설턴트 행에만 소속 영업관리자 이름을 채움(비파괴, 맨 뒤). "이메일"은 2026-09-15 추가(26절) — DB 배정 알림 메일 수신 주소, 관리자가 직접 입력(비어있으면 알림 생략)
+// 2026-09-15 추가(26절): DB 배정 알림 메일 본문에 넣을 컨설턴트 트래커 바로가기 URL
+var CONSULTANT_TRACKER_URL = "https://lucky-tim.github.io/inca-dashboard/dongsun-consultant.html";
 
 var STATUSES = ["신규배정","상담중","청약완료","계약체결","종결·실패"];
 var PROBS = ["10%","30%","50%","70%","90%","100%"];
@@ -149,6 +151,7 @@ function setupAccountSheet(){
     "B열=비번(단순 문자열 대조 방식)\n" +
     "C열=권한 — 비워두면 컨설턴트(본인 담당 건만 조회/수정), '영업관리자'라고 입력하면 본인+소속 컨설턴트(D열) 데이터를 조회하고 담당컨설턴트를 배정/재배정할 수 있음, '관리자'라고 입력하면 전체관리자(전체 데이터 조회·편집)\n" +
     "D열=소속영업관리자 — 컨설턴트 계정에만 입력(그 컨설턴트가 속한 영업관리자 이름). 전체관리자·영업관리자 행은 비워둠.\n" +
+    "E열=이메일 — 컨설턴트 트래커에서 DB가 배정/재배정될 때 알림 메일을 받을 주소(비워두면 알림 생략, 2026-09-15 추가)\n" +
     "  예) 황태성/박지우=권한 '관리자', 정현우=권한 '영업관리자', 김광연·하명규=권한 비움(컨설턴트) + D열에 '정현우'\n" +
     "2행부터 한 줄에 한 명씩 추가하세요.\n" +
     "※ '관리자' 계정은 서포터즈 트래커의 '컨설턴트 전환' 선택 목록에서 자동 제외됩니다.\n" +
@@ -214,6 +217,19 @@ function teamMembersOf_(managerName){
     }
   }
   return team;
+}
+
+// 2026-09-15 추가(26절) — 계정 탭에서 이름으로 이메일 주소 조회(DB 배정 알림용). 못 찾거나 비어있으면 ""
+function emailOf_(name){
+  name = String(name||"").trim();
+  if(!name) return "";
+  var rows = sheetToObjects_(accountSheet_());
+  for(var i=0;i<rows.length;i++){
+    if(String(rows[i]["이름"]||"").trim() === name){
+      return String(rows[i]["이메일"]||"").trim();
+    }
+  }
+  return "";
 }
 
 // 2026-09-08 추가 — 계정 탭 전체 이름 목록(전체관리자의 "담당자 전체/개별" 필터 드롭다운용).
@@ -381,18 +397,58 @@ function handleUpdate_(body){
     }
   }
   if(field === "담당컨설턴트"){
+    var newOwnerVal = String(body.value||"").trim();
     // 2026-09-08 추가: 담당컨설턴트가 배정/재배정/해제될 때마다 팀배정일 자동 기록(공란이 되면 같이 비움)
     var teamDateCol = t.head.indexOf("팀배정일");
     if(teamDateCol >= 0){
-      var newOwnerVal = String(body.value||"").trim();
       var stampVal = newOwnerVal ? Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd") : "";
       t.sh.getRange(t.row, teamDateCol+1).setValue(stampVal);
       t.values[teamDateCol] = stampVal;
+    }
+    // 2026-09-15 추가(26절): 담당컨설턴트가 새로 지정될 때(미배정→배정, 재배정 모두 포함) 그 컨설턴트에게 DB 배정 알림 메일
+    if(newOwnerVal){
+      notifyDbAssigned_(t, newOwnerVal);
     }
   }
 
   stamp_(t.sh, t.head, t.row, auth.name);
   return json_({ok:true, no:body.no, field:field, value:body.value});
+}
+
+// 2026-09-15 추가(26절): 담당컨설턴트가 새로 지정될 때(미배정→배정, 재배정 모두 포함) 그 컨설턴트에게 DB 배정 알림 메일.
+// 이메일은 계정 탭 "이메일" 컬럼에서 조회 — 등록돼 있지 않으면(빈값) 조용히 건너뜀(로그만 남김).
+// 실패해도(메일 발송 오류 등) 본 배정 저장 자체는 이미 끝난 뒤라 사용자 화면에는 영향 없음 — 로그로만 남김.
+// 사용자 결정(2026-09-15): 서포터즈 전환 시점에 담당컨설턴트를 바로 지정하는 경우는 이 알림 범위에서 제외 —
+// 컨설턴트 트래커에서 담당컨설턴트 필드를 직접 배정/재배정할 때만 발송.
+function notifyDbAssigned_(t, consultantName){
+  try{
+    var email = emailOf_(consultantName);
+    if(!email){
+      Logger.log("notifyDbAssigned_ 건너뜀 — '" + consultantName + "' 계정에 이메일이 등록돼 있지 않음");
+      return;
+    }
+    var g = function(k){ var i=t.head.indexOf(k); return i>=0 ? t.values[i] : ""; };
+    var store = String(g("가게명")||"").trim() || "(가게명 없음)";
+    var ownerName = String(g("점주명")||"").trim();
+    var phone = String(g("연락처")||"").trim();
+    var town = String(g("동네")||"").trim();
+    var addr = String(g("주소")||"").trim();
+    var source = String(g("출처서포터즈")||"").trim();
+    var subject = "[동선] DB가 배정됐습니다 — " + store;
+    var body =
+      consultantName + "님, 새로운 DB가 배정됐습니다.\n\n" +
+      "가게명: " + store + "\n" +
+      "점주명: " + (ownerName || "—") + "\n" +
+      "연락처: " + (phone || "—") + "\n" +
+      "동네: " + (town || "—") + "\n" +
+      "주소: " + (addr || "—") + "\n" +
+      "출처서포터즈: " + (source || "—") + "\n" +
+      "배정시각: " + now_() + "\n\n" +
+      "🔗 컨설턴트 트래커 바로가기: " + CONSULTANT_TRACKER_URL;
+    MailApp.sendEmail(email, subject, body);
+  }catch(e){
+    Logger.log("notifyDbAssigned_ 실패: " + e);
+  }
 }
 
 // 종결사유 변경 시 A/S 대상·신청기한·초기 신청상태를 서버에서 자동 계산
