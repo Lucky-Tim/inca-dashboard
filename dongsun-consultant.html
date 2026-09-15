@@ -102,6 +102,14 @@
   .statlink:hover{color:var(--navy2)}
   .gotorow{padding:4px 8px;font-size:11px}
   tr.flash{outline:3px solid var(--gold);outline-offset:-1px}
+  /* ── 이미지 확대보기 라이트박스 (2026-09-15 추가) ── 동의서/증빙 썸네일 클릭 시 새 탭 대신 이 팝업으로 확대 표시.
+     카카오톡 인앱브라우저 등 일부 모바일 웹뷰가 target="_blank"를 새 탭이 아니라 같은 화면 이동으로 처리해서
+     뒤로가기 시 SPA 상태가 날아가는 문제를 근본적으로 피하기 위함 — 페이지 이동 자체가 없음. */
+  #img-ovl{display:none;position:fixed;inset:0;z-index:9999;background:rgba(10,14,20,.88);align-items:center;justify-content:center;padding:20px}
+  #img-ovl .box{position:relative;max-width:94vw;max-height:90vh}
+  #img-ovl img{display:block;max-width:94vw;max-height:90vh;border-radius:8px;box-shadow:0 18px 50px rgba(0,0,0,.4)}
+  #img-ovl .ovl-xbar{position:absolute;top:-6px;right:-6px}
+  #img-ovl .ovl-x{background:#fff}
   tr.flash td{background:#FFF7E0 !important;transition:background-color 1s}
   /* ── 로그인 오버레이 (viewer-mgr #login-ovl 패턴 · 네이비/골드 팔레트) ── */
   #login-ovl{display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(160deg,#16335B 0%,#1B3A6B 55%,#0E1F38 100%);align-items:center;justify-content:center;padding:20px}
@@ -235,6 +243,13 @@
     <div class="desc">항목의 "표에서 보기"를 누르면 아래 표의 실제 행으로 이동합니다.</div>
     <div id="st-list"></div>
     <button class="close" onclick="closeStatusPopup()">닫기</button>
+  </div>
+</div>
+
+<div id="img-ovl" onclick="if(event.target.id==='img-ovl') closeImageLightbox()">
+  <div class="box">
+    <div class="ovl-xbar"><button class="ovl-x" onclick="closeImageLightbox()" aria-label="닫기">✕</button></div>
+    <img id="img-ovl-img" src="" alt="사진 확대보기">
   </div>
 </div>
 
@@ -492,7 +507,18 @@ function renderStatusList(){
   }).join("");
 }
 function closeAllPopups(){
-  closeUnassigned(); closeAsProcess(); closeStatusPopup();
+  closeUnassigned(); closeAsProcess(); closeStatusPopup(); closeImageLightbox();
+}
+// 2026-09-15 추가: 동의서/증빙 사진 썸네일 클릭 시 새 탭으로 이동하는 대신 페이지 안에서 확대 표시.
+// 카카오톡 인앱브라우저 등 일부 모바일 웹뷰는 target="_blank"를 새 탭이 아니라 같은 화면 이동으로 처리해서
+// 뒤로가기를 눌러도 트래커 화면 상태(로그인 등)가 날아가는 문제가 있었음 — 페이지 이동 자체를 없애서 근본 해결.
+function openImageLightbox(url){
+  document.getElementById("img-ovl-img").src = url;
+  document.getElementById("img-ovl").style.display = "flex";
+}
+function closeImageLightbox(){
+  document.getElementById("img-ovl").style.display = "none";
+  document.getElementById("img-ovl-img").src = "";
 }
 function scrollToRow(no){
   closeAllPopups();
@@ -589,7 +615,7 @@ function cellHtml(d,c){
           (locked ? '' : ' <button type="button" class="delbtn" onclick="deletePhoto('+no+',\''+c.k+'\','+i+')" style="padding:2px 6px;font-size:10px">×</button>')+
         '</span>'
       : '<span style="position:relative;display:inline-block;margin:2px">'+
-          '<a href="'+esc(e.url)+'" target="_blank" rel="noopener"><img src="'+esc(e.url)+'" alt="증빙" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB"></a>'+
+          '<img src="'+esc(e.url)+'" alt="증빙" onclick="openImageLightbox(\''+esc(e.url)+'\')" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB;cursor:pointer">'+
           (locked ? '' : ' <button type="button" class="delbtn" onclick="deletePhoto('+no+',\''+c.k+'\','+i+')" style="padding:2px 6px;font-size:10px">×</button>')+
         '</span>'
     ).join("");
@@ -602,13 +628,14 @@ function cellHtml(d,c){
       '<input type="file" accept="image/*,audio/*" multiple id="ph-'+no+'-'+c.k+'" style="display:none" onchange="onPhotoChange('+no+',\''+c.k+'\',this)"></td>';
   }
   if(c.t==="ro-photo"){
-    // 2026-09-14 추가(23절): 서포터즈에서 넘어온 동의서 사진 — 읽기전용(업로드/삭제 버튼 없음), 클릭하면 원본 새 탭
+    // 2026-09-14 추가(23절): 서포터즈에서 넘어온 동의서 사진 — 읽기전용(업로드/삭제 버튼 없음)
+    // 2026-09-15 수정: 클릭 시 새 탭 이동 대신 라이트박스로 확대 표시(인앱브라우저 뒤로가기 문제 회피)
     const urls=parsePhotoEntries(v);
     if(!urls.length) return '<td data-label="'+c.label+'"><span class="ro">—</span></td>';
     const thumbs=urls.map(e=>
       e.type==="audio"
       ? '<a href="'+esc(e.url)+'" target="_blank" rel="noopener" title="녹취파일 열기" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB;font-size:16px;text-decoration:none;margin:2px">🎧</a>'
-      : '<a href="'+esc(e.url)+'" target="_blank" rel="noopener" style="margin:2px"><img src="'+esc(e.url)+'" alt="동의서" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB"></a>'
+      : '<img src="'+esc(e.url)+'" alt="동의서" onclick="openImageLightbox(\''+esc(e.url)+'\')" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);vertical-align:middle;background:#F4F7FB;margin:2px;cursor:pointer">'
     ).join("");
     return '<td data-label="'+c.label+'">'+thumbs+'</td>';
   }
@@ -811,7 +838,7 @@ function asItemHtml(d, actionable){
   const thumbs=urls.map(e=>
     e.type==="audio"
     ? '<a href="'+esc(e.url)+'" target="_blank" rel="noopener" title="녹취파일 열기" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:6px;border:1px solid var(--ice2);margin:2px 4px 2px 0;vertical-align:middle;background:#F4F7FB;font-size:15px;text-decoration:none">🎧</a>'
-    : '<a href="'+esc(e.url)+'" target="_blank" rel="noopener"><img src="'+esc(e.url)+'" alt="증빙" style="width:30px;height:30px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);margin:2px 4px 2px 0;vertical-align:middle"></a>'
+    : '<img src="'+esc(e.url)+'" alt="증빙" onclick="openImageLightbox(\''+esc(e.url)+'\')" style="width:30px;height:30px;object-fit:cover;border-radius:6px;border:1px solid var(--ice2);margin:2px 4px 2px 0;vertical-align:middle;cursor:pointer">'
   ).join("");
   const st=d["AS신청상태"]||"미신청";
   const stBg={"확인중":"#FFF3D6","승인":"#C7E9D3","불가능":"#F0E4E3","미신청":"#EEF2F7"}[st]||"#EEF2F7";
