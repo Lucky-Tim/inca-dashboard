@@ -590,7 +590,9 @@ function stats(){
   const agreeBreak={}; AGREES.forEach(k=>{ agreeBreak[k]=cnt("컨설팅동의여부",k); }); // 2026-09-09 추가: 단톡보고 동의여부별 전체 breakdown용
   const unassigned=rs.filter(d=>!String(d["담당서포터즈"]||"").trim()).length; // 2026-09-15 추가: 동의율 카드 미배정/배정 칩용(관리자 전용)
   const assigned=n-unassigned;
-  const rate=n>0?Math.round(agree/n*1000)/10:0;
+  // 2026-09-15 수정: 동의율은 미배정 건을 분모에서 제외 — "배정된 건 중 동의된 비율"이 되도록 분모를 전체(n)에서 배정건수(assigned)로 변경.
+  // 미배정 상태인 매장은 아직 서포터즈가 컨택을 시작하지도 않은 건이라 분모에 섞이면 동의율이 실제보다 낮게 왜곡됨.
+  const rate=assigned>0?Math.round(agree/assigned*1000)/10:0;
   return {n,agree,done,reject,hold,pendingConvert,taBreak,agreeBreak,unassigned,assigned,rate};
 }
 function renderKPIs(){
@@ -623,7 +625,7 @@ function renderKPIs(){
       '<span class="ta-chip" style="background:#C7E9D3" onclick="openMonthlyPopup(\'convert\')" title="클릭하면 전환건수를 월별로 볼 수 있습니다">전환완료 '+moConvert+'</span>'+
     '</div><div class="goal">👆 칩을 클릭하면 월별로 묶인 목록이 열려요</div></div>' : "";
   document.getElementById("kpis").innerHTML=
-  '<div class="card hl"><div class="label">컨설팅 동의율 (전체 '+s.n+'건)</div><div class="val">'+s.rate+'%</div><div class="bar"><i style="width:'+g+'%"></i></div><div class="goal" style="color:var(--ice2)">목표 30%(안) · 동의 '+s.agree+' / 전체 '+s.n+'</div>'+assignChips+'</div>'+
+  '<div class="card hl"><div class="label">컨설팅 동의율 (배정 '+s.assigned+'건 중)</div><div class="val">'+s.rate+'%</div><div class="bar"><i style="width:'+g+'%"></i></div><div class="goal" style="color:var(--ice2)">목표 30%(안) · 동의 '+s.agree+' / 배정 '+s.assigned+' (전체 '+s.n+'건)</div>'+assignChips+'</div>'+
   '<div class="card"><div class="label">🔄 전환 현황 ('+convertTotal+'건)</div><div class="ta-chips">'+
     '<span class="ta-chip" style="background:#DAF0E2" onclick="openStatusPopup(\'_done\',\'전환완료\')" title="클릭하면 전환완료 목록을 볼 수 있습니다">전환완료 '+s.done+'</span>'+
     '<span class="ta-chip" style="background:#FCF3E3" onclick="openPendingConvert()" title="클릭하면 미전환 목록이 열립니다">미전환 '+s.pendingConvert+'</span>'+
