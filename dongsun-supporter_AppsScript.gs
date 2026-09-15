@@ -46,7 +46,8 @@ var HEADERS = ["번호","담당서포터즈","가게명","점주명","연락처"
                "기존설계사관계","월납보험료수준","연령대","성별","3대질환진단여부", // 2026-09-07(3차) 추가: 동의서 등록 전 사전체크 항목(PRECHECK_FIELDS 참고) — action:'precheck'로 저장, handleConvert_가 컨설턴트 트래커로 1회 복사. 항목을 늘릴 때는 여기 컬럼 추가 + 아래 PRECHECK_FIELDS에 정의만 추가하면 됨(비파괴, 항상 뒤에 추가)
                "위도","경도", // 2026-09-07(5차) 추가: 주소 지오코딩 결과 좌표("가까운 순" 정렬 기능용) — handleAddStore_/importStagingToTracker에서 신규 등록 시 자동 채움, 기존 행은 backfillLatLngFromAddress_20260907()으로 소급. handleConvert_가 컨설턴트 트래커로 1회 복사.
                "1차담당자","2차담당자","담당변경이력", // 2026-09-11 추가: 담당서포터즈 재배정 구조(22절). 1차담당자=이 행의 첫 재배정 시점에 1회만 고정 기록되는 "이전" 담당자, 2차담당자=가장 최근 재배정 대상(재배정될 때마다 갱신), 담당변경이력=전체 변경 로그(비파괴 누적). 최초 배정(미배정→배정)은 재배정이 아니므로 셀 자체는 비워두고, 화면에는 readTracker_()가 1차담당자 없을 때 현재 담당서포터즈로 대신 채워 보여줌 — recordOwnerChange_() 참고.
-               "즉석방문일시"]; // 2026-09-11(2차) 추가(28절): 서포터즈가 콜/예약 없이 현장에서 즉석으로 방문했을 때, 그 방문이 실제로 발생한 시각을 기록하는 컬럼. "방문일정"(예정/확정 시각)과는 성격이 달라 별도 컬럼으로 분리 — action:'fieldVisit'(handleFieldVisit_)로만 기록됨, 항상 now_()로 자동 기록(사용자가 직접 입력하지 않음).
+               "즉석방문일시", // 2026-09-11(2차) 추가(28절): 서포터즈가 콜/예약 없이 현장에서 즉석으로 방문했을 때, 그 방문이 실제로 발생한 시각을 기록하는 컬럼. "방문일정"(예정/확정 시각)과는 성격이 달라 별도 컬럼으로 분리 — action:'fieldVisit'(handleFieldVisit_)로만 기록됨, 항상 now_()로 자동 기록(사용자가 직접 입력하지 않음).
+               "배정일"]; // 2026-09-15 추가(31절): 동의율 카드의 "배정" 칩을 월별로 볼 수 있게 하는 날짜 컬럼. handleAddStore_(신규매장 등록 시점)와 handleUpdate_(관리자가 표에서 담당서포터즈 칸을 직접 수정할 때)에서만 기록 — 신규유입/신규DB등록 반영 시점은 사용자 결정으로 범위 제외. 담당서포터즈가 재배정될 때마다 최신 시점으로 갱신(컨설턴트 트래커 "팀배정일"과 동일한 정책), 담당서포터즈가 비워지면 같이 비움. 이 기능 추가 이전 배정 건은 소급 채우지 않음(비파괴 원칙) — 프론트 월별 팝업에서 "월 미상"으로 별도 표시. setupTrackerSheet 재실행 필요(신규 컬럼 물리적으로 추가).
 var PHOTO_FIELDS = ["매장사진","동의서"];
 var PHOTO_MAX = 5; // 사진 항목당 최대 등록 장수 — 셀에 URL을 "|"로 이어붙여 저장
 var PHOTO_FOLDER_NAME = "동선_서포터즈_사진";
@@ -131,6 +132,11 @@ function setupTrackerSheet(){
   // 연락처 열은 텍스트 서식 → 앞자리 0 보존
   var phoneCol = HEADERS.indexOf("연락처")+1;
   sh.getRange(2, phoneCol, Math.max(sh.getMaxRows()-1,1), 1).setNumberFormat("@");
+  // 2026-09-15 추가(31절): "배정일"은 "yyyy-MM-dd" 문자열로 써넣는데, 서식이 "자동"이면 구글시트가 진짜
+  // 날짜 셀로 자동 변환해버려서(컨설턴트 트래커 DB지급일 등에서 겪은 문제와 동일) API가 다시 읽을 때
+  // Date 객체(→ISO 문자열)로 튀어나오는 문제가 있음 — 텍스트 서식으로 고정.
+  var assignDateCol = HEADERS.indexOf("배정일")+1;
+  if(assignDateCol > 0) sh.getRange(2, assignDateCol, Math.max(sh.getMaxRows()-1,1), 1).setNumberFormat("@");
   applyValidations_(sh);
   autoWidth_(sh, HEADERS.length);
   Logger.log("트래커 탭 헤더 세팅 완료 (" + HEADERS.length + "열). 데이터는 비어 있는 상태로 시작합니다.");
@@ -933,6 +939,14 @@ function handleUpdate_(body){
   // 2026-09-11 추가(22절): 관리자가 담당서포터즈를 재배정하면 1차담당자/2차담당자/담당변경이력 갱신
   if(field === "담당서포터즈"){
     recordOwnerChange_(t.sh, t.head, t.row, t.values, prevVal, val, auth.name);
+    // 2026-09-15 추가(31절): 배정일 갱신 — 재배정될 때마다 최신 시점으로 덮어씀(컨설턴트 트래커 팀배정일과 동일 정책), 담당서포터즈가 비워지면 같이 비움
+    var assignDateIdx = t.head.indexOf("배정일");
+    if(assignDateIdx >= 0){
+      var newOwnerVal = String(val||"").trim();
+      var assignDateVal = newOwnerVal ? Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd") : "";
+      t.sh.getRange(t.row, assignDateIdx+1).setValue(assignDateVal);
+      t.values[assignDateIdx] = assignDateVal;
+    }
   }
 
   // 컨설팅동의여부가 "컨설팅동의"로 바뀌는 시점을 별도 컬럼에 기록 — DB지급일 계산 기준(전환일시와는 별개 이벤트)
@@ -1412,6 +1426,7 @@ function handleAddStore_(body){
   var no = maxNo + 1;
   set("번호", no);
   set("담당서포터즈", owner);
+  set("배정일", Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd")); // 2026-09-15 추가(31절): 신규매장 등록 시점도 배정일 기록 대상
   set("가게명", storeName);
   set("점주명", String(body.ownerName||"").trim());
   set("연락처", phone);

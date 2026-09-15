@@ -26,6 +26,9 @@
   .card.warn:hover{box-shadow:0 3px 10px rgba(224,163,62,.35)}
   .ta-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .ta-chip{font-size:12.5px;padding:5px 11px;border-radius:20px;font-weight:700;color:var(--ink);cursor:pointer}
+  /* 2026-09-15 추가(31절): 월별 현황 팝업의 월 그룹 헤더 */
+  .mo-grp-title{font-size:12px;font-weight:700;color:var(--navy);margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--ice2)}
+  .mo-grp:first-child .mo-grp-title{margin-top:0}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
   button{font-family:inherit;font-size:13px;border:1px solid var(--navy);background:#fff;color:var(--navy);padding:7px 12px;border-radius:8px;cursor:pointer}
   button:hover{background:var(--ice)}button.primary{background:var(--navy);color:#fff}
@@ -608,8 +611,20 @@ function renderKPIs(){
       '<span class="ta-chip" style="background:#FCF3E3" onclick="openStatusPopup(\'_unassigned\',\'미배정\')" title="클릭하면 미배정 목록을 볼 수 있습니다">미배정 '+s.unassigned+'</span>'+
       '<span class="ta-chip" style="background:#DAF0E2" onclick="openStatusPopup(\'_assigned\',\'배정\')" title="클릭하면 배정된 목록을 볼 수 있습니다">배정 '+s.assigned+'</span>'+
     '</div>' : "";
+  // 2026-09-15 추가(31절): 배정(배정일)/동의(컨설팅동의일시)/전환(전환일시)을 월별로 확인하는 카드 — 컨설턴트 트래커의 동일 기능과 이식.
+  const rsAll=scoped();
+  const moAssign=rsAll.filter(MONTHLY_DEFS.assign.match).length;
+  const moAgree=rsAll.filter(MONTHLY_DEFS.agree.match).length;
+  const moConvert=rsAll.filter(MONTHLY_DEFS.convert.match).length;
+  const monthlyCard = SESS.isAdmin ?
+    '<div class="card wide"><div class="label">📅 월별 현황</div><div class="ta-chips">'+
+      '<span class="ta-chip" style="background:#DAF0E2" onclick="openMonthlyPopup(\'assign\')" title="클릭하면 배정건수를 월별로 볼 수 있습니다">배정 '+moAssign+'</span>'+
+      '<span class="ta-chip" style="background:'+(AG_COLOR["컨설팅동의"]||"#EEF2F7")+'" onclick="openMonthlyPopup(\'agree\')" title="클릭하면 동의건수를 월별로 볼 수 있습니다">동의 '+moAgree+'</span>'+
+      '<span class="ta-chip" style="background:#C7E9D3" onclick="openMonthlyPopup(\'convert\')" title="클릭하면 전환건수를 월별로 볼 수 있습니다">전환완료 '+moConvert+'</span>'+
+    '</div><div class="goal">👆 칩을 클릭하면 월별로 묶인 목록이 열려요</div></div>' : "";
   document.getElementById("kpis").innerHTML=
   '<div class="card hl"><div class="label">컨설팅 동의율 (전체 '+s.n+'건)</div><div class="val">'+s.rate+'%</div><div class="bar"><i style="width:'+g+'%"></i></div><div class="goal" style="color:var(--ice2)">목표 30%(안) · 동의 '+s.agree+' / 전체 '+s.n+'</div>'+assignChips+'</div>'+
+  monthlyCard+
   '<div class="card"><div class="label">🔄 전환 현황 ('+convertTotal+'건)</div><div class="ta-chips">'+
     '<span class="ta-chip" style="background:#DAF0E2" onclick="openStatusPopup(\'_done\',\'전환완료\')" title="클릭하면 전환완료 목록을 볼 수 있습니다">전환완료 '+s.done+'</span>'+
     '<span class="ta-chip" style="background:#FCF3E3" onclick="openPendingConvert()" title="클릭하면 미전환 목록이 열립니다">미전환 '+s.pendingConvert+'</span>'+
@@ -646,6 +661,55 @@ function renderPopupList(){
         '<span>'+esc(d["점주명"]||"")+' · '+esc(fmtPhone(d["연락처"]||""))+'</span>'+
         '<span>담당 '+esc(d["담당서포터즈"]||"—")+' · '+esc(d["동네"]||"")+'</span></div>'+
       '<button type="button" class="gotorow" onclick="scrollToRow('+no+')">표에서 보기</button>'+
+    '</div>';
+  }).join("");
+}
+// 2026-09-15 추가(31절): 배정(배정일)/동의(컨설팅동의일시)/전환(전환일시)을 월별로 묶어 보여주는 팝업.
+// 기존 #st-ovl/#st-title/#st-list(openStatusPopup용 오버레이)를 그대로 재사용함 — 동시에 열리는 팝업이
+// 아니라서 충돌 없음. match 조건은 각 지표의 "총 건수"와 동일한 기준이고, 날짜 필드가 비어있으면(이 기능
+// 추가 이전에 이미 발생한 건, 또는 배정일 도입 전 배정된 건) "월 미상"으로 따로 묶임.
+const MONTHLY_DEFS={
+  assign:{title:"배정건수(배정일 기준)", dateField:"배정일", match:d=>!!String(d["담당서포터즈"]||"").trim()},
+  agree:{title:"컨설팅동의 현황", dateField:"컨설팅동의일시", match:d=>d["컨설팅동의여부"]==="컨설팅동의"},
+  convert:{title:"전환완료 현황", dateField:"전환일시", match:isDone}
+};
+let currentMonthlyMode=null;
+function openMonthlyPopup(mode){
+  currentMonthlyMode=mode;
+  const def=MONTHLY_DEFS[mode];
+  document.getElementById("st-title").textContent = "📅 "+def.title+" (월별)";
+  renderMonthlyList();
+  document.getElementById("st-ovl").style.display="flex";
+}
+function renderMonthlyList(){
+  const box=document.getElementById("st-list");
+  if(!currentMonthlyMode){ box.innerHTML=""; return; }
+  const def=MONTHLY_DEFS[currentMonthlyMode];
+  const list=scoped().filter(def.match);
+  if(!list.length){ box.innerHTML='<div class="desc">해당하는 건이 없습니다.</div>'; return; }
+  const groups={};
+  list.forEach(d=>{
+    const raw=String(d[def.dateField]||"").trim();
+    const mk = raw ? raw.slice(0,7) : "월 미상"; // "yyyy-MM-dd..." 앞 7자리 = "yyyy-MM"
+    (groups[mk]=groups[mk]||[]).push(d);
+  });
+  const keys=Object.keys(groups).sort((a,b)=>{
+    if(a==="월 미상") return 1;
+    if(b==="월 미상") return -1;
+    return a<b?1:(a>b?-1:0); // 최신월 먼저
+  });
+  box.innerHTML=keys.map(mk=>{
+    const items=groups[mk];
+    return '<div class="mo-grp"><div class="mo-grp-title">'+esc(mk)+' ('+items.length+'건)</div>'+
+      items.map(d=>{
+        const no=d["번호"];
+        return '<div class="item">'+
+          '<div class="info"><b>'+esc(d["가게명"]||"(가게)")+'</b>'+
+            '<span>'+esc(d["점주명"]||"")+' · '+esc(fmtPhone(d["연락처"]||""))+'</span>'+
+            '<span>담당 '+esc(d["담당서포터즈"]||"—")+' · '+esc(d["동네"]||"")+'</span></div>'+
+          '<button type="button" class="gotorow" onclick="scrollToRow('+no+')">표에서 보기</button>'+
+        '</div>';
+      }).join("")+
     '</div>';
   }).join("");
 }
