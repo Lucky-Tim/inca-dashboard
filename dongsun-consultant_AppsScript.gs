@@ -47,7 +47,13 @@ var HEADERS = ["번호","담당컨설턴트","가게명","점주명","연락처"
                // 서포터즈와 동일한 "url1|url2|..." 파이프 구분). 배정된 컨설턴트가 방문 전 동의서 내용을 바로 볼 수 있게 함.
                // 사용자 결정(2026-09-14): 기존에 이미 전환된 건은 소급 적용하지 않음 — 새로 전환되는 건부터만 채워짐.
                // setupTrackerSheet 재실행은 필요(신규 컬럼 물리적으로 추가).
-               "동의서"];
+               "동의서",
+               // 2026-09-15 추가(25절): 배정건수/DB지급/AS건수/계약체결건수를 월별로 확인하는 기능용 날짜 컬럼.
+               // - AS신청일: 컨설턴트가 실제 A/S 신청("확인중"으로 전환)한 시점에 자동 기록(handleSubmitAs_) — 사용자 결정: AS건수는 "신청 시점" 기준.
+               // - 계약체결일: 계약현황이 "계약체결"로 처음 바뀌는 시점에 자동 기록(handleUpdate_) — 사용자 결정: 최초 1회만 고정, 이후 되돌렸다 다시 체결돼도 덮어쓰지 않음.
+               // 배정건수(팀배정일)/DB지급(DB지급일)은 이미 있는 컬럼을 그대로 재사용. 두 신규 컬럼 모두 이 기능 추가 이전 건은 소급 채우지 않음(비파괴 원칙) —
+               // 프론트 월별 팝업에서 해당 건들은 "월 미상"으로 별도 표시됨. setupTrackerSheet 재실행 필요(신규 컬럼 물리적으로 추가).
+               "AS신청일","계약체결일"];
 var ACCOUNT_HEADERS = ["이름","비번","권한","소속영업관리자"]; // 2026-09-08 추가: 영업관리자 계층 도입 — 컨설턴트 행에만 소속 영업관리자 이름을 채움(비파괴, 맨 뒤)
 
 var STATUSES = ["신규배정","상담중","청약완료","계약체결","종결·실패"];
@@ -105,7 +111,7 @@ function setupTrackerSheet(){
   // 2026-09-07 추가: DB지급일·AS신청기한은 "yyyy-MM-dd" 문자열로 써넣는데, 서식이 "자동"이면
   // 구글시트가 이를 진짜 날짜 셀로 자동 변환해버려서 API가 다시 읽을 때 Date 객체(→ISO 문자열)로
   // 튀어나오는 문제가 있었음 — 텍스트 서식으로 고정해 항상 문자열로 저장·조회되게 함
-  ["DB지급일","AS신청기한","팀배정일"].forEach(function(colName){
+  ["DB지급일","AS신청기한","팀배정일","AS신청일","계약체결일"].forEach(function(colName){
     var idx = HEADERS.indexOf(colName)+1;
     if(idx > 0) sh.getRange(2, idx, Math.max(sh.getMaxRows()-1,1), 1).setNumberFormat("@");
   });
@@ -365,6 +371,15 @@ function handleUpdate_(body){
   t.values[col] = body.value;
 
   if(field === "종결사유") _applyAsLogic(t);
+  if(field === "계약현황" && String(body.value||"").trim() === "계약체결"){
+    // 2026-09-15 추가(25절): 월별 계약체결 현황용 — 최초 1회만 고정 기록(사용자 결정: 되돌렸다 다시 체결돼도 덮어쓰지 않음)
+    var gyeyakDateIdx = t.head.indexOf("계약체결일");
+    if(gyeyakDateIdx >= 0 && !String(t.values[gyeyakDateIdx]||"").trim()){
+      var gyeyakDate = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd");
+      t.sh.getRange(t.row, gyeyakDateIdx+1).setValue(gyeyakDate);
+      t.values[gyeyakDateIdx] = gyeyakDate;
+    }
+  }
   if(field === "담당컨설턴트"){
     // 2026-09-08 추가: 담당컨설턴트가 배정/재배정/해제될 때마다 팀배정일 자동 기록(공란이 되면 같이 비움)
     var teamDateCol = t.head.indexOf("팀배정일");
@@ -429,6 +444,13 @@ function handleSubmitAs_(body){
 
   var setIf = function(k, v){ var i=t.head.indexOf(k); if(i>=0) t.sh.getRange(t.row, i+1).setValue(v); };
   setIf("AS신청상태", "확인중");
+  // 2026-09-15 추가(25절): 월별 A/S 현황용 — "신청 시점" 기준으로 최초 1회만 기록(비파괴, 이미 값 있으면 안 건드림)
+  var asAppliedIdx = t.head.indexOf("AS신청일");
+  if(asAppliedIdx >= 0 && !String(t.values[asAppliedIdx]||"").trim()){
+    var asAppliedDate = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd");
+    t.sh.getRange(t.row, asAppliedIdx+1).setValue(asAppliedDate);
+    t.values[asAppliedIdx] = asAppliedDate;
+  }
   stamp_(t.sh, t.head, t.row, auth.name);
   return json_({ok:true, no:body.no, status:"확인중"});
 }
