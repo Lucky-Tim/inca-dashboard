@@ -433,7 +433,6 @@ function notifyDbAssigned_(t, consultantName){
     var phone = String(g("연락처")||"").trim();
     var town = String(g("동네")||"").trim();
     var addr = String(g("주소")||"").trim();
-    var source = String(g("출처서포터즈")||"").trim();
     var subject = "[동선] DB가 배정됐습니다 — " + store;
     var body =
       consultantName + "님, 새로운 DB가 배정됐습니다.\n\n" +
@@ -442,7 +441,6 @@ function notifyDbAssigned_(t, consultantName){
       "연락처: " + (phone || "—") + "\n" +
       "동네: " + (town || "—") + "\n" +
       "주소: " + (addr || "—") + "\n" +
-      "출처서포터즈: " + (source || "—") + "\n" +
       "배정시각: " + now_() + "\n\n" +
       "🔗 컨설턴트 트래커 바로가기: " + CONSULTANT_TRACKER_URL;
     MailApp.sendEmail(email, subject, body);
