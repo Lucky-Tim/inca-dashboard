@@ -59,6 +59,9 @@ var AGREES = ["미접촉","컨설팅동의","컨설팅거절","보류"];
 var AGREE_NOTIFY_EMAILS = ["parjiwoo8079@gmail.com","hara610@gmail.com"];
 // 2026-09-11 추가: notifyNewAgree_ 이메일 본문에 넣을 서포터즈 트래커 바로가기 URL
 var SUPPORTER_TRACKER_URL = "https://lucky-tim.github.io/inca-dashboard/dongsun-supporter.html";
+// 2026-09-17 추가: 전환 시점에 컨설턴트를 직접 지정했을 때 배정 알림 메일 본문에 넣을 컨설턴트 트래커 바로가기 URL
+// (dongsun-consultant_AppsScript.gs의 CONSULTANT_TRACKER_URL과 동일 값 — 별도 Apps Script 프로젝트라 상수를 공유할 수 없어 각자 정의)
+var CONSULTANT_TRACKER_URL = "https://lucky-tim.github.io/inca-dashboard/dongsun-consultant.html";
 // 2026-09-07(3차) 추가: 동의서 등록 전 사전체크 팝업(action:'precheck') 항목 정의 — 프론트가 로그인 응답(precheckFields)으로
 // 받아서 팝업을 통째로 동적 렌더링함. 항목을 추가하려면 위 HEADERS에 컬럼명을 추가하고 아래 배열에 정의 하나만 더 넣으면
 // 팝업 UI·검증·시트 저장·컨설턴트 트래커 복사(handleConvert_)까지 전부 자동으로 반영됨(하드코딩 반복 없앰).
@@ -988,6 +991,55 @@ function notifyNewAgree_(t, byName){
   }
 }
 
+// 2026-09-17 추가: 전환 시점에 컨설턴트를 직접 지정한 경우 배정 알림 메일(26-1절 범위 확장 — 사용자 결정).
+// dongsun-consultant_AppsScript.gs의 notifyDbAssigned_()/emailOf_()와 같은 목적이지만, 서로 다른 독립된
+// Apps Script 프로젝트라 함수를 직접 호출할 수 없어 이 스크립트 안에 동일한 로직을 별도로 둠(컨설턴트 시트의
+// "계정" 탭은 이미 consultantAccountRows_()로 캐시 조회 중이므로 그 캐시를 그대로 재사용).
+// 이메일 미등록/조회 실패는 조용히 건너뜀(로그만 남김) — 전환 저장 자체에는 영향 없음.
+function emailOfConsultant_(name){
+  name = String(name||"").trim();
+  if(!name) return "";
+  try{
+    var rows = consultantAccountRows_();
+    for(var i=0;i<rows.length;i++){
+      if(String(rows[i]["이름"]||"").trim() === name){
+        return String(rows[i]["이메일"]||"").trim();
+      }
+    }
+  }catch(e){
+    Logger.log("emailOfConsultant_ 조회 실패: " + e);
+  }
+  return "";
+}
+
+// map: handleConvert_가 컨설턴트 트래커에 새로 쓴 행의 필드 맵(가게명/점주명/연락처/동네/주소 등).
+// "출처서포터즈"는 2026-09-17에 컨설턴트 쪽 notifyDbAssigned_()에서도 제외하기로 한 항목이라 여기서도 넣지 않음.
+function notifyDbAssignedOnConvert_(map, byName){
+  try{
+    var consultantName = String(map["담당컨설턴트"]||"").trim();
+    if(!consultantName) return;
+    var email = emailOfConsultant_(consultantName);
+    if(!email){
+      Logger.log("notifyDbAssignedOnConvert_ 건너뜀 — '" + consultantName + "' 계정에 이메일이 등록돼 있지 않음");
+      return;
+    }
+    var store = String(map["가게명"]||"").trim() || "(가게명 없음)";
+    var subject = "[동선] DB가 배정됐습니다 — " + store;
+    var body =
+      consultantName + "님, 새로운 DB가 배정됐습니다.\n\n" +
+      "가게명: " + store + "\n" +
+      "점주명: " + (String(map["점주명"]||"").trim() || "—") + "\n" +
+      "연락처: " + (String(map["연락처"]||"").trim() || "—") + "\n" +
+      "동네: " + (String(map["동네"]||"").trim() || "—") + "\n" +
+      "주소: " + (String(map["주소"]||"").trim() || "—") + "\n" +
+      "배정시각: " + now_() + "\n\n" +
+      "🔗 컨설턴트 트래커 바로가기: " + CONSULTANT_TRACKER_URL;
+    MailApp.sendEmail(email, subject, body);
+  }catch(e){
+    Logger.log("notifyDbAssignedOnConvert_ 실패: " + e);
+  }
+}
+
 // 2026-09-11(2차) 추가(28절): action:'fieldVisit' → 서포터즈가 콜/예약 없이 현장에서 즉석으로 방문했을 때 기록.
 // body: {name, pw, no, result, memo} — result는 "컨설팅동의"/"컨설팅거절"/"보류"/"부재" 중 하나(둘 다 대기 리스트에서
 // 이미 쓰이고 있는 기존 값 그대로 재사용 — 새 상태값을 만들지 않음).
@@ -1183,6 +1235,12 @@ function handleConvert_(body){
   csh.getRange(target, 1, 1, chead.length).setValues([newRow]);
   var cphone = chead.indexOf("연락처");
   if(cphone >= 0) csh.getRange(target, cphone+1).setNumberFormat("@").setValue(String(g("연락처")||""));
+
+  // 2026-09-17 추가: 전환 시점에 컨설턴트를 직접 지정한 경우에도 배정 알림 메일 발송(사용자 결정 — 26-1절 범위 확장).
+  // 비워서 전환한 경우(영업관리자 배정 대기)는 아직 특정 수신자가 없으므로 메일을 보내지 않음.
+  if(consultant){
+    notifyDbAssignedOnConvert_(map, name);
+  }
 
   // 2) 이 시트(서포터즈 트래커) 행을 전환완료로 갱신
   var setIf = function(k, v){ var i = t.head.indexOf(k); if(i>=0) t.sh.getRange(t.row, i+1).setValue(v); };
