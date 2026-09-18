@@ -606,7 +606,11 @@ function handlePhoto_(body){
   var folder = photoFolder_();
   var file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  var url = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1600";
+  // 2026-09-18 수정: "thumbnail?id=...&sz=w1600"는 구글 드라이브의 이미지 썸네일 생성 API라 음성 파일(m4a 등)에는
+  // 애초에 썸네일이 생성되지 않아 링크를 열면 404가 남 — 음성은 드라이브 파일 미리보기 페이지(자체 오디오 플레이어 지원) URL을 사용.
+  var url = isAudio
+    ? "https://drive.google.com/file/d/" + file.getId() + "/view"
+    : "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1600";
   if(isAudio) url += "::audio"; // 프론트에서 이미지/음성 구분용 태그 — 기존 순수 URL 데이터와 하위호환
 
   urls.push(url);
@@ -762,6 +766,40 @@ function fixDateColumnsToText_20260907(){
   });
   Logger.log("DB지급일/AS신청기한 텍스트 변환 완료 — 날짜타입→텍스트 변환 "+fixed+"건, 이미 텍스트였던 값 "+already+"건. "+
              "(먼저 setupTrackerSheet를 재실행해서 두 열이 텍스트 서식으로 고정돼 있어야 재발하지 않습니다)");
+}
+
+// ── 일회성 마이그레이션 (2026-09-18): 증빙 열에 저장된 녹음파일(::audio) 링크 중
+// "thumbnail?id=...&sz=w1600" 형식(이미지 썸네일 생성 API)으로 잘못 저장된 것을
+// "file/d/ID/view" 형식(드라이브 파일 미리보기 — 오디오 재생 지원)으로 되돌림.
+// 원인: handlePhoto_가 음성 파일에도 이미지 썸네일 URL을 그대로 써서, 링크를 열면 404가 남(2026-09-18 사용자 신고로 발견).
+// 이 함수 실행 이후 업로드되는 녹음파일은 handlePhoto_ 수정분(위)이 바로 올바른 URL로 저장하므로 이 함수는 과거분만 고치면 됨 — 여러 번 실행해도 안전(멱등).
+function fixAudioThumbnailUrls_20260918(){
+  var sh = trackerSheet_();
+  var data = sh.getDataRange().getValues();
+  var head = data[0].map(function(h){ return String(h).trim(); });
+  var col = head.indexOf("증빙");
+  if(col < 0){ Logger.log("증빙 컬럼을 찾을 수 없습니다."); return; }
+
+  var fixed = 0;
+  for(var r=1; r<data.length; r++){
+    var v = String(data[r][col]||"").trim();
+    if(!v || v.indexOf("::audio") < 0) continue;
+    var entries = v.split("|");
+    var changed = false;
+    for(var i=0;i<entries.length;i++){
+      var e = entries[i];
+      var m = e.match(/^https:\/\/drive\.google\.com\/thumbnail\?id=([^&]+)&sz=w1600::audio$/);
+      if(m){
+        entries[i] = "https://drive.google.com/file/d/" + m[1] + "/view::audio";
+        changed = true;
+      }
+    }
+    if(changed){
+      sh.getRange(r+1, col+1).setValue(entries.join("|"));
+      fixed++;
+    }
+  }
+  Logger.log("녹음파일 링크 마이그레이션 완료 — 수정된 행: "+fixed+"건");
 }
 
 // ── 일회성 마이그레이션 (2026-09-07, v5): "2026.09" 원본 탭(자유서식)에 이미 기록돼 있던
